@@ -25,6 +25,16 @@
  */
 namespace Timeline
 {
+/**
+ * A point on a bend curve: how far into the note, and how far from the written
+ * pitch in cents. 100 is a semitone, 200 a whole tone -- which is what gpif
+ * means by its hundredths of a semitone, at the same scale.
+ */
+struct BendPoint {
+    Rational at;        //< quarters from the start of the note
+    int cents = 0;
+};
+
 /** One sounding note, in quarters from the start of the performance. */
 struct NoteEvent {
     Rational start;
@@ -33,6 +43,20 @@ struct NoteEvent {
     int velocity = 0;
     int channel = 0;    //< inside this track's own synth, not a global MIDI bus
     int string = -1;
+
+    /**
+     * Empty for the great majority of notes. Where it is not, the first point
+     * is where the bend starts and the last is where it ends, and whatever
+     * plays this is expected to move continuously between them.
+     */
+    QList<BendPoint> bend;
+
+    /**
+     * Struck by the fretting hand rather than picked -- a hammer-on, a pull-off
+     * or a legato slide. A sampler with legato articulations would play a
+     * different sample; until P4 there is one, and it is quieter.
+     */
+    bool legato = false;
 };
 
 struct TempoEvent {

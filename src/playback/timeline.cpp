@@ -6,6 +6,7 @@
 #include <QHash>
 
 #include <algorithm>
+#include <cmath>
 
 namespace
 {
@@ -25,6 +26,70 @@ int velocityFor(Dynamic dynamic)
     case Dynamic::FFF: return 127;
     }
     return 79;
+}
+
+/**
+ * The bend curve gpif describes, as points along the note.
+ *
+ * Its offsets are percentages of the note's length and its values are
+ * hundredths of a semitone, which is cents by another name. Middle points are
+ * optional and marked absent with -1; a bend that starts where it ends is
+ * still worth carrying, because a whammy dive can be flat and long.
+ */
+QList<Timeline::BendPoint> bendCurve(const Note &note, const Rational &duration)
+{
+    if (!note.bended) {
+        return {};
+    }
+    const auto at = [&duration](int percent) {
+        return duration * Rational(std::clamp(percent, 0, 100), 100);
+    };
+
+    QList<Timeline::BendPoint> points;
+    points.append({at(note.bendOriginOffset), note.bendOriginValue});
+    if (note.bendMiddleOffset1 >= 0) {
+        points.append({at(note.bendMiddleOffset1), note.bendMiddleValue});
+    }
+    if (note.bendMiddleOffset2 >= 0) {
+        points.append({at(note.bendMiddleOffset2), note.bendMiddleValue});
+    }
+    points.append({at(note.bendDestinationOffset), note.bendDestinationValue});
+
+    std::stable_sort(points.begin(), points.end(),
+                     [](const Timeline::BendPoint &a, const Timeline::BendPoint &b) {
+                         return a.at < b.at;
+                     });
+    return points;
+}
+
+/**
+ * Let ring: the note keeps sounding until that string is used again.
+ *
+ * Which is what the instruction means on a guitar -- the string is left to
+ * decay rather than damped -- and why it can only be resolved once the whole
+ * track is laid out, since the note that stops it may be bars away.
+ */
+void applyLetRing(QList<Timeline::NoteEvent> &events, const QList<bool> &ringing,
+                  const Rational &finish)
+{
+    for (int index = 0; index < events.size(); ++index) {
+        if (!ringing.at(index)) {
+            continue;
+        }
+        Rational until = finish;
+        for (int later = index + 1; later < events.size(); ++later) {
+            if (events.at(later).string != events.at(index).string) {
+                continue;
+            }
+            if (events.at(index).start < events.at(later).start) {
+                until = events.at(later).start;
+                break;
+            }
+        }
+        if (events.at(index).end < until) {
+            events[index].end = until;
+        }
+    }
 }
 
 /**
@@ -89,6 +154,7 @@ QList<Timeline::NoteEvent> Timeline::notesFor(const Score &score, int trackIndex
                                               const QList<int> &order)
 {
     QList<NoteEvent> events;
+    QList<bool> ringing;
     if (trackIndex < 0 || trackIndex >= score.tracks.size()) {
         return events;
     }
@@ -143,8 +209,19 @@ QList<Timeline::NoteEvent> Timeline::notesFor(const Score &score, int trackIndex
                     event.pitch = note->midi;
                     event.string = note->string;
                     event.channel = channelFor(track, *note);
+                    event.bend = bendCurve(*note, duration);
+                    // A legato slide is fretted rather than picked, the same as
+                    // the hammer-ons and pull-offs gpif calls Hopo.
+                    event.legato = note->hammerDestination
+                        || note->slide == SlideType::Legato;
 
                     int velocity = dynamic;
+                    if (event.legato) {
+                        // Not silent: a hammer-on is quieter than a picked
+                        // note, not absent. Sounding it at full strength is
+                        // the more audible of the two mistakes available.
+                        velocity = velocity * 2 / 3;
+                    }
                     if (note->accent) {
                         velocity = std::min(127, velocity + 16);
                     }
@@ -161,6 +238,7 @@ QList<Timeline::NoteEvent> Timeline::notesFor(const Score &score, int trackIndex
                     event.velocity = velocity;
 
                     events.append(event);
+                    ringing.append(note->letRing);
                 }
                 offset += duration;
             }
@@ -168,11 +246,31 @@ QList<Timeline::NoteEvent> Timeline::notesFor(const Score &score, int trackIndex
         position += master.length();
     }
 
-    std::stable_sort(events.begin(), events.end(),
-                     [](const NoteEvent &a, const NoteEvent &b) {
-                         return a.start == b.start ? a.pitch < b.pitch : a.start < b.start;
-                     });
-    return events;
+    // Sorted before let ring is resolved, so "the next note on this string"
+    // means the next one in time rather than the next one written down.
+    QList<int> byTime;
+    byTime.reserve(int(events.size()));
+    for (int index = 0; index < events.size(); ++index) {
+        byTime.append(index);
+    }
+    std::stable_sort(byTime.begin(), byTime.end(), [&events](int a, int b) {
+        const NoteEvent &first = events.at(a);
+        const NoteEvent &second = events.at(b);
+        return first.start == second.start ? first.pitch < second.pitch
+                                           : first.start < second.start;
+    });
+
+    QList<NoteEvent> sorted;
+    QList<bool> sortedRinging;
+    sorted.reserve(int(byTime.size()));
+    sortedRinging.reserve(int(byTime.size()));
+    for (const int index : std::as_const(byTime)) {
+        sorted.append(events.at(index));
+        sortedRinging.append(ringing.at(index));
+    }
+
+    applyLetRing(sorted, sortedRinging, position);
+    return sorted;
 }
 
 QList<Timeline::TempoEvent> Timeline::tempoMap(const Score &score, const QList<int> &order)

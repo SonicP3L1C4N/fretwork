@@ -34,11 +34,28 @@ Beautiful Losers — Coheed And Cambria
   ...
 ```
 
-All eleven files in the test corpus read, note counts agreeing exactly with the
-P0 spike. Still to come in P1: the technique translation layer, MIDI and stem
-export.
+It writes MIDI too — one file, or one per track:
 
-The P0 spike is still in `spike/`, and still the only part that makes a sound:
+```
+fretwork FILE.gp -m out.mid          # the whole score
+fretwork FILE.gp --stems out/        # one file per track, plus a mix
+```
+
+All eleven files in the corpus read, with note counts agreeing exactly with the
+P0 spike, and bends, let ring and hammer-ons that the spike never attempted.
+Sixteen MIDI channels cannot hold a channel per string for four guitars at
+once, so the mix says what it gave up:
+
+```
+  note: pratt shares one MIDI channel across 4 strings, so a bend moves
+        every note it is holding
+```
+
+Each stem, written alone, has the room and does not compromise. Still to come
+in P1: audio rendering, so the stems come out as WAV without going through
+FluidSynth by hand.
+
+The P0 spike is still in `spike/`, and still the shortest way to hear one:
 
 ```
 $ python3 spike/gp2midi.py "Slomosa-Horses.gp"
@@ -78,7 +95,7 @@ GPL — the reasoning for every line of that is in
 | | | |
 |---|---|---|
 | **P0** | Spike — parse, play, render stems | **done**, and it plays |
-| **P1** | Headless converter: importers, model, technique translation, stem export. No window | **in progress** — importer and timeline done |
+| **P1** | Headless converter: importers, model, technique translation, stem export. No window | **in progress** — importer, timeline and MIDI done |
 | P2 | The player: tab rendering, transport, mixer, live playback | |
 | P3 | The editor: fret entry, undo, copy and paste | |
 | P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | |

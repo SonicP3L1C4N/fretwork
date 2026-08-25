@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
 #include "gpif.h"
+#include "midi.h"
 #include "timeline.h"
 
 #include <KAboutData>
@@ -9,7 +10,9 @@
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
+#include <QDir>
 #include <QFileInfo>
+#include <QRegularExpression>
 #include <QTextStream>
 
 namespace
@@ -74,6 +77,73 @@ void describe(QTextStream &out, const Score &score, const QList<int> &order)
 }
 }
 
+/**
+ * A MIDI file, or one per track.
+ *
+ * Whatever the format could not express is printed rather than swallowed: a
+ * file that is quietly less than the score is worse than one that says so.
+ */
+bool writeMidi(QTextStream &out, QTextStream &error, const Score &score,
+               const QList<int> &order, const QString &source,
+               const QString &single, const QString &directory)
+{
+    const auto report = [&out](const Midi::Compromises &compromises) {
+        for (const QString &compromise : compromises) {
+            out << "  note: " << compromise << "\n";
+        }
+    };
+
+    if (!single.isEmpty()) {
+        QString why;
+        Midi::Compromises compromises;
+        if (!Midi::write(score, order, single, -1, &why, &compromises)) {
+            error << QStringLiteral("fretwork: %1: %2\n").arg(single, why);
+            return false;
+        }
+        report(compromises);
+        out << "  wrote " << single << "\n";
+        return true;
+    }
+
+    QDir folder(directory);
+    if (!folder.mkpath(QStringLiteral("."))) {
+        error << QStringLiteral("fretwork: cannot make %1\n").arg(directory);
+        return false;
+    }
+
+    const QString stem = QFileInfo(source).completeBaseName();
+    bool ok = true;
+    for (int index = 0; index < score.tracks.size(); ++index) {
+        QString name = score.tracks.at(index).name;
+        name.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9._-]+")),
+                     QStringLiteral("_"));
+        const QString path = folder.filePath(
+            QStringLiteral("%1-%2.mid").arg(index, 2, 10, QLatin1Char('0')).arg(name));
+
+        QString why;
+        Midi::Compromises compromises;
+        if (!Midi::write(score, order, path, index, &why, &compromises)) {
+            error << QStringLiteral("fretwork: %1: %2\n").arg(path, why);
+            ok = false;
+            continue;
+        }
+        report(compromises);
+        out << QStringLiteral("  wrote %1\n").arg(path);
+    }
+
+    const QString mix = folder.filePath(stem + QStringLiteral(".mid"));
+    QString why;
+    Midi::Compromises compromises;
+    if (Midi::write(score, order, mix, -1, &why, &compromises)) {
+        report(compromises);
+        out << "  wrote " << mix << "\n";
+    } else {
+        error << QStringLiteral("fretwork: %1: %2\n").arg(mix, why);
+        ok = false;
+    }
+    return ok;
+}
+
 int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
@@ -98,6 +168,13 @@ int main(int argc, char *argv[])
     const QCommandLineOption asNotated(QStringLiteral("no-repeats"),
                                        i18n("Read the score as notated rather than as played"));
     parser.addOption(asNotated);
+    const QCommandLineOption midi(QStringList{QStringLiteral("m"), QStringLiteral("midi")},
+                                  i18n("Write a MIDI file"), i18n("file.mid"));
+    parser.addOption(midi);
+    const QCommandLineOption stems(QStringLiteral("stems"),
+                                   i18n("Write one MIDI file per track into a directory"),
+                                   i18n("directory"));
+    parser.addOption(stems);
     parser.process(app);
     about.processCommandLine(&parser);
 
@@ -124,7 +201,15 @@ int main(int argc, char *argv[])
         if (files.size() > 1) {
             out << QFileInfo(path).fileName() << "\n";
         }
-        describe(out, score, Timeline::playedOrder(score, !parser.isSet(asNotated)));
+        const QList<int> order = Timeline::playedOrder(score, !parser.isSet(asNotated));
+        describe(out, score, order);
+
+        if (parser.isSet(midi) || parser.isSet(stems)) {
+            if (!writeMidi(out, error, score, order, path, parser.value(midi),
+                           parser.value(stems))) {
+                ++failures;
+            }
+        }
         if (files.size() > 1) {
             out << "\n";
         }

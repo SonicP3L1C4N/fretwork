@@ -18,6 +18,11 @@ ecm_add_test(gpiftest.cpp
     LINK_LIBRARIES Qt6::Test fretworkcore KF6::Archive
 )
 
+ecm_add_test(midtest.cpp
+    TEST_NAME midtest
+    LINK_LIBRARIES Qt6::Test fretworkcore
+)
+
 ecm_add_test(timelinetest.cpp
     TEST_NAME timelinetest
     LINK_LIBRARIES Qt6::Test fretworkcore

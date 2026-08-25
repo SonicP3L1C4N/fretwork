@@ -6,6 +6,7 @@
 add_library(fretworkcore STATIC
     import/gpif.cpp
     import/zipreader.cpp
+    export/midi.cpp
     playback/timeline.cpp
 )
 
@@ -13,6 +14,7 @@ target_include_directories(fretworkcore PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/model
     ${CMAKE_CURRENT_SOURCE_DIR}/import
     ${CMAKE_CURRENT_SOURCE_DIR}/playback
+    ${CMAKE_CURRENT_SOURCE_DIR}/export
 )
 
 # ZLIB rather than KF6::Archive: see src/import/zipreader.h for why this

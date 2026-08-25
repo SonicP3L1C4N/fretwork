@@ -8,6 +8,20 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## Unreleased — P1
 
+- **Techniques, which the spike never attempted.** Bends become curves in
+  cents along the note, drawn as pitch bend on that string's own channel and
+  returned to centre afterwards so the next note does not inherit them. Let
+  ring holds a note until that string is used again, which is what the
+  instruction means on a guitar and why it can only be resolved once the whole
+  track is laid out. Hammer-ons, pull-offs and legato slides are quieter rather
+  than picked — an approximation until P4 has a sampler that can play them
+  properly, and a smaller mistake than sounding them at full strength.
+- **MIDI out**, whole or per track: `-m out.mid` and `--stems out/`. The file
+  format has sixteen channels and a score with four guitars wants twenty-four,
+  so channels are handed out greedily — one guaranteed per track, the rest
+  spent widening the biggest instruments to a channel per string — and whatever
+  had to be given up is printed rather than quietly done. A stem written on its
+  own has all the room it needs; only the mix compromises.
 - **The converter exists in C++.** `fretwork FILE.gp` reads Guitar Pro 7 and 8,
   reconstructs the score from the deduplicated tables gpif stores it in,
   flattens repeats into the order the music is heard, and reports what it
