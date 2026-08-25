@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
+
+build/
+.cache/
+compile_commands.json
+.kdev4/
+*.kdev4
+
+# Spike output: generated from files that are not ours to redistribute.
+spike/out/
+*.mid
+*.wav
+__pycache__/
