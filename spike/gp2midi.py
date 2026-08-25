@@ -30,6 +30,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import tempfile
 import zipfile
 import xml.etree.ElementTree as ET
 from fractions import Fraction
@@ -387,8 +388,24 @@ def fluidsynth(args):
     return subprocess.run(["fluidsynth"] + args, check=False).returncode
 
 
-def play(midi_path, sf2):
-    return fluidsynth(["-a", "pulseaudio", "-q", "-i", sf2, midi_path])
+def audio_driver(explicit=None):
+    """
+    PipeWire natively where it is running, rather than through its PulseAudio
+    shim. The shim works; the native driver is one translation layer fewer, and
+    P2 will want JACK-style routing from the same stack anyway.
+    """
+    if explicit:
+        return explicit
+    available = subprocess.run(["fluidsynth", "-a", "help"],
+                               capture_output=True, text=True).stdout
+    if "pipewire" in available and os.path.exists(
+            f"/run/user/{os.getuid()}/pipewire-0"):
+        return "pipewire"
+    return "pulseaudio"
+
+
+def play(midi_path, sf2, driver=None):
+    return fluidsynth(["-a", audio_driver(driver), "-q", "-i", sf2, midi_path])
 
 
 def render(midi_path, wav_path, sf2):
@@ -440,6 +457,8 @@ def main():
     parser.add_argument("--play", action="store_true", help="play it now")
     parser.add_argument("--stems", metavar="DIR", help="render one WAV per track")
     parser.add_argument("--soundfont", help="SoundFont to synthesise with")
+    parser.add_argument("--audio-driver", help="fluidsynth -a value; default is "
+                                               "pipewire where it is running")
     parser.add_argument("--no-repeats", action="store_true",
                         help="read the score as notated rather than as played")
     args = parser.parse_args()
@@ -454,12 +473,29 @@ def main():
             print(f"  {path}")
         return
 
-    output = args.output or os.path.splitext(os.path.basename(args.file))[0] + ".mid"
+    # --play on its own is a listen, not a conversion: it should not leave a
+    # file behind in whatever directory you happened to be standing in.
+    keep = args.output is not None or not args.play
+    output = (args.output
+              or os.path.splitext(os.path.basename(args.file))[0] + ".mid")
+    if not keep:
+        output = os.path.join(tempfile.gettempdir(), os.path.basename(output))
+
     write_midi(score, order, output)
-    print(f"\nwrote {output}")
+    if keep:
+        print(f"\nwrote {output}")
     if args.play:
-        play(output, soundfont(args.soundfont))
+        try:
+            play(output, soundfont(args.soundfont), args.audio_driver)
+        finally:
+            if not keep:
+                os.unlink(output)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        # Ctrl+C during playback is how you stop listening, not a crash.
+        print()
+        sys.exit(130)
