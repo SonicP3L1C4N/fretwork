@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "editor.h"
 #include "player.h"
 #include "score.h"
 #include "tablayout.h"
@@ -51,6 +52,12 @@ class Session : public QObject
     Q_PROPERTY(double length READ length NOTIFY scoreChanged)
     Q_PROPERTY(int currentBar READ currentBar NOTIFY positionChanged)
 
+    Q_PROPERTY(bool canUndo READ canUndo NOTIFY historyChanged)
+    Q_PROPERTY(bool canRedo READ canRedo NOTIFY historyChanged)
+    Q_PROPERTY(QString undoText READ undoText NOTIFY historyChanged)
+    Q_PROPERTY(QString redoText READ redoText NOTIFY historyChanged)
+    Q_PROPERTY(bool modified READ isModified NOTIFY historyChanged)
+
 public:
     explicit Session(QObject *parent = nullptr);
     ~Session() override;
@@ -91,6 +98,26 @@ public:
     Q_INVOKABLE void setSolo(int track, bool solo);
     Q_INVOKABLE void setGain(int track, double gain);
 
+    // ---- editing ----
+
+    Q_INVOKABLE void moveCursor(const QString &direction);
+    Q_INVOKABLE void typeDigit(int digit);
+    Q_INVOKABLE void clearNote();
+    Q_INVOKABLE void transposeNote(int frets);
+    Q_INVOKABLE void undo();
+    Q_INVOKABLE void redo();
+    /** Puts the caret where the score was clicked, in the view's own coordinates. */
+    Q_INVOKABLE void placeCursorAt(qreal x, qreal y);
+
+    bool canUndo() const;
+    bool canRedo() const;
+    QString undoText() const;
+    QString redoText() const;
+    bool isModified() const;
+
+    /** Where the caret is, for whatever draws it. */
+    Cursor cursor() const;
+
     /** Seconds to hours:minutes:seconds, for a label. */
     Q_INVOKABLE QString clock(double seconds) const;
 
@@ -108,14 +135,17 @@ Q_SIGNALS:
     void positionChanged();
     void layoutChanged();
     void mixerChanged();
+    void historyChanged();
+    void cursorMoved();
 
 private:
     void rebuildLayout();
     void rebuildPlayer();
     void setStatus(const QString &status);
 
-    Score m_score;
+    Editor m_editor;
     QList<int> m_order;
+    bool m_playerStale = false;
     std::unique_ptr<Timeline::Clock> m_clock;
     std::unique_ptr<Player> m_player;
 

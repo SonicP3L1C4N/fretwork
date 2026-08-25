@@ -4,6 +4,7 @@
 #include "scoreview.h"
 
 #include <QGuiApplication>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPalette>
 
@@ -30,6 +31,9 @@ ScoreView::ScoreView(QQuickItem *parent)
     : QQuickPaintedItem(parent)
 {
     setFlag(ItemHasContents, true);
+    setAcceptedMouseButtons(Qt::LeftButton);
+    setFlag(ItemIsFocusScope, true);
+    setActiveFocusOnTab(true);
     // Painted into an image and uploaded, which is what a mostly-static page of
     // marks wants: redrawn only when the music, the size or the playhead moves.
     setRenderTarget(QQuickPaintedItem::FramebufferObject);
@@ -52,6 +56,10 @@ void ScoreView::setSession(Session *session)
     if (m_session) {
         connect(m_session, &Session::layoutChanged, this, &ScoreView::onLayoutChanged);
         connect(m_session, &Session::positionChanged, this, &ScoreView::onPositionChanged);
+        connect(m_session, &Session::cursorMoved, this, [this] {
+            scrollCursorIntoView();
+            update();
+        });
         m_session->relayout(width());
     }
     onLayoutChanged();
@@ -150,6 +158,40 @@ void ScoreView::onPositionChanged()
     update();
 }
 
+void ScoreView::mousePressEvent(QMouseEvent *event)
+{
+    if (!m_session) {
+        QQuickPaintedItem::mousePressEvent(event);
+        return;
+    }
+    // The view scrolls by drawing elsewhere, so what was clicked is further
+    // down the page than where the pointer is.
+    m_session->placeCursorAt(event->position().x(), event->position().y() + m_scrollY);
+    forceActiveFocus();
+    event->accept();
+}
+
+/** Keeps the caret on screen when it is moved by the keyboard. */
+void ScoreView::scrollCursorIntoView()
+{
+    if (!m_session || m_session->layout().isEmpty()) {
+        return;
+    }
+    const Cursor cursor = m_session->cursor();
+    qreal x = 0;
+    qreal y = 0;
+    if (!Tab::positionOf(m_session->layout(), cursor.bar, cursor.voice, cursor.beat,
+                         &x, &y, nullptr)) {
+        return;
+    }
+    const qreal staff = m_session->layout().staffHeight();
+    if (y < m_scrollY) {
+        setScrollY(y - m_session->layout().style.systemSpacing);
+    } else if (y + staff > m_scrollY + height()) {
+        setScrollY(y + staff + m_session->layout().style.systemSpacing - height());
+    }
+}
+
 void ScoreView::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry)
 {
     QQuickPaintedItem::geometryChange(newGeometry, oldGeometry);
@@ -190,5 +232,27 @@ void ScoreView::paint(QPainter *painter)
     }
 
     Tab::paintPage(*painter, layout, 0, palette);
+
+    // The caret, drawn last so it is never behind a fret number.
+    const Cursor cursor = m_session->cursor();
+    qreal caretX = 0;
+    qreal caretY = 0;
+    if (Tab::positionOf(layout, cursor.bar, cursor.voice, cursor.beat, &caretX, &caretY,
+                        nullptr)) {
+        const int fromTop =
+            layout.strings - 1 - std::clamp(cursor.string, 0, layout.strings - 1);
+        const qreal centre = caretY + fromTop * layout.style.stringSpacing;
+
+        QColor caret = palette.accent;
+        painter->setPen(QPen(caret, hasActiveFocus() ? 1.6 : 0.8));
+        caret.setAlphaF(hasActiveFocus() ? 0.22 : 0.10);
+        painter->setBrush(caret);
+        painter->drawRoundedRect(
+            QRectF(caretX - 7, centre - layout.style.stringSpacing / 2 - 1, 14,
+                   layout.style.stringSpacing + 2),
+            2.5, 2.5);
+        painter->setBrush(Qt::NoBrush);
+    }
+
     painter->restore();
 }

@@ -13,6 +13,11 @@ ecm_add_test(zipreadertest.cpp
     LINK_LIBRARIES Qt6::Test fretworkcore KF6::Archive ZLIB::ZLIB
 )
 
+ecm_add_test(editortest.cpp
+    TEST_NAME editortest
+    LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n
+)
+
 ecm_add_test(gpiftest.cpp
     TEST_NAME gpiftest
     LINK_LIBRARIES Qt6::Test fretworkcore KF6::Archive

@@ -8,6 +8,7 @@
 #include <KLocalizedString>
 
 #include <QFileInfo>
+#include <QHash>
 #include <QUrl>
 
 #include <algorithm>
@@ -18,6 +19,18 @@ Session::Session(QObject *parent)
 {
     // Twenty times a second: enough that a playhead looks continuous, few
     // enough that it costs nothing. The audio thread is not involved.
+    // An edit changes the page immediately and the sound the next time it is
+    // asked for: relaying out is microseconds, and rebuilding the player means
+    // loading a SoundFont for every track, which is not something to do
+    // between two keystrokes.
+    connect(&m_editor, &Editor::scoreEdited, this, [this](int) {
+        m_playerStale = true;
+        rebuildLayout();
+        Q_EMIT historyChanged();
+    });
+    connect(&m_editor, &Editor::cursorChanged, this, &Session::cursorMoved);
+    connect(&m_editor, &Editor::historyChanged, this, &Session::historyChanged);
+
     m_ticker.setInterval(50);
     connect(&m_ticker, &QTimer::timeout, this, [this] {
         if (!m_player) {
@@ -50,9 +63,9 @@ bool Session::open(const QString &path)
     // The player goes before the score it is playing.
     m_player.reset();
 
-    m_score = score;
-    m_order = Timeline::playedOrder(m_score);
-    m_clock = std::make_unique<Timeline::Clock>(m_score, m_order);
+    m_editor.setScore(score);
+    m_order = Timeline::playedOrder(m_editor.score());
+    m_clock = std::make_unique<Timeline::Clock>(m_editor.score(), m_order);
     m_fileName = QFileInfo(local).fileName();
     m_currentTrack = 0;
     m_currentBar = -1;
@@ -64,7 +77,7 @@ bool Session::open(const QString &path)
     Q_EMIT scoreChanged();
     Q_EMIT currentTrackChanged();
     Q_EMIT mixerChanged();
-    setStatus(Timeline::hasAlternateEndings(m_score)
+    setStatus(Timeline::hasAlternateEndings(m_editor.score())
                   ? i18n("Alternate endings are not flattened yet, so the playback "
                          "order is approximate")
                   : QString());
@@ -73,7 +86,7 @@ bool Session::open(const QString &path)
 
 void Session::rebuildLayout()
 {
-    if (m_score.isEmpty()) {
+    if (m_editor.score().isEmpty()) {
         m_layout = Tab::Layout();
         Q_EMIT layoutChanged();
         return;
@@ -89,19 +102,19 @@ void Session::rebuildLayout()
     style.showTitle = false;
     style.titleHeight = style.labelSize * 4.2;
 
-    m_layout = Tab::layOut(m_score, m_currentTrack, style);
+    m_layout = Tab::layOut(m_editor.score(), m_currentTrack, style);
     Q_EMIT layoutChanged();
 }
 
 void Session::rebuildPlayer()
 {
     m_player.reset();
-    if (m_score.isEmpty()) {
+    if (m_editor.score().isEmpty()) {
         return;
     }
 
     Player::Options options;
-    auto player = std::make_unique<Player>(m_score, m_order, options);
+    auto player = std::make_unique<Player>(m_editor.score(), m_order, options);
     if (!player->isValid()) {
         setStatus(player->error());
         return;
@@ -120,12 +133,12 @@ void Session::setStatus(const QString &status)
 
 QString Session::title() const
 {
-    return m_score.title.isEmpty() ? m_fileName : m_score.title;
+    return m_editor.score().title.isEmpty() ? m_fileName : m_editor.score().title;
 }
 
 QString Session::artist() const
 {
-    return m_score.artist;
+    return m_editor.score().artist;
 }
 
 QString Session::fileName() const
@@ -135,7 +148,7 @@ QString Session::fileName() const
 
 bool Session::hasScore() const
 {
-    return !m_score.isEmpty();
+    return !m_editor.score().isEmpty();
 }
 
 QString Session::status() const
@@ -146,8 +159,8 @@ QString Session::status() const
 QStringList Session::trackNames() const
 {
     QStringList names;
-    names.reserve(int(m_score.tracks.size()));
-    for (const Track &track : m_score.tracks) {
+    names.reserve(int(m_editor.score().tracks.size()));
+    for (const Track &track : m_editor.score().tracks) {
         names.append(track.name);
     }
     return names;
@@ -155,7 +168,7 @@ QStringList Session::trackNames() const
 
 int Session::trackCount() const
 {
-    return int(m_score.tracks.size());
+    return int(m_editor.score().tracks.size());
 }
 
 int Session::currentTrack() const
@@ -198,7 +211,7 @@ int Session::currentBar() const
     if (!m_player || !m_clock) {
         return -1;
     }
-    const int pass = Timeline::barAt(m_score, m_order, *m_clock, m_player->positionSeconds());
+    const int pass = Timeline::barAt(m_editor.score(), m_order, *m_clock, m_player->positionSeconds());
     // The bar as the score writes it, which is what the reader is looking at:
     // the fourth time through a repeat still lights up the bar on the page.
     return pass < 0 ? -1 : m_order.at(pass);
@@ -206,6 +219,12 @@ int Session::currentBar() const
 
 void Session::play()
 {
+    if (m_playerStale) {
+        // The edited score, heard: this is where the cost of rebuilding is
+        // paid, once, rather than on every keystroke.
+        rebuildPlayer();
+        m_playerStale = false;
+    }
     if (m_player) {
         m_player->play();
         Q_EMIT playingChanged();
@@ -299,4 +318,89 @@ void Session::relayout(qreal width)
     }
     m_width = width;
     rebuildLayout();
+}
+
+
+// ---- editing ----
+
+void Session::moveCursor(const QString &direction)
+{
+    static const QHash<QString, Editing::Move> moves = {
+        {QStringLiteral("left"), Editing::Move::Left},
+        {QStringLiteral("right"), Editing::Move::Right},
+        {QStringLiteral("up"), Editing::Move::Up},
+        {QStringLiteral("down"), Editing::Move::Down},
+        {QStringLiteral("barBack"), Editing::Move::BarBack},
+        {QStringLiteral("barForward"), Editing::Move::BarForward},
+        {QStringLiteral("start"), Editing::Move::Start},
+        {QStringLiteral("end"), Editing::Move::End},
+    };
+    if (moves.contains(direction)) {
+        m_editor.move(moves.value(direction));
+    }
+}
+
+void Session::typeDigit(int digit)
+{
+    m_editor.typeDigit(digit);
+}
+
+void Session::clearNote()
+{
+    m_editor.clearNote();
+}
+
+void Session::transposeNote(int frets)
+{
+    m_editor.transposeNote(frets);
+}
+
+void Session::undo()
+{
+    m_editor.undo();
+}
+
+void Session::redo()
+{
+    m_editor.redo();
+}
+
+void Session::placeCursorAt(qreal x, qreal y)
+{
+    Cursor found;
+    if (!Tab::hitTest(m_layout, x, y, &found.bar, &found.voice, &found.beat, &found.string)) {
+        return;
+    }
+    found.track = m_currentTrack;
+    m_editor.setCursor(found);
+}
+
+bool Session::canUndo() const
+{
+    return m_editor.canUndo();
+}
+
+bool Session::canRedo() const
+{
+    return m_editor.canRedo();
+}
+
+QString Session::undoText() const
+{
+    return m_editor.undoText();
+}
+
+QString Session::redoText() const
+{
+    return m_editor.redoText();
+}
+
+bool Session::isModified() const
+{
+    return m_editor.isModified();
+}
+
+Cursor Session::cursor() const
+{
+    return m_editor.cursor();
 }

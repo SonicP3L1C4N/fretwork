@@ -68,6 +68,17 @@ struct LaidNote {
 struct LaidBeat {
     qreal x = 0;
     QList<LaidNote> notes;      //< empty is a rest
+
+    /**
+     * Which beat of which voice this column came from.
+     *
+     * A column is where several voices land at the same moment, so it is not
+     * the same thing as one voice's beat -- and a caret addresses a voice and
+     * a position within it. These carry the first voice that contributed, so
+     * clicking a column puts the caret somewhere that exists.
+     */
+    int voice = 0;
+    int index = 0;
 };
 
 struct LaidBar {
@@ -115,4 +126,18 @@ struct Layout {
 
 /** Lays one track out across as many pages as it takes. */
 Layout layOut(const Score &score, int trackIndex, const Style &style = Style());
+
+/**
+ * What is at a point on the page, in layout coordinates.
+ *
+ * Returns false where the point is nowhere in particular. The string is
+ * whichever line is nearest rather than only an exact hit, because a caret
+ * placed by clicking should land where it was aimed and not refuse.
+ */
+bool hitTest(const Layout &layout, qreal x, qreal y, int *bar, int *voice, int *beat,
+             int *string);
+
+/** Where a beat of a voice was drawn, or false if it is not on the page. */
+bool positionOf(const Layout &layout, int bar, int voice, int beat, qreal *x, qreal *y,
+                qreal *width);
 }

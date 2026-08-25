@@ -42,6 +42,14 @@ playing it wrongly:
 
 ![The Crimson Path by DVNE, with repeat signs and a warning that alternate endings are not flattened](docs/window-repeats.png)
 
+**P3 has begun: it edits.** Click a string, type a fret number, and the score
+changes. Arrows move the caret, `Delete` clears a note, `+` and `-` move one
+along its string, and every change is undoable — typing `1` then `2` is fret 12
+and one press of undo, not two.
+
+**It cannot save yet.** That is the next thing, and until it exists the editing
+is a demonstration rather than a tool.
+
 It is still a command line tool when asked to be:
 
 ```
@@ -163,7 +171,7 @@ GPL — the reasoning for every line of that is in
 | **P0** | Spike — parse, play, render stems | **done**, and it plays |
 | **P1** | Headless converter: importers, model, technique translation, stem export. No window | **done** — the program is useful with no window |
 | **P2** | The player: tab rendering, transport, mixer, live playback | **done** |
-| P3 | The editor: fret entry, undo, copy and paste | |
+| **P3** | The editor: fret entry, undo, copy and paste | **in progress** — caret, fret entry, undo; saving is not written yet |
 | P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | |
 | P5 | Standard notation, PDF, MusicXML, GP6 | |
 

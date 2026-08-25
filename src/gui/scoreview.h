@@ -56,10 +56,12 @@ Q_SIGNALS:
 
 protected:
     void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
+    void mousePressEvent(QMouseEvent *event) override;
 
 private:
     void onLayoutChanged();
     void onPositionChanged();
+    void scrollCursorIntoView();
     qreal heightOfContent() const;
 
     Session *m_session = nullptr;

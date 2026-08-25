@@ -22,11 +22,16 @@ Kirigami.ApplicationWindow {
      */
     property int mixerRevision: 0
 
-    title: session.hasScore
-        ? (session.artist.length > 0
+    title: {
+        if (!session.hasScore) {
+            return i18n("Fretwork")
+        }
+        const name = session.artist.length > 0
             ? i18n("%1 — %2", session.title, session.artist)
-            : session.title)
-        : i18n("Fretwork")
+            : session.title
+        // The dot every editor uses for work that is not written down yet.
+        return session.modified ? i18n("• %1", name) : name
+    }
 
     // No page header: the toolbar above is the only chrome this wants, and
     // Kirigami's default leaves an empty band where a page title would go.
@@ -75,6 +80,26 @@ Kirigami.ApplicationWindow {
                 QQC2.ToolTip.text: i18n("Open a Guitar Pro file")
                 QQC2.ToolTip.visible: hovered
                 onClicked: fileDialog.open()
+            }
+
+            QQC2.ToolButton {
+                icon.name: "edit-undo"
+                enabled: session.canUndo
+                display: QQC2.AbstractButton.IconOnly
+                text: session.canUndo ? i18n("Undo %1", session.undoText) : i18n("Undo")
+                QQC2.ToolTip.text: text
+                QQC2.ToolTip.visible: hovered
+                onClicked: session.undo()
+            }
+
+            QQC2.ToolButton {
+                icon.name: "edit-redo"
+                enabled: session.canRedo
+                display: QQC2.AbstractButton.IconOnly
+                text: session.canRedo ? i18n("Redo %1", session.redoText) : i18n("Redo")
+                QQC2.ToolTip.text: text
+                QQC2.ToolTip.visible: hovered
+                onClicked: session.redo()
             }
 
             Kirigami.Separator {
@@ -160,6 +185,41 @@ Kirigami.ApplicationWindow {
                     id: view
                     anchors.fill: parent
                     session: session
+                    focus: true
+
+                    // Typing goes to the score, which is what a tablature
+                    // editor is: numbers are notes, and the arrows are a caret.
+                    Keys.onPressed: event => {
+                        if (!session.hasScore) {
+                            return
+                        }
+                        switch (event.key) {
+                        case Qt.Key_Left:
+                            session.moveCursor(event.modifiers & Qt.ControlModifier
+                                               ? "barBack" : "left"); break
+                        case Qt.Key_Right:
+                            session.moveCursor(event.modifiers & Qt.ControlModifier
+                                               ? "barForward" : "right"); break
+                        case Qt.Key_Up:    session.moveCursor("up"); break
+                        case Qt.Key_Down:  session.moveCursor("down"); break
+                        case Qt.Key_Home:  session.moveCursor("start"); break
+                        case Qt.Key_End:   session.moveCursor("end"); break
+                        case Qt.Key_Delete:
+                        case Qt.Key_Backspace: session.clearNote(); break
+                        case Qt.Key_Plus:
+                        case Qt.Key_Equal: session.transposeNote(1); break
+                        case Qt.Key_Minus: session.transposeNote(-1); break
+                        case Qt.Key_Space:
+                            session.playing ? session.pause() : session.play(); break
+                        default:
+                            if (event.key >= Qt.Key_0 && event.key <= Qt.Key_9) {
+                                session.typeDigit(event.key - Qt.Key_0)
+                            } else {
+                                return
+                            }
+                        }
+                        event.accepted = true
+                    }
 
                     WheelHandler {
                         target: null

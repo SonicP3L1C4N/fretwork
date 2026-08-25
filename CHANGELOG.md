@@ -6,6 +6,29 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 # Changelog
 
+## Unreleased — P3
+
+- **It edits.** A caret that sits on a string within a beat rather than on a
+  note — because there may be nothing there yet, and typing a number is how
+  something arrives. Click to place it, arrows to move it, digits to type a
+  fret, `Delete` to clear one, `+` and `-` to move a note along its string.
+- **Every change is undoable, without exception.** Not for the menu item, for
+  the discipline: a change that cannot describe how to reverse itself is a
+  change that was not thought through, and an undo that works for most things
+  is worse than none, because people stop checking.
+- **Typing `1` then `2` is fret 12 and one undo.** A digit typed shortly after
+  another extends it; a run ends when the caret moves or after a pause. `37`
+  is treated as a slip and starts a new number rather than being clamped to 36.
+- Undoing a note typed onto an empty string leaves the string **empty**, not a
+  fret 0 — a different note and a different-looking bar, and the easiest thing
+  in this component to get wrong. There is a test that does a whole editing
+  session and checks the score comes back identical.
+- An edit relays out the page immediately and rebuilds the player the next time
+  playback is asked for: laying out is microseconds, and rebuilding means
+  loading a SoundFont for every track, which is not a thing to do between two
+  keystrokes.
+- **It cannot save yet**, which is the next thing.
+
 ## Unreleased — P2
 
 - **An application icon**, drawn for the project: an F built from a nut and
