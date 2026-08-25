@@ -3,6 +3,7 @@
 
 #include "gpif.h"
 #include "midi.h"
+#include "player.h"
 #include "renderer.h"
 #include "tablayout.h"
 #include "tabpainter.h"
@@ -13,11 +14,14 @@
 
 #include <QCommandLineParser>
 #include <QGuiApplication>
+#include <QStandardPaths>
 #include <QImage>
 #include <QDir>
 #include <QFileInfo>
 #include <QRegularExpression>
+#include <QEventLoop>
 #include <QTextStream>
+#include <QTimer>
 
 #include <algorithm>
 
@@ -232,6 +236,66 @@ bool drawTab(QTextStream &out, QTextStream &error, const Score &score, int track
     return ok;
 }
 
+/**
+ * Playback, from the same engine that renders the stems.
+ *
+ * The position is polled on a timer rather than pushed from the audio thread,
+ * which is the rule the whole player is built on: a thread that emits signals
+ * is a thread that allocates, and a thread that allocates drops out.
+ */
+bool playScore(QTextStream &out, QTextStream &error, const Score &score,
+               const QList<int> &order, const QString &soundFont, const QString &driver,
+               const QStringList &solo, const QStringList &mute)
+{
+    Player::Options options;
+    options.soundFont = soundFont;
+    options.audioDriver = driver;
+
+    Player player(score, order, options);
+    if (!player.isValid()) {
+        error << QStringLiteral("fretwork: %1\n").arg(player.error());
+        return false;
+    }
+
+    for (const QString &track : solo) {
+        player.setSolo(track.toInt(), true);
+    }
+    for (const QString &track : mute) {
+        player.setMuted(track.toInt(), true);
+    }
+
+    QStringList heard;
+    for (int index = 0; index < player.trackCount(); ++index) {
+        if (player.isAudible(index)) {
+            heard.append(score.tracks.at(index).name);
+        }
+    }
+    out << QStringLiteral("  playing %1 through %2 — %3\n")
+               .arg(clock(player.lengthSeconds()), player.driverName(),
+                    heard.size() == player.trackCount()
+                        ? i18n("all tracks")
+                        : heard.join(QStringLiteral(", ")));
+    out.flush();
+
+    player.play();
+
+    QEventLoop loop;
+    QTimer ticker;
+    QObject::connect(&ticker, &QTimer::timeout, [&] {
+        out << QStringLiteral("\r  %1 / %2   ")
+                   .arg(clock(player.positionSeconds()), clock(player.lengthSeconds()));
+        out.flush();
+        if (player.hasFinished()) {
+            loop.quit();
+        }
+    });
+    ticker.start(200);
+    loop.exec();
+
+    out << "\n";
+    return true;
+}
+
 int main(int argc, char *argv[])
 {
     // Drawing needs a font database, and a font database needs a GUI
@@ -244,6 +308,17 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     KLocalizedString::setApplicationDomain(QByteArrayLiteral("fretwork"));
 
+    // KAboutData carries a desktop file name of its own, defaulting to
+    // org.kde.<name>, and the portal then looks for an application that does
+    // not exist. Claimed only when the .desktop file is really installed, so
+    // that running out of the build directory does not lie about itself --
+    // the same lesson Signpost learned the hard way.
+    const QString desktopId = QStringLiteral("io.github.sonicp3l1c4n.fretwork");
+    const bool installed = !QStandardPaths::locate(QStandardPaths::GenericDataLocation,
+                                                   QStringLiteral("applications/") + desktopId
+                                                       + QStringLiteral(".desktop"))
+                                .isEmpty();
+
     KAboutData about(QStringLiteral("fretwork"),
                      i18n("Fretwork"),
                      QStringLiteral(FRETWORK_VERSION),
@@ -252,6 +327,9 @@ int main(int argc, char *argv[])
                      i18n("© 2026 Gary Bissett"));
     about.addAuthor(i18n("Gary Bissett"), i18n("Author"),
                     QStringLiteral("gary.bissett@gmail.com"));
+    if (installed) {
+        about.setDesktopFileName(desktopId);
+    }
     about.setHomepage(QStringLiteral("https://github.com/SonicP3L1C4N/fretwork"));
     about.setBugAddress(QByteArrayLiteral("https://github.com/SonicP3L1C4N/fretwork/issues"));
     KAboutData::setApplicationData(about);
@@ -289,6 +367,21 @@ int main(int argc, char *argv[])
                                         i18n("Which track to draw; the first by default"),
                                         i18n("number"), QStringLiteral("0"));
     parser.addOption(whichTrack);
+    const QCommandLineOption playing(QStringLiteral("play"),
+                                     i18n("Play it now, through the speakers"));
+    parser.addOption(playing);
+    const QCommandLineOption audioDriver(QStringLiteral("audio-driver"),
+                                         i18n("Which FluidSynth audio driver to play "
+                                              "through; \"file\" writes to disk instead"),
+                                         i18n("name"));
+    parser.addOption(audioDriver);
+    const QCommandLineOption soloed(QStringLiteral("solo"),
+                                    i18n("Hear only these tracks; repeatable"),
+                                    i18n("track"));
+    parser.addOption(soloed);
+    const QCommandLineOption muted(QStringLiteral("mute"),
+                                   i18n("Silence these tracks; repeatable"), i18n("track"));
+    parser.addOption(muted);
     const QCommandLineOption whichPage(QStringLiteral("page"),
                                        i18n("Which page to draw as an image"),
                                        i18n("number"), QStringLiteral("1"));
@@ -332,6 +425,13 @@ int main(int argc, char *argv[])
             if (!drawTab(out, error, score, parser.value(whichTrack).toInt(),
                          parser.value(pdf), parser.value(png),
                          parser.value(whichPage).toInt())) {
+                ++failures;
+            }
+        }
+        if (parser.isSet(playing)) {
+            if (!playScore(out, error, score, order, parser.value(soundFont),
+                           parser.value(audioDriver), parser.values(soloed),
+                           parser.values(muted))) {
                 ++failures;
             }
         }

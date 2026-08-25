@@ -28,6 +28,11 @@ ecm_add_test(rendertest.cpp
     LINK_LIBRARIES Qt6::Test fretworkcore
 )
 
+ecm_add_test(playertest.cpp
+    TEST_NAME playertest
+    LINK_LIBRARIES Qt6::Test fretworkcore
+)
+
 ecm_add_test(tablayouttest.cpp
     TEST_NAME tablayouttest
     LINK_LIBRARIES Qt6::Test fretworkcore

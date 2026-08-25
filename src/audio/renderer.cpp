@@ -3,13 +3,12 @@
 
 #include "renderer.h"
 #include "timeline.h"
+#include "tracksynth.h"
 #include "wav.h"
 
 #include <QDir>
 #include <QFileInfo>
 #include <QRegularExpression>
-
-#include <fluidsynth.h>
 
 #include <algorithm>
 #include <cmath>
@@ -18,141 +17,6 @@
 
 namespace
 {
-/** FluidSynth reserves this one for percussion, as MIDI does. */
-constexpr int DrumChannel = 9;
-
-/**
- * One track's synthesiser.
- *
- * Owns a FluidSynth of its own -- which is the expensive-sounding part of the
- * design and the reason it works. Sixteen channels each, so a guitar spends
- * six on its strings and nothing collides; a mixer that wants to solo a track
- * or put an amplifier simulation on it already has the audio separated.
- */
-class TrackSynth
-{
-public:
-    TrackSynth(const Track &track, const QList<Timeline::Message> &messages,
-          const Timeline::Clock &clock, const Render::Options &options)
-        : m_percussion(track.isPercussion())
-    {
-        m_settings = new_fluid_settings();
-        fluid_settings_setnum(m_settings, "synth.sample-rate", options.sampleRate);
-        fluid_settings_setnum(m_settings, "synth.gain", options.gain);
-        fluid_settings_setint(m_settings, "synth.midi-channels", 16);
-        // Nothing here is played live, so there is no thread to be polite to.
-        fluid_settings_setint(m_settings, "synth.threadsafe-api", 0);
-        m_synth = new_fluid_synth(m_settings);
-        if (!m_synth) {
-            return;
-        }
-
-        m_font = fluid_synth_sfload(m_synth, qPrintable(options.soundFont), 1);
-        if (m_font == FLUID_FAILED) {
-            return;
-        }
-
-        for (int channel = 0; channel < 16; ++channel) {
-            if (m_percussion) {
-                // Bank 128 is where a SoundFont keeps its kits.
-                fluid_synth_bank_select(m_synth, channel, 128);
-                fluid_synth_program_change(m_synth, channel, 0);
-            } else {
-                fluid_synth_program_select(m_synth, channel, m_font, 0, track.program);
-            }
-        }
-
-        // Sample positions once, here, so that filling a block is only
-        // arithmetic and dispatch.
-        m_events.reserve(messages.size());
-        for (const Timeline::Message &message : messages) {
-            const double seconds = clock.secondsAt(message.at);
-            m_events.append({qint64(std::llround(seconds * options.sampleRate)), message});
-        }
-        std::stable_sort(m_events.begin(), m_events.end(),
-                         [](const Event &a, const Event &b) { return a.at < b.at; });
-    }
-
-    ~TrackSynth()
-    {
-        if (m_synth) {
-            delete_fluid_synth(m_synth);
-        }
-        if (m_settings) {
-            delete_fluid_settings(m_settings);
-        }
-    }
-
-    TrackSynth(const TrackSynth &) = delete;
-    TrackSynth &operator=(const TrackSynth &) = delete;
-
-    bool isValid() const
-    {
-        return m_synth && m_font != FLUID_FAILED;
-    }
-
-    /**
-     * Fill `frames` of audio starting at sample `at`.
-     *
-     * The whole engine, and deliberately the whole of it: no clock, no
-     * transport, no idea whether it is being driven by an audio device or by a
-     * loop going as fast as it can. Positions must arrive in order, which both
-     * of those do.
-     */
-    void fill(float *left, float *right, int frames, qint64 at)
-    {
-        const qint64 until = at + frames;
-        while (m_next < m_events.size() && m_events.at(m_next).at < until) {
-            dispatch(m_events.at(m_next).message);
-            ++m_next;
-        }
-        fluid_synth_write_float(m_synth, frames, left, 0, 1, right, 0, 1);
-    }
-
-    qint64 lastEventSample() const
-    {
-        return m_events.isEmpty() ? 0 : m_events.last().at;
-    }
-
-private:
-    struct Event {
-        qint64 at = 0;
-        Timeline::Message message;
-    };
-
-    int channelFor(int trackChannel) const
-    {
-        return m_percussion ? DrumChannel : std::clamp(trackChannel, 0, 15);
-    }
-
-    void dispatch(const Timeline::Message &message)
-    {
-        const int channel = channelFor(message.channel);
-        switch (message.kind) {
-        case Timeline::MessageKind::NoteOn:
-            fluid_synth_noteon(m_synth, channel, message.data1, message.data2);
-            break;
-        case Timeline::MessageKind::NoteOff:
-            fluid_synth_noteoff(m_synth, channel, message.data1);
-            break;
-        case Timeline::MessageKind::PitchBend:
-            fluid_synth_pitch_bend(m_synth, channel, message.data1);
-            break;
-        case Timeline::MessageKind::BendRange:
-            fluid_synth_pitch_wheel_sens(m_synth, channel, message.data1);
-            break;
-        }
-    }
-
-    fluid_settings_t *m_settings = nullptr;
-    fluid_synth_t *m_synth = nullptr;
-    int m_font = FLUID_FAILED;
-    bool m_percussion = false;
-
-    QList<Event> m_events;
-    int m_next = 0;
-};
-
 QString safeName(const QString &name)
 {
     QString out = name;
@@ -217,8 +81,12 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
     qint64 lastEvent = 0;
     for (int index = 0; index < score.tracks.size(); ++index) {
         const Track &track = score.tracks.at(index);
+        TrackSynth::Options synthOptions;
+        synthOptions.soundFont = options.soundFont;
+        synthOptions.sampleRate = options.sampleRate;
+        synthOptions.gain = options.gain;
         auto voice = std::make_unique<TrackSynth>(
-            track, Timeline::messagesFor(score, index, order), clock, options);
+            track, Timeline::messagesFor(score, index, order), clock, synthOptions);
         if (!voice->isValid()) {
             if (error) {
                 *error = QStringLiteral("could not load %1").arg(options.soundFont);

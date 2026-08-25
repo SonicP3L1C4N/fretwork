@@ -34,6 +34,23 @@ Beautiful Losers — Coheed And Cambria
   ...
 ```
 
+**It plays**, through PipeWire, with a mixer:
+
+```
+fretwork FILE.gp --play                 # everything
+fretwork FILE.gp --play --solo 1        # just that track
+fretwork FILE.gp --play --mute 3        # everything but that one
+```
+
+```
+$ fretwork "The Dogs Of War.gp" --play --solo 0
+  playing 1:06 through pipewire — gilmour
+  0:23 / 1:06
+```
+
+Soloing is what a synth per track buys: no re-render, no bounce, just that
+track's own audio and nothing else.
+
 **It draws the tablature**:
 
 ```
@@ -126,7 +143,7 @@ GPL — the reasoning for every line of that is in
 |---|---|---|
 | **P0** | Spike — parse, play, render stems | **done**, and it plays |
 | **P1** | Headless converter: importers, model, technique translation, stem export. No window | **done** — the program is useful with no window |
-| **P2** | The player: tab rendering, transport, mixer, live playback | **in progress** — layout and drawing done |
+| **P2** | The player: tab rendering, transport, mixer, live playback | **in progress** — drawing, playback and mixing done; the window is next |
 | P3 | The editor: fret entry, undo, copy and paste | |
 | P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | |
 | P5 | Standard notation, PDF, MusicXML, GP6 | |

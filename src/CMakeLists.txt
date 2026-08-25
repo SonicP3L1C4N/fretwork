@@ -8,6 +8,8 @@ add_library(fretworkcore STATIC
     import/zipreader.cpp
     export/midi.cpp
     audio/renderer.cpp
+    audio/tracksynth.cpp
+    audio/player.cpp
     audio/wav.cpp
     render/tablayout.cpp
     render/tabpainter.cpp
@@ -27,6 +29,11 @@ target_include_directories(fretworkcore PUBLIC
 # project reads its own ZIPs, which is not a decision taken lightly.
 target_link_libraries(fretworkcore PUBLIC Qt6::Core Qt6::Gui Qt6::Xml ZLIB::ZLIB
                                          PkgConfig::FluidSynth)
+
+if(PipeWire_FOUND)
+    target_link_libraries(fretworkcore PRIVATE PkgConfig::PipeWire)
+    target_compile_definitions(fretworkcore PRIVATE FRETWORK_HAVE_PIPEWIRE)
+endif()
 
 add_executable(fretwork main.cpp)
 target_link_libraries(fretwork PRIVATE fretworkcore Qt6::Gui KF6::CoreAddons KF6::I18n)

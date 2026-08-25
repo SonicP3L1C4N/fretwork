@@ -8,6 +8,30 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## Unreleased — P2
 
+- **Live playback, with a mixer.** `--play` runs the same engine the renderer
+  drives, from an audio callback instead of a loop — which is the entire reason
+  `fill(frames, at)` was written that way. `--solo` and `--mute` take effect
+  while it plays, because each track already has a synth of its own: no
+  re-render, no bounce.
+- **What runs in the audio callback and what does not.** It fills buffers and
+  reads atomics. No allocation, no locks, no logging, no signals. Pressing play,
+  moving a fader and soloing a track are each one atomic store from the user's
+  thread and one load from the audio thread, and the position is polled on a
+  timer rather than pushed — a thread that emits signals is a thread that
+  allocates, and a thread that allocates drops out.
+- **FluidSynth's PipeWire driver needs the host to have called `pw_init()`**,
+  which it does not do for you and which fails with a message about
+  `SPA_PLUGIN_DIR` that leads nowhere. Fretwork calls it, and falls back through
+  PulseAudio, ALSA and JACK, reporting which one actually opened.
+- A muted track is still filled, and only then dropped from the mix, so
+  unmuting does not empty every event it slept through into one block.
+- Seeking silences what is ringing, repositions each track's cursor by binary
+  search, and re-sends the bend range — which is set once at the start and would
+  otherwise be skipped past, leaving every later bend a sixth of its size.
+- Fretwork no longer introduces itself to the desktop portal as
+  `org.kde.fretwork`, which is `KAboutData`'s default and an application that
+  does not exist. The same lesson Signpost learned.
+
 - **Tablature, drawn.** `--pdf` and `--png` lay a track out and draw it: title,
   tuning, section names, bar numbers, time signatures where they change, repeat
   signs, dead notes as crosses, and fret numbers coloured where a bend, slide or

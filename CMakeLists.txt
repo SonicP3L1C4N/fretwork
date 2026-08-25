@@ -28,6 +28,11 @@ find_package(ZLIB REQUIRED)
 # absence is an error rather than a lost feature.
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FluidSynth REQUIRED IMPORTED_TARGET fluidsynth)
+
+# Only to call pw_init(). FluidSynth's PipeWire driver expects the host
+# application to have initialised the library, and says so at the point where
+# it cannot find a single SPA plugin.
+pkg_check_modules(PipeWire IMPORTED_TARGET libpipewire-0.3)
 find_package(KF6 ${KF_MIN_VERSION} REQUIRED COMPONENTS Archive CoreAddons I18n)
 
 ecm_set_disabled_deprecation_versions(QT 6.6 KF 6.0)
