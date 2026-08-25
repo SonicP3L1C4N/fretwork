@@ -61,9 +61,53 @@ Kirigami.ApplicationWindow {
 
     Dialogs.FileDialog {
         id: fileDialog
-        title: i18n("Open a Guitar Pro file")
-        nameFilters: [i18n("Guitar Pro 7 and 8 files (*.gp)"), i18n("All files (*)")]
+        title: i18n("Open a score")
+        nameFilters: [i18n("Scores (*.fw *.gp)"), i18n("Fretwork scores (*.fw)"),
+                      i18n("Guitar Pro 7 and 8 files (*.gp)"), i18n("All files (*)")]
         onAccepted: session.open(selectedFile)
+    }
+
+    Dialogs.FileDialog {
+        id: saveDialog
+        title: i18n("Save the score")
+        fileMode: Dialogs.FileDialog.SaveFile
+        defaultSuffix: "fw"
+        nameFilters: [i18n("Fretwork scores (*.fw)")]
+        onAccepted: session.saveAs(selectedFile)
+    }
+
+    // Saving over an imported Guitar Pro file is not offered: Fretwork does
+    // not write that format, so the first save of an import asks where to put
+    // a file of its own.
+    function saveScore() {
+        if (!session.save()) {
+            saveDialog.open()
+        }
+    }
+
+    Shortcut {
+        sequences: [StandardKey.Save]
+        onActivated: root.saveScore()
+    }
+
+    Shortcut {
+        sequences: [StandardKey.SaveAs]
+        onActivated: saveDialog.open()
+    }
+
+    Shortcut {
+        sequences: [StandardKey.Open]
+        onActivated: fileDialog.open()
+    }
+
+    Shortcut {
+        sequences: [StandardKey.Undo]
+        onActivated: session.undo()
+    }
+
+    Shortcut {
+        sequences: [StandardKey.Redo]
+        onActivated: session.redo()
     }
 
     // ---- the transport ----
@@ -80,6 +124,22 @@ Kirigami.ApplicationWindow {
                 QQC2.ToolTip.text: i18n("Open a Guitar Pro file")
                 QQC2.ToolTip.visible: hovered
                 onClicked: fileDialog.open()
+            }
+
+            QQC2.ToolButton {
+                icon.name: "document-save"
+                enabled: session.hasScore && (session.modified || !session.savesInPlace)
+                display: QQC2.AbstractButton.IconOnly
+                text: session.savesInPlace ? i18n("Save") : i18n("Save as…")
+                QQC2.ToolTip.text: text
+                QQC2.ToolTip.visible: hovered
+                onClicked: root.saveScore()
+            }
+
+            Kirigami.Separator {
+                Layout.fillHeight: true
+                Layout.topMargin: Kirigami.Units.smallSpacing
+                Layout.bottomMargin: Kirigami.Units.smallSpacing
             }
 
             QQC2.ToolButton {
@@ -269,7 +329,7 @@ Kirigami.ApplicationWindow {
                     visible: !session.hasScore
                     icon.name: "music-note-16th"
                     text: i18n("No score open")
-                    explanation: i18n("Open a Guitar Pro 7 or 8 file to read it and hear it.")
+                    explanation: i18n("Open a Guitar Pro 7 or 8 file, or a score you saved.")
                     helpfulAction: Kirigami.Action {
                         icon.name: "document-open"
                         text: i18n("Open…")

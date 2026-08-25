@@ -18,6 +18,11 @@ ecm_add_test(editortest.cpp
     LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n
 )
 
+ecm_add_test(fwformattest.cpp
+    TEST_NAME fwformattest
+    LINK_LIBRARIES Qt6::Test fretworkcore KF6::Archive
+)
+
 ecm_add_test(gpiftest.cpp
     TEST_NAME gpiftest
     LINK_LIBRARIES Qt6::Test fretworkcore KF6::Archive

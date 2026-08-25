@@ -3,6 +3,7 @@
 
 #include "session.h"
 
+#include "fwformat.h"
 #include "gpif.h"
 
 #include <KLocalizedString>
@@ -53,7 +54,10 @@ bool Session::open(const QString &path)
     const QString local = QUrl(path).isLocalFile() ? QUrl(path).toLocalFile() : path;
 
     QString why;
-    const Score score = Gpif::read(local, &why);
+    // Ours or Guitar Pro's, decided by the name: the two are both ZIPs and
+    // telling them apart by content would only matter if someone renamed one.
+    const Score score = Fw::looksLikeOurs(local) ? Fw::read(local, &why)
+                                                 : Gpif::read(local, &why);
     if (score.isEmpty()) {
         setStatus(i18n("%1: %2", QFileInfo(local).fileName(),
                        why.isEmpty() ? i18n("could not be read") : why));
@@ -67,6 +71,7 @@ bool Session::open(const QString &path)
     m_order = Timeline::playedOrder(m_editor.score());
     m_clock = std::make_unique<Timeline::Clock>(m_editor.score(), m_order);
     m_fileName = QFileInfo(local).fileName();
+    m_filePath = local;
     m_currentTrack = 0;
     m_currentBar = -1;
     m_wasPlaying = false;
@@ -403,4 +408,53 @@ bool Session::isModified() const
 Cursor Session::cursor() const
 {
     return m_editor.cursor();
+}
+
+
+bool Session::save()
+{
+    // Only over one of ours. An imported .gp stays as its author wrote it:
+    // Fretwork does not write that format, and would not overwrite it if it
+    // could.
+    if (m_filePath.isEmpty() || !Fw::looksLikeOurs(m_filePath)) {
+        return false;
+    }
+    return saveAs(m_filePath);
+}
+
+bool Session::saveAs(const QString &path)
+{
+    const QString local = QUrl(path).isLocalFile() ? QUrl(path).toLocalFile() : path;
+    if (local.isEmpty()) {
+        return false;
+    }
+
+    QString target = local;
+    if (!Fw::looksLikeOurs(target)) {
+        target += QLatin1Char('.') + Fw::extension();
+    }
+
+    QString why;
+    if (!Fw::write(m_editor.score(), target, &why)) {
+        setStatus(i18n("Could not save: %1", why));
+        return false;
+    }
+
+    m_filePath = target;
+    m_fileName = QFileInfo(target).fileName();
+    m_editor.setUnmodified();
+    setStatus(i18n("Saved to %1", m_fileName));
+    Q_EMIT scoreChanged();
+    Q_EMIT historyChanged();
+    return true;
+}
+
+QString Session::filePath() const
+{
+    return m_filePath;
+}
+
+bool Session::savesInPlace() const
+{
+    return !m_filePath.isEmpty() && Fw::looksLikeOurs(m_filePath);
 }

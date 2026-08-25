@@ -57,12 +57,28 @@ class Session : public QObject
     Q_PROPERTY(QString undoText READ undoText NOTIFY historyChanged)
     Q_PROPERTY(QString redoText READ redoText NOTIFY historyChanged)
     Q_PROPERTY(bool modified READ isModified NOTIFY historyChanged)
+    Q_PROPERTY(QString filePath READ filePath NOTIFY scoreChanged)
+    Q_PROPERTY(bool savesInPlace READ savesInPlace NOTIFY scoreChanged)
 
 public:
     explicit Session(QObject *parent = nullptr);
     ~Session() override;
 
     Q_INVOKABLE bool open(const QString &path);
+
+    /**
+     * Writes to the file it was opened from, if that is one of ours.
+     *
+     * Returns false where there is nowhere to write to yet -- a score imported
+     * from a Guitar Pro file has no Fretwork file behind it, and saving over
+     * the original is not something to do quietly. The window turns that false
+     * into a Save As.
+     */
+    Q_INVOKABLE bool save();
+    Q_INVOKABLE bool saveAs(const QString &path);
+
+    QString filePath() const;
+    bool savesInPlace() const;
 
     QString title() const;
     QString artist() const;
@@ -156,6 +172,7 @@ private:
     bool m_wasPlaying = false;
 
     QString m_fileName;
+    QString m_filePath;
     QString m_status;
     QTimer m_ticker;
 };

@@ -47,8 +47,16 @@ changes. Arrows move the caret, `Delete` clears a note, `+` and `-` move one
 along its string, and every change is undoable — typing `1` then `2` is fret 12
 and one press of undo, not two.
 
-**It cannot save yet.** That is the next thing, and until it exists the editing
-is a demonstration rather than a tool.
+**It saves.** `Ctrl+S` writes a `.fw` — a ZIP holding readable JSON, so a file
+attached to a bug report can be understood by looking at it. Every score in the
+test corpus survives import, save and reopen describing exactly the same music.
+
+A `.fw` holds *Fretwork's* model, not everything a `.gp` contained: lyrics,
+chord diagrams and Guitar Pro's own effects are read past on import and are not
+there to write out. And Fretwork deliberately **cannot write `.gp`** — reading a
+format nobody documented is one risk; handing people files to open in somebody
+else's program is a different and worse one. An imported score stays as its
+author wrote it.
 
 It is still a command line tool when asked to be:
 
@@ -171,7 +179,7 @@ GPL — the reasoning for every line of that is in
 | **P0** | Spike — parse, play, render stems | **done**, and it plays |
 | **P1** | Headless converter: importers, model, technique translation, stem export. No window | **done** — the program is useful with no window |
 | **P2** | The player: tab rendering, transport, mixer, live playback | **done** |
-| **P3** | The editor: fret entry, undo, copy and paste | **in progress** — caret, fret entry, undo; saving is not written yet |
+| **P3** | The editor: fret entry, undo, copy and paste | **in progress** — caret, fret entry, undo and saving; beats, durations and copy/paste to come |
 | P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | |
 | P5 | Standard notation, PDF, MusicXML, GP6 | |
 

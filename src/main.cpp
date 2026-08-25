@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
+#include "fwformat.h"
 #include "gpif.h"
 #include "session.h"
 #include "midi.h"
@@ -51,8 +52,13 @@ void describe(QTextStream &out, const Score &score, const QList<int> &order)
     out << (score.title.isEmpty() ? i18n("(untitled)") : score.title) << " — "
         << (score.artist.isEmpty() ? i18n("(no artist)") : score.artist) << "\n";
 
-    out << QStringLiteral("  Guitar Pro %1, %2 bars notated, %3 played, %4\n")
-               .arg(score.version)
+    // A score saved by Fretwork has no Guitar Pro version to report, and
+    // saying "Guitar Pro ," is worse than saying nothing.
+    const QString provenance = score.version.isEmpty()
+        ? QString()
+        : i18n("Guitar Pro %1, ", score.version);
+    out << QStringLiteral("  %1%2 bars notated, %3 played, %4\n")
+               .arg(provenance)
                .arg(score.masterBars.size())
                .arg(order.size())
                .arg(clock(Timeline::seconds(score, order)));
@@ -352,7 +358,7 @@ int main(int argc, char *argv[])
     QCommandLineParser parser;
     about.setupCommandLine(&parser);
     parser.addPositionalArgument(QStringLiteral("file"),
-                                 i18n("A Guitar Pro 7 or 8 file (.gp)"));
+                                 i18n("A Guitar Pro file (.gp) or a Fretwork score (.fw)"));
     const QCommandLineOption info(QStringLiteral("info"),
                                   i18n("Print what the file holds, and exit"));
     parser.addOption(info);
@@ -441,7 +447,10 @@ int main(int argc, char *argv[])
     int failures = 0;
     for (const QString &path : files) {
         QString why;
-        const Score score = Gpif::read(path, &why);
+        // Whatever the window can open, this can: a score saved from Fretwork
+        // must not be a file only half the program understands.
+        const Score score = Fw::looksLikeOurs(path) ? Fw::read(path, &why)
+                                                    : Gpif::read(path, &why);
         if (score.isEmpty()) {
             error << QStringLiteral("fretwork: %1: %2\n")
                          .arg(QFileInfo(path).fileName(),

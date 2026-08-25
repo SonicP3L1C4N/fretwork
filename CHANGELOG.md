@@ -8,6 +8,29 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## Unreleased — P3
 
+- **It saves.** `.fw` is a ZIP holding `score.json` and a `manifest.json` saying
+  which version of the format wrote it. Readable text on purpose: a bug report
+  can arrive with a file attached and be understood by looking at it, and a
+  format that changes can be migrated with code somebody can follow. Written by
+  KArchive and read by Fretwork's own reader, which the tests already check
+  against archives KArchive wrote.
+- **Every score in the corpus survives import, save and reopen** describing
+  exactly the same music — checked against a description deep enough that any
+  field quietly dropped changes it. That test caught one immediately: the
+  Guitar Pro version a score was imported from was not being written, so it is
+  now carried as provenance, which is the first thing to ask about when an
+  imported score turns out wrong.
+- Saving the same score twice produces the same bytes, so a version control
+  system has something useful to show.
+- **Fretwork will not write `.gp`.** Reading a format nobody documented is one
+  risk; handing people files to open in somebody else's program is a different
+  and worse one. An imported score keeps its original file untouched, and the
+  first save asks where to put a file of Fretwork's own.
+- Unknown keys are ignored rather than refused, so a file from a later version
+  opens in an earlier one with whatever it understands.
+- The command line opens `.fw` files too — a score saved from the window must
+  not be a file only half the program understands.
+
 - **It edits.** A caret that sits on a string within a beat rather than on a
   note — because there may be nothing there yet, and typing a number is how
   something arrives. Click to place it, arrows to move it, digits to type a

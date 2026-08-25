@@ -11,6 +11,7 @@ add_library(fretworkcore STATIC
     audio/tracksynth.cpp
     audio/player.cpp
     audio/wav.cpp
+    format/fwformat.cpp
     edit/cursor.cpp
     edit/editor.cpp
     render/tablayout.cpp
@@ -26,13 +27,14 @@ target_include_directories(fretworkcore PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/audio
     ${CMAKE_CURRENT_SOURCE_DIR}/render
     ${CMAKE_CURRENT_SOURCE_DIR}/edit
+    ${CMAKE_CURRENT_SOURCE_DIR}/format
 )
 
 # ZLIB rather than KF6::Archive: see src/import/zipreader.h for why this
 # project reads its own ZIPs, which is not a decision taken lightly.
 target_link_libraries(fretworkcore PUBLIC Qt6::Core Qt6::Gui Qt6::Xml ZLIB::ZLIB
                                          PkgConfig::FluidSynth
-                                  PRIVATE KF6::I18n)
+                                  PRIVATE KF6::I18n KF6::Archive)
 
 if(PipeWire_FOUND)
     target_link_libraries(fretworkcore PRIVATE PkgConfig::PipeWire)
