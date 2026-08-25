@@ -4,6 +4,7 @@
 #include "timeline.h"
 
 #include <QHash>
+#include <QSet>
 
 #include <algorithm>
 #include <cmath>
@@ -12,6 +13,27 @@ namespace
 {
 /** A runaway repeat structure should stop, not fill memory. */
 constexpr int MaximumPlayedBars = 100000;
+
+/**
+ * How far a pitch bend reaches, in semitones.
+ *
+ * Two is the General MIDI default and cannot express a whole-tone bend on a
+ * held note, let alone a whammy dive, so every channel is told otherwise
+ * before it plays anything. Twelve is what Guitar Pro uses.
+ */
+constexpr int BendRangeSemitones = 12;
+constexpr int BendCentre = 8192;
+
+/** A bend is redrawn at least this often, so a slow one is not a staircase. */
+const Rational BendStep = Rational(1, 16);
+constexpr int MaximumBendSteps = 128;
+
+int bendValueFor(int cents)
+{
+    const double range = BendRangeSemitones * 100.0;
+    const double scaled = std::clamp(cents / range, -1.0, 1.0);
+    return BendCentre + int(scaled * (BendCentre - 1));
+}
 
 int velocityFor(Dynamic dynamic)
 {
@@ -334,4 +356,125 @@ double Timeline::seconds(const Score &score, const QList<int> &order)
         elapsed += quarters * 60.0 / std::max(tempos.at(index).quarterBpm, 1.0);
     }
     return elapsed;
+}
+
+
+Timeline::Clock::Clock(const Score &score, const QList<int> &order)
+    : m_tempos(tempoMap(score, order))
+    , m_length(length(score, order))
+{
+    double elapsed = 0;
+    for (int index = 0; index < m_tempos.size(); ++index) {
+        m_secondsAtTempo.append(elapsed);
+        if (index + 1 < m_tempos.size()) {
+            const double quarters =
+                m_tempos.at(index + 1).at.toDouble() - m_tempos.at(index).at.toDouble();
+            elapsed += quarters * 60.0 / std::max(m_tempos.at(index).quarterBpm, 1.0);
+        }
+    }
+}
+
+double Timeline::Clock::secondsAt(const Rational &quarters) const
+{
+    if (m_tempos.isEmpty()) {
+        return quarters.toDouble() * 60.0 / 120.0;
+    }
+
+    int section = 0;
+    while (section + 1 < m_tempos.size() && m_tempos.at(section + 1).at < quarters) {
+        ++section;
+    }
+    const double into = quarters.toDouble() - m_tempos.at(section).at.toDouble();
+    return m_secondsAtTempo.at(section)
+        + std::max(0.0, into) * 60.0 / std::max(m_tempos.at(section).quarterBpm, 1.0);
+}
+
+double Timeline::Clock::totalSeconds() const
+{
+    return secondsAt(m_length);
+}
+
+QList<Timeline::Message> Timeline::messagesFor(const Score &score, int trackIndex,
+                                               const QList<int> &order)
+{
+    QList<Message> messages;
+    if (trackIndex < 0 || trackIndex >= score.tracks.size()) {
+        return messages;
+    }
+
+    const QList<NoteEvent> notes = notesFor(score, trackIndex, order);
+
+    // Every channel this track will use, told its bend range before anything
+    // plays. A synth that has not been told assumes two semitones, and every
+    // bend comes out a sixth of its written size.
+    QSet<int> channels;
+    for (const NoteEvent &note : notes) {
+        channels.insert(note.channel);
+    }
+    QList<int> sorted(channels.constBegin(), channels.constEnd());
+    std::sort(sorted.begin(), sorted.end());
+    for (const int channel : std::as_const(sorted)) {
+        messages.append({Rational(0), MessageKind::BendRange, channel, BendRangeSemitones, 0});
+    }
+
+    for (const NoteEvent &note : notes) {
+        if (!note.bend.isEmpty()) {
+            messages.append({note.start, MessageKind::PitchBend, note.channel,
+                             bendValueFor(note.bend.first().cents), 0});
+
+            for (int point = 1; point < note.bend.size(); ++point) {
+                const BendPoint &from = note.bend.at(point - 1);
+                const BendPoint &to = note.bend.at(point);
+                const double span = to.at.toDouble() - from.at.toDouble();
+                if (span <= 0) {
+                    messages.append({note.start + to.at, MessageKind::PitchBend,
+                                     note.channel, bendValueFor(to.cents), 0});
+                    continue;
+                }
+                // Straight lines between the written points, in steps small
+                // enough to hear as movement rather than as arrival.
+                const int steps = std::clamp(int(span / BendStep.toDouble()), 1,
+                                             MaximumBendSteps);
+                for (int step = 1; step <= steps; ++step) {
+                    const Rational at =
+                        from.at + (to.at + from.at * Rational(-1)) * Rational(step, steps);
+                    const int cents =
+                        from.cents + (to.cents - from.cents) * step / steps;
+                    messages.append({note.start + at, MessageKind::PitchBend,
+                                     note.channel, bendValueFor(cents), 0});
+                }
+            }
+        }
+
+        messages.append({note.start, MessageKind::NoteOn, note.channel,
+                         note.pitch, note.velocity});
+        messages.append({note.end, MessageKind::NoteOff, note.channel, note.pitch, 0});
+
+        if (!note.bend.isEmpty()) {
+            // Back to centre once the note is done, or the next note on this
+            // string inherits the bend -- the exact failure the per-string
+            // channels exist to prevent, reintroduced at the last moment.
+            messages.append({note.end, MessageKind::PitchBend, note.channel, BendCentre, 0});
+        }
+    }
+
+    // Where two land together: set up before playing, release before the
+    // recentre that follows it, and never recentre before a note-on.
+    const auto rank = [](MessageKind kind) {
+        switch (kind) {
+        case MessageKind::BendRange: return 0;
+        case MessageKind::NoteOff:   return 1;
+        case MessageKind::PitchBend: return 2;
+        case MessageKind::NoteOn:    return 3;
+        }
+        return 4;
+    };
+    std::stable_sort(messages.begin(), messages.end(),
+                     [&rank](const Message &a, const Message &b) {
+                         if (a.at == b.at) {
+                             return rank(a.kind) < rank(b.kind);
+                         }
+                         return a.at < b.at;
+                     });
+    return messages;
 }

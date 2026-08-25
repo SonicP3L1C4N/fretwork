@@ -23,6 +23,11 @@ ecm_add_test(midtest.cpp
     LINK_LIBRARIES Qt6::Test fretworkcore
 )
 
+ecm_add_test(rendertest.cpp
+    TEST_NAME rendertest
+    LINK_LIBRARIES Qt6::Test fretworkcore
+)
+
 ecm_add_test(timelinetest.cpp
     TEST_NAME timelinetest
     LINK_LIBRARIES Qt6::Test fretworkcore

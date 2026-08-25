@@ -64,6 +64,49 @@ struct TempoEvent {
     double quarterBpm = 120;
 };
 
+/** What a synth is actually told, once a note has become a performance. */
+enum class MessageKind {
+    NoteOn,
+    NoteOff,
+    PitchBend,      //< data1 carries the whole 14-bit value, 8192 being centre
+    BendRange,      //< data1 is semitones; whatever plays this sets it up its own way
+};
+
+/**
+ * One instruction to one channel of one track's synth.
+ *
+ * The same list drives the MIDI writer and the audio renderer, which is the
+ * point: two implementations of "when does the bend move" would disagree
+ * eventually, and the one nobody listened to would be the wrong one.
+ */
+struct Message {
+    Rational at;
+    MessageKind kind = MessageKind::NoteOn;
+    int channel = 0;    //< inside this track's own synth
+    int data1 = 0;      //< pitch, or bend value, or semitones
+    int data2 = 0;      //< velocity
+};
+
+/**
+ * Turns a position in quarters into a position in seconds.
+ *
+ * Built once from the tempo map and asked many times, because a renderer needs
+ * this for every note and the tempo map is a list to be walked.
+ */
+class Clock
+{
+public:
+    Clock(const Score &score, const QList<int> &order);
+
+    double secondsAt(const Rational &quarters) const;
+    double totalSeconds() const;
+
+private:
+    QList<TempoEvent> m_tempos;
+    QList<double> m_secondsAtTempo;     //< when each tempo section begins
+    Rational m_length;
+};
+
 /**
  * The master bar indices in the order they are heard.
  *
@@ -78,6 +121,15 @@ bool hasAlternateEndings(const Score &score);
 
 /** Every note of one track, already tied together and sorted by start. */
 QList<NoteEvent> notesFor(const Score &score, int trackIndex, const QList<int> &order);
+
+/**
+ * The same notes as instructions, with their bends drawn as curves.
+ *
+ * Sorted by time, and by kind where two land together: a channel is told its
+ * bend range before it is asked to play, and returned to centre after a bent
+ * note rather than during the next one.
+ */
+QList<Message> messagesFor(const Score &score, int trackIndex, const QList<int> &order);
 
 /** The tempo changes, placed on the played timeline rather than the notated one. */
 QList<TempoEvent> tempoMap(const Score &score, const QList<int> &order);

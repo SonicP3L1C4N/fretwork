@@ -3,6 +3,7 @@
 
 #include "gpif.h"
 #include "midi.h"
+#include "renderer.h"
 #include "timeline.h"
 
 #include <KAboutData>
@@ -144,6 +145,39 @@ bool writeMidi(QTextStream &out, QTextStream &error, const Score &score,
     return ok;
 }
 
+/**
+ * Audio, a track at a time.
+ *
+ * The peak of each stem is printed because a silent file is the failure this
+ * cannot otherwise notice: everything succeeds, the disk fills up, and only
+ * listening finds out.
+ */
+bool renderAudio(QTextStream &out, QTextStream &error, const Score &score,
+                 const QList<int> &order, const QString &directory,
+                 const QString &soundFont)
+{
+    Render::Options options;
+    options.soundFont = soundFont;
+
+    QString why;
+    QList<Render::Written> written;
+    if (!Render::stems(score, order, directory, options, &why, &written)) {
+        error << QStringLiteral("fretwork: %1\n").arg(why);
+        return false;
+    }
+
+    for (const Render::Written &file : std::as_const(written)) {
+        out << QStringLiteral("  %1  %2  peak %3\n")
+                   .arg(QFileInfo(file.path).fileName(), -28)
+                   .arg(clock(file.seconds))
+                   .arg(file.peak, 0, 'f', 2);
+        if (file.peak <= 0.0001f) {
+            out << i18n("    warning: this one is silent\n");
+        }
+    }
+    return true;
+}
+
 int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
@@ -175,6 +209,14 @@ int main(int argc, char *argv[])
                                    i18n("Write one MIDI file per track into a directory"),
                                    i18n("directory"));
     parser.addOption(stems);
+    const QCommandLineOption render(QStringLiteral("render"),
+                                    i18n("Render one WAV per track, and a mix, into a "
+                                         "directory"),
+                                    i18n("directory"));
+    parser.addOption(render);
+    const QCommandLineOption soundFont(QStringLiteral("soundfont"),
+                                       i18n("The SoundFont to render with"), i18n("file.sf2"));
+    parser.addOption(soundFont);
     parser.process(app);
     about.processCommandLine(&parser);
 
@@ -207,6 +249,12 @@ int main(int argc, char *argv[])
         if (parser.isSet(midi) || parser.isSet(stems)) {
             if (!writeMidi(out, error, score, order, path, parser.value(midi),
                            parser.value(stems))) {
+                ++failures;
+            }
+        }
+        if (parser.isSet(render)) {
+            if (!renderAudio(out, error, score, order, parser.value(render),
+                             parser.value(soundFont))) {
                 ++failures;
             }
         }

@@ -14,21 +14,6 @@ namespace
 constexpr int TicksPerQuarter = 960;
 constexpr int DrumChannel = 9;
 
-/**
- * How far a pitch bend message reaches, in semitones.
- *
- * The General MIDI default is two, which cannot express a whole-tone bend on a
- * held note and certainly not a whammy dive, so every channel is told
- * otherwise by RPN before anything else happens. Twelve is what Guitar Pro
- * uses and what a synth is most likely to honour.
- */
-constexpr int BendRangeSemitones = 12;
-constexpr int BendCentre = 8192;
-
-/** A bend is redrawn at least this often, so that a slow one is not a staircase. */
-constexpr int BendStepTicks = TicksPerQuarter / 16;
-constexpr int MaximumBendSteps = 128;
-
 struct Event {
     qint64 tick = 0;
     int order = 0;          //< ties broken by insertion, so output is deterministic
@@ -113,13 +98,6 @@ QByteArray pitchBend(int channel, int value)
     return out;
 }
 
-int bendValueFor(int cents)
-{
-    const double range = BendRangeSemitones * 100.0;
-    const double scaled = std::clamp(cents / range, -1.0, 1.0);
-    return BendCentre + int(scaled * (BendCentre - 1));
-}
-
 /**
  * Which MIDI channels each track may use.
  *
@@ -198,13 +176,19 @@ QList<QList<int>> allocate(const Score &score, int only, Midi::Compromises *comp
     return channels;
 }
 
-/** The channel a note lands on, given what its track was allocated. */
-int channelFor(const QList<int> &allocated, const Timeline::NoteEvent &event)
+/**
+ * The MIDI channel a track's own channel maps onto.
+ *
+ * Where a track was given fewer channels than it has strings, several strings
+ * land on the same one -- which is the compromise reported to whoever asked
+ * for the file.
+ */
+int channelFor(const QList<int> &allocated, int trackChannel)
 {
     if (allocated.isEmpty()) {
         return -1;
     }
-    return allocated.at(std::clamp(event.channel, 0, int(allocated.size()) - 1));
+    return allocated.at(std::clamp(trackChannel, 0, int(allocated.size()) - 1));
 }
 
 /** Tempo and time signature: the score's clock, in a track of its own. */
@@ -263,56 +247,35 @@ QByteArray instrument(const Score &score, const QList<int> &order, int index,
             program.append(char(instrumentTrack.program & 0x7F));
             events.append({0, counter++, program});
         }
-        // Widen the bend range before anything is played on this channel: the
-        // default of two semitones cannot express what a guitar does.
-        events.append({0, counter++, controller(channel, 101, 0)});
-        events.append({0, counter++, controller(channel, 100, 0)});
-        events.append({0, counter++, controller(channel, 6, BendRangeSemitones)});
-        events.append({0, counter++, controller(channel, 38, 0)});
     }
 
-    for (const Timeline::NoteEvent &event : Timeline::notesFor(score, index, order)) {
-        const int channel = channelFor(allocated, event);
+    // What is played, and when, is the timeline's answer rather than this
+    // file's: the renderer asks the same question and must get the same reply.
+    for (const Timeline::Message &message : Timeline::messagesFor(score, index, order)) {
+        const int channel = channelFor(allocated, message.channel);
         if (channel < 0) {
             continue;
         }
-        const qint64 start = event.start.toTicks(TicksPerQuarter);
-        const qint64 end = std::max(start + 1, event.end.toTicks(TicksPerQuarter));
+        const qint64 tick = message.at.toTicks(TicksPerQuarter);
 
-        if (!event.bend.isEmpty()) {
-            // Straight lines between the points, redrawn often enough that a
-            // slow bend sounds like one rather than like a staircase.
-            events.append({start, counter++,
-                           pitchBend(channel, bendValueFor(event.bend.first().cents))});
-            for (int point = 1; point < event.bend.size(); ++point) {
-                const Timeline::BendPoint &from = event.bend.at(point - 1);
-                const Timeline::BendPoint &to = event.bend.at(point);
-                const qint64 fromTick = start + from.at.toTicks(TicksPerQuarter);
-                const qint64 toTick = start + to.at.toTicks(TicksPerQuarter);
-                const qint64 span = toTick - fromTick;
-                if (span <= 0) {
-                    events.append({toTick, counter++,
-                                   pitchBend(channel, bendValueFor(to.cents))});
-                    continue;
-                }
-                const int steps = int(std::clamp<qint64>(span / BendStepTicks, 1,
-                                                         MaximumBendSteps));
-                for (int step = 1; step <= steps; ++step) {
-                    const qint64 tick = fromTick + span * step / steps;
-                    const int cents = from.cents + (to.cents - from.cents) * step / steps;
-                    events.append({tick, counter++, pitchBend(channel, bendValueFor(cents))});
-                }
-            }
-        }
-
-        events.append({start, counter++, note(true, channel, event.pitch, event.velocity)});
-        events.append({end, counter++, note(false, channel, event.pitch, 0)});
-
-        if (!event.bend.isEmpty()) {
-            // Back to centre once the note is done, or the next note on this
-            // string inherits the bend -- which is the bug this arrangement of
-            // channels exists to prevent, reintroduced at the last moment.
-            events.append({end, counter++, pitchBend(channel, BendCentre)});
+        switch (message.kind) {
+        case Timeline::MessageKind::BendRange:
+            // A registered parameter, in the four messages the standard wants.
+            events.append({tick, counter++, controller(channel, 101, 0)});
+            events.append({tick, counter++, controller(channel, 100, 0)});
+            events.append({tick, counter++, controller(channel, 6, message.data1)});
+            events.append({tick, counter++, controller(channel, 38, 0)});
+            break;
+        case Timeline::MessageKind::NoteOn:
+            events.append({tick, counter++, note(true, channel, message.data1, message.data2)});
+            break;
+        case Timeline::MessageKind::NoteOff:
+            events.append({std::max(tick, qint64(1)), counter++,
+                           note(false, channel, message.data1, 0)});
+            break;
+        case Timeline::MessageKind::PitchBend:
+            events.append({tick, counter++, pitchBend(channel, message.data1)});
+            break;
         }
     }
     return track(events);

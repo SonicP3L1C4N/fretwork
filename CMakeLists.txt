@@ -23,6 +23,11 @@ find_package(Qt6 ${QT_MIN_VERSION} REQUIRED COMPONENTS Core Xml Test)
 # tests can *write* archives to read back; the reading is ours, for the reason
 # set out in src/import/zipreader.h.
 find_package(ZLIB REQUIRED)
+
+# FluidSynth, one instance per track: the design's whole point, and why its
+# absence is an error rather than a lost feature.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(FluidSynth REQUIRED IMPORTED_TARGET fluidsynth)
 find_package(KF6 ${KF_MIN_VERSION} REQUIRED COMPONENTS Archive CoreAddons I18n)
 
 ecm_set_disabled_deprecation_versions(QT 6.6 KF 6.0)

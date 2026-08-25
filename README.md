@@ -34,26 +34,43 @@ Beautiful Losers — Coheed And Cambria
   ...
 ```
 
-It writes MIDI too — one file, or one per track:
+**It renders audio**, which is what the project is for:
 
 ```
-fretwork FILE.gp -m out.mid          # the whole score
-fretwork FILE.gp --stems out/        # one file per track, plus a mix
+fretwork FILE.gp --render out/       # one WAV per track, and a mix
+fretwork FILE.gp -m out.mid          # a MIDI file
+fretwork FILE.gp --stems out/        # one MIDI file per track, plus a mix
 ```
+
+```
+$ fretwork "The Dogs Of War.gp" --render out/
+  00-gilmour.wav                 1:06  peak 0.25
+  01-wright.wav                  1:06  peak 0.36
+  02-pratt.wav                   1:06  peak 0.14
+  03-mason.wav                   1:06  peak 0.18
+  mix.wav                        1:06  peak 0.46
+```
+
+Each track gets a FluidSynth of its own — sixteen channels each, so a guitar
+spends six on its strings and nothing collides. The mix is the sum of the
+stems, and they are written in one pass at about twenty times real time.
 
 All eleven files in the corpus read, with note counts agreeing exactly with the
 P0 spike, and bends, let ring and hammer-ons that the spike never attempted.
 Sixteen MIDI channels cannot hold a channel per string for four guitars at
-once, so the mix says what it gave up:
+once, so the *MIDI* writer says what it gave up:
 
 ```
   note: pratt shares one MIDI channel across 4 strings, so a bend moves
         every note it is holding
 ```
 
-Each stem, written alone, has the room and does not compromise. Still to come
-in P1: audio rendering, so the stems come out as WAV without going through
-FluidSynth by hand.
+Audio rendering has no such limit, because nothing is shared: that compromise
+is a property of the MIDI file format, not of the program.
+
+Not yet translated: slides, tremolo picking, harmonics, grace notes and trills
+sound as plain notes; alternate endings are not flattened, and a score using
+them says so.
 
 The P0 spike is still in `spike/`, and still the shortest way to hear one:
 
@@ -95,7 +112,7 @@ GPL — the reasoning for every line of that is in
 | | | |
 |---|---|---|
 | **P0** | Spike — parse, play, render stems | **done**, and it plays |
-| **P1** | Headless converter: importers, model, technique translation, stem export. No window | **in progress** — importer, timeline and MIDI done |
+| **P1** | Headless converter: importers, model, technique translation, stem export. No window | **done** — the program is useful with no window |
 | P2 | The player: tab rendering, transport, mixer, live playback | |
 | P3 | The editor: fret entry, undo, copy and paste | |
 | P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | |
@@ -108,7 +125,8 @@ interface at all, which is the only honest definition of a foundation.
 
 ```
 sudo apt install build-essential cmake ninja-build extra-cmake-modules \
-    qt6-base-dev libkf6archive-dev libkf6coreaddons-dev libkf6i18n-dev zlib1g-dev
+    qt6-base-dev libkf6archive-dev libkf6coreaddons-dev libkf6i18n-dev \
+    zlib1g-dev libfluidsynth-dev fluid-soundfont-gm
 
 cmake -B build -G Ninja
 cmake --build build

@@ -8,6 +8,28 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## Unreleased — P1
 
+- **Audio, one synthesiser per track.** `--render out/` writes a WAV per track
+  and a mix, in a single pass at around twenty times real time. Each track owns
+  a FluidSynth of its own, which is the design's whole point: sixteen channels
+  each, so a guitar spends six on its strings and the limit that constrains the
+  MIDI writer does not exist here. The mix is the arithmetic sum of the stems,
+  which the tests check sample by sample — if it were not, the stems would not
+  be what anyone is hearing.
+- **The engine knows only how to fill a block of frames at a sample position.**
+  No clock, no transport, no idea whether a loop or an audio device is driving
+  it. Offline rendering runs that loop as fast as the machine allows; live
+  playback in P2 will run the identical loop from a callback, rather than a
+  second implementation with its own bugs.
+- **A WAV writer**, streamed, with its lengths patched on close — five minutes
+  of stereo is fifty megabytes and a stem export writes several at once.
+  Clipping rather than wrapping, so a loud mix sounds loud and wrong instead of
+  quiet and inside out.
+- **One list of messages drives both MIDI and audio.** The bend curve used to
+  live inside the MIDI writer; the renderer needed the same thing, and two
+  implementations of "when does the bend move" would eventually disagree, with
+  the wrong one being whichever nobody listened to. Moving it into the timeline
+  left the rendered audio bit-for-bit identical, which is how the refactor was
+  checked.
 - **Techniques, which the spike never attempted.** Bends become curves in
   cents along the note, drawn as pitch bend on that string's own channel and
   returned to centre afterwards so the next note does not inherit them. Let
