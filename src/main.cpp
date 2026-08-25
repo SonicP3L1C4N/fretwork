@@ -16,6 +16,7 @@
 
 #include <QCommandLineParser>
 #include <QApplication>
+#include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
@@ -324,6 +325,14 @@ int main(int argc, char *argv[])
                                                    QStringLiteral("applications/") + desktopId
                                                        + QStringLiteral(".desktop"))
                                 .isEmpty();
+
+    // The installed icon where there is one; the copy compiled in otherwise,
+    // so running out of the build directory still looks like the application.
+    QIcon icon = QIcon::fromTheme(desktopId);
+    if (icon.isNull()) {
+        icon = QIcon(QStringLiteral(":/sc-apps-io.github.sonicp3l1c4n.fretwork.svg"));
+    }
+    QGuiApplication::setWindowIcon(icon);
 
     KAboutData about(QStringLiteral("fretwork"),
                      i18n("Fretwork"),

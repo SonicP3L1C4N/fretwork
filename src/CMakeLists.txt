@@ -48,6 +48,14 @@ add_executable(fretwork
 # The generated type registrations include these headers by their own names.
 target_include_directories(fretwork PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/gui)
 
+# The application icon, compiled in: an installed copy takes it from the icon
+# theme, and one run out of the build directory has no theme to take it from.
+qt_add_resources(fretwork "appicon"
+    PREFIX "/"
+    BASE ${CMAKE_SOURCE_DIR}/icons
+    FILES ${CMAKE_SOURCE_DIR}/icons/sc-apps-io.github.sonicp3l1c4n.fretwork.svg
+)
+
 # Aliased to the root of the module: without this the type is registered under
 # the directory it happens to sit in, and the module has no "Main" in it.
 set_source_files_properties(gui/Main.qml PROPERTIES QT_RESOURCE_ALIAS Main.qml)

@@ -8,6 +8,12 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## Unreleased — P2
 
+- **An application icon**, drawn for the project: an F built from a nut and
+  strings with a fret marker on it. Six sizes and a scalable copy installed into
+  the icon theme, a symbolic version for places that want one, and the scalable
+  one compiled into the binary as well — an installed copy takes its icon from
+  the theme, and a copy run out of the build directory has no theme to take one
+  from.
 - **There is a window.** `fretwork FILE.gp` opens it: tablature on the left, a
   mixer on the right, a transport across the top, and the bar being played lit
   up behind the music. Asked to produce something — `--info`, `--play`,

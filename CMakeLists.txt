@@ -13,6 +13,7 @@ set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
 
 include(KDEInstallDirs)
 include(KDECMakeSettings)
+include(ECMInstallIcons)
 include(KDECompilerSettings NO_POLICY_SCOPE)
 include(ECMDeprecationSettings)
 include(FeatureSummary)
@@ -38,6 +39,23 @@ find_package(KF6 ${KF_MIN_VERSION} REQUIRED COMPONENTS
     Archive CoreAddons I18n Kirigami)
 
 ecm_set_disabled_deprecation_versions(QT 6.6 KF 6.0)
+
+ecm_install_icons(ICONS
+    icons/24-apps-io.github.sonicp3l1c4n.fretwork.png
+    icons/32-apps-io.github.sonicp3l1c4n.fretwork.png
+    icons/48-apps-io.github.sonicp3l1c4n.fretwork.png
+    icons/64-apps-io.github.sonicp3l1c4n.fretwork.png
+    icons/96-apps-io.github.sonicp3l1c4n.fretwork.png
+    icons/128-apps-io.github.sonicp3l1c4n.fretwork.png
+    icons/sc-apps-io.github.sonicp3l1c4n.fretwork.svg
+    DESTINATION ${KDE_INSTALL_ICONDIR}
+    THEME hicolor
+)
+
+# ECM has no naming convention for symbolic icons, which live in a directory of
+# their own rather than a size-named one.
+install(FILES icons/io.github.sonicp3l1c4n.fretwork-symbolic.svg
+        DESTINATION ${KDE_INSTALL_ICONDIR}/hicolor/symbolic/apps)
 
 add_subdirectory(src)
 

@@ -192,6 +192,12 @@ python3 spike/gp2midi.py FILE.gp --no-repeats    # as notated, not as played
 No dependencies beyond the standard library, on purpose: a spike that needs a
 virtualenv is a spike nobody runs twice.
 
+## The icon
+
+An F built from a nut and strings, with a fret marker on it — drawn for this
+project, and ours like the rest of the artwork. Six raster sizes, a scalable
+copy, and a symbolic version, in `icons/`.
+
 ## Names and law
 
 "Guitar Pro" is a trademark of Arobas Music. Fretwork is not affiliated with
