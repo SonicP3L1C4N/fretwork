@@ -34,6 +34,19 @@ Beautiful Losers — Coheed And Cambria
   ...
 ```
 
+**It draws the tablature**:
+
+```
+fretwork FILE.gp --pdf out.pdf       # every page
+fretwork FILE.gp --png page.png --page 2 --track 1
+```
+
+Title, tuning, section names, bar numbers, time signatures, repeat signs, dead
+notes, and fret numbers coloured where a technique is marked on them. Bar widths
+follow the square root of duration rather than duration itself, which is what
+engravers have used for centuries and the reason a bar of semiquavers is
+readable; lines are justified to the page except the last, which is left alone.
+
 **It renders audio**, which is what the project is for:
 
 ```
@@ -113,7 +126,7 @@ GPL — the reasoning for every line of that is in
 |---|---|---|
 | **P0** | Spike — parse, play, render stems | **done**, and it plays |
 | **P1** | Headless converter: importers, model, technique translation, stem export. No window | **done** — the program is useful with no window |
-| P2 | The player: tab rendering, transport, mixer, live playback | |
+| **P2** | The player: tab rendering, transport, mixer, live playback | **in progress** — layout and drawing done |
 | P3 | The editor: fret entry, undo, copy and paste | |
 | P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | |
 | P5 | Standard notation, PDF, MusicXML, GP6 | |

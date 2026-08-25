@@ -6,6 +6,25 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 # Changelog
 
+## Unreleased — P2
+
+- **Tablature, drawn.** `--pdf` and `--png` lay a track out and draw it: title,
+  tuning, section names, bar numbers, time signatures where they change, repeat
+  signs, dead notes as crosses, and fret numbers coloured where a bend, slide or
+  hammer-on is marked. The string line is cleared behind each number rather than
+  drawn through it, which is how tablature has always been set.
+- **Layout is a separate step from painting.** All the judgement is in the
+  layout — how wide a bar should be, where a line should break, how to spread
+  the slack — so it can be tested by reading numbers rather than by looking at
+  pictures, and so a window, an image and a PDF cannot disagree about it.
+- **Bar width follows the square root of duration**, not duration. A whole note
+  lasts four times a quarter and is nothing like four times as wide on paper:
+  proportional spacing makes a bar of semiquavers unreadable and a bar of
+  semibreves mostly blank. Lines are justified to the page except the last one,
+  which is left as it falls.
+- The score is drawn **as notated**: a repeat is the sign it is, not the eight
+  bars it stands for. Expanding it is playback's business.
+
 ## Unreleased — P1
 
 - **Audio, one synthesiser per track.** `--render out/` writes a WAV per track

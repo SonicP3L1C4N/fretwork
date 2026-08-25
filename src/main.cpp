@@ -4,17 +4,22 @@
 #include "gpif.h"
 #include "midi.h"
 #include "renderer.h"
+#include "tablayout.h"
+#include "tabpainter.h"
 #include "timeline.h"
 
 #include <KAboutData>
 #include <KLocalizedString>
 
 #include <QCommandLineParser>
-#include <QCoreApplication>
+#include <QGuiApplication>
+#include <QImage>
 #include <QDir>
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QTextStream>
+
+#include <algorithm>
 
 namespace
 {
@@ -178,9 +183,65 @@ bool renderAudio(QTextStream &out, QTextStream &error, const Score &score,
     return true;
 }
 
+/**
+ * The tablature, on paper or as an image.
+ *
+ * How many pages it came to is printed, because that is the cheapest signal
+ * that the layout did something sensible: a score that lays out in one page or
+ * in four hundred has gone wrong in a way no test of mine would catch.
+ */
+bool drawTab(QTextStream &out, QTextStream &error, const Score &score, int trackIndex,
+             const QString &pdfPath, const QString &pngPath, int page)
+{
+    if (trackIndex < 0 || trackIndex >= score.tracks.size()) {
+        error << QStringLiteral("fretwork: no track %1 in this score\n").arg(trackIndex);
+        return false;
+    }
+
+    const Tab::Layout layout = Tab::layOut(score, trackIndex);
+    if (layout.isEmpty()) {
+        error << i18n("fretwork: there is nothing to draw\n");
+        return false;
+    }
+
+    bool ok = true;
+    if (!pdfPath.isEmpty()) {
+        QString why;
+        if (Tab::toPdf(layout, pdfPath, &why)) {
+            out << QStringLiteral("  wrote %1  (%2, %3 pages)\n")
+                       .arg(pdfPath, layout.trackName).arg(layout.pages.size());
+        } else {
+            error << QStringLiteral("fretwork: %1: %2\n").arg(pdfPath, why);
+            ok = false;
+        }
+    }
+
+    if (!pngPath.isEmpty()) {
+        const int index = std::clamp(page - 1, 0, int(layout.pages.size()) - 1);
+        const QImage image = Tab::toImage(layout, index);
+        if (image.isNull() || !image.save(pngPath)) {
+            error << QStringLiteral("fretwork: cannot write %1\n").arg(pngPath);
+            ok = false;
+        } else {
+            out << QStringLiteral("  wrote %1  (%2, page %3 of %4)\n")
+                       .arg(pngPath, layout.trackName)
+                       .arg(index + 1)
+                       .arg(layout.pages.size());
+        }
+    }
+    return ok;
+}
+
 int main(int argc, char *argv[])
 {
-    QCoreApplication app(argc, argv);
+    // Drawing needs a font database, and a font database needs a GUI
+    // application -- but this is a command line tool that must work over ssh,
+    // so it asks for a screen only when there is one to ask for.
+    if (qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY")
+        && qEnvironmentVariableIsEmpty("DISPLAY")) {
+        qputenv("QT_QPA_PLATFORM", "offscreen");
+    }
+    QGuiApplication app(argc, argv);
     KLocalizedString::setApplicationDomain(QByteArrayLiteral("fretwork"));
 
     KAboutData about(QStringLiteral("fretwork"),
@@ -217,6 +278,21 @@ int main(int argc, char *argv[])
     const QCommandLineOption soundFont(QStringLiteral("soundfont"),
                                        i18n("The SoundFont to render with"), i18n("file.sf2"));
     parser.addOption(soundFont);
+    const QCommandLineOption pdf(QStringLiteral("pdf"),
+                                 i18n("Draw the tablature as a PDF"), i18n("file.pdf"));
+    parser.addOption(pdf);
+    const QCommandLineOption png(QStringLiteral("png"),
+                                 i18n("Draw one page of tablature as an image"),
+                                 i18n("file.png"));
+    parser.addOption(png);
+    const QCommandLineOption whichTrack(QStringLiteral("track"),
+                                        i18n("Which track to draw; the first by default"),
+                                        i18n("number"), QStringLiteral("0"));
+    parser.addOption(whichTrack);
+    const QCommandLineOption whichPage(QStringLiteral("page"),
+                                       i18n("Which page to draw as an image"),
+                                       i18n("number"), QStringLiteral("1"));
+    parser.addOption(whichPage);
     parser.process(app);
     about.processCommandLine(&parser);
 
@@ -249,6 +325,13 @@ int main(int argc, char *argv[])
         if (parser.isSet(midi) || parser.isSet(stems)) {
             if (!writeMidi(out, error, score, order, path, parser.value(midi),
                            parser.value(stems))) {
+                ++failures;
+            }
+        }
+        if (parser.isSet(pdf) || parser.isSet(png)) {
+            if (!drawTab(out, error, score, parser.value(whichTrack).toInt(),
+                         parser.value(pdf), parser.value(png),
+                         parser.value(whichPage).toInt())) {
                 ++failures;
             }
         }

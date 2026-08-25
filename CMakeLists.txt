@@ -17,7 +17,7 @@ include(KDECompilerSettings NO_POLICY_SCOPE)
 include(ECMDeprecationSettings)
 include(FeatureSummary)
 
-find_package(Qt6 ${QT_MIN_VERSION} REQUIRED COMPONENTS Core Xml Test)
+find_package(Qt6 ${QT_MIN_VERSION} REQUIRED COMPONENTS Core Gui Xml Test)
 
 # zlib reads the deflate streams inside a .gp. KArchive is here only so the
 # tests can *write* archives to read back; the reading is ours, for the reason
