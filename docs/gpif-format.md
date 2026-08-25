@@ -35,6 +35,28 @@ This is the friendly member of the family. GP6's `.gpx` wraps the same XML in a
 custom bit-level compression (BCFS/BCFZ) that must be decoded first, and GP3–GP5
 are a different format entirely.
 
+### The container changed in 8.1.4
+
+The ZIP is not written the same way by every version, and the difference is
+enough to stop a reader dead:
+
+| Written by | General purpose flags | Sizes in the local header? |
+|---|---|---|
+| 8.1.3 and earlier | `0x0800` — the name is UTF-8 | yes |
+| **8.1.4** | `0x0008` — **streaming mode** | **no**, they follow the data |
+
+Bit 3 means the writer did not know the compressed size, the uncompressed size
+or the CRC when it wrote the header, and recorded them in a data descriptor
+after the entry instead. A reader that walks local headers — KArchive's `KZip`
+among them — sees entries of length zero and gives up on the archive entirely.
+In the corpus this is not an edge case: both 8.1.4 files fail and all nine
+8.1.3 files pass, and 8.1.4 is the version people are updating to.
+
+The fix is to read the **central directory**, which is a ZIP's real index and
+carries correct sizes and offsets whatever the writer did. That is how a ZIP is
+supposed to be read; walking local headers is the shortcut. Fretwork's reader is
+in `src/import/zipreader.cpp`, which explains why the project owns one at all.
+
 ## The document is flat and reference-linked
 
 `score.gpif` does not nest. It holds parallel arrays, and the structure is

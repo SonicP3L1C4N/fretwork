@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
+
+include(ECMAddTests)
+
+ecm_add_test(rationaltest.cpp
+    TEST_NAME rationaltest
+    LINK_LIBRARIES Qt6::Test fretworkcore
+)
+
+ecm_add_test(zipreadertest.cpp
+    TEST_NAME zipreadertest
+    LINK_LIBRARIES Qt6::Test fretworkcore KF6::Archive ZLIB::ZLIB
+)
+
+ecm_add_test(gpiftest.cpp
+    TEST_NAME gpiftest
+    LINK_LIBRARIES Qt6::Test fretworkcore KF6::Archive
+)
+
+ecm_add_test(timelinetest.cpp
+    TEST_NAME timelinetest
+    LINK_LIBRARIES Qt6::Test fretworkcore
+)

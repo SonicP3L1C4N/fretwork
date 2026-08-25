@@ -21,11 +21,24 @@ service of it.
 
 ## Status
 
-**P0 — spike.** There is no application yet. There is a throwaway Python script
-that proves the pipeline end to end, and there are the documents that say what
-gets built next and why.
+**P1 — the converter, begun.** There is a C++ program now: it reads Guitar Pro
+7 and 8 files, reconstructs the score, flattens repeats into the order the music
+is actually heard, and reports what it understood.
 
-What works today, in `spike/`:
+```
+$ fretwork "Beautiful Losers.gp"
+Beautiful Losers — Coheed And Cambria
+  Guitar Pro 8.1.4, 86 bars notated, 86 played, 3:24
+  tempo   76 bpm at bar 1
+  [0] Claudio                electricGuitar   prog 29     1436 notes   tuning 38 45 50 55 59 64
+  ...
+```
+
+All eleven files in the test corpus read, note counts agreeing exactly with the
+P0 spike. Still to come in P1: the technique translation layer, MIDI and stem
+export.
+
+The P0 spike is still in `spike/`, and still the only part that makes a sound:
 
 ```
 $ python3 spike/gp2midi.py "Slomosa-Horses.gp"
@@ -65,7 +78,7 @@ GPL — the reasoning for every line of that is in
 | | | |
 |---|---|---|
 | **P0** | Spike — parse, play, render stems | **done**, and it plays |
-| P1 | Headless converter: importers, model, `.fw` format, technique translation, stem export. No window | next |
+| **P1** | Headless converter: importers, model, technique translation, stem export. No window | **in progress** — importer and timeline done |
 | P2 | The player: tab rendering, transport, mixer, live playback | |
 | P3 | The editor: fret entry, undo, copy and paste | |
 | P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | |
@@ -73,6 +86,22 @@ GPL — the reasoning for every line of that is in
 
 P1 is the one that matters: at the end of it the program is useful with no user
 interface at all, which is the only honest definition of a foundation.
+
+## Building
+
+```
+sudo apt install build-essential cmake ninja-build extra-cmake-modules \
+    qt6-base-dev libkf6archive-dev libkf6coreaddons-dev libkf6i18n-dev zlib1g-dev
+
+cmake -B build -G Ninja
+cmake --build build
+ctest --test-dir build --output-on-failure
+./build/bin/fretwork FILE.gp
+```
+
+The test suite runs without any Guitar Pro files: every structural case is built
+in code. Point `FRETWORK_CORPUS` at a directory of `.gp` files to check real
+ones too — transcriptions are not ours to commit.
 
 ## Running the spike
 

@@ -43,7 +43,7 @@ Wayland, PipeWire 1.6.2.
 | Layer | Choice | Version here | Why |
 |---|---|---|---|
 | Application language | C++20 | GCC 15 | Every library below is a C API; the audio thread's rules are what C++ expresses natively; it is the language the rest of this author's KDE work is in |
-| Importers | Rust, behind a C ABI | — | The only code in the program that eats untrusted, malformed, reverse-engineered binary input. `cargo fuzz` finds there what code review does not |
+| Binary-format importers | Rust, behind a C ABI | not yet written | For GP3–GP5 and GPX only — hand-rolled binary with no specification, where `cargo fuzz` finds what review does not. GP7/8 is a ZIP and XML, so it is C++ |
 | UI toolkit | Qt 6 + KDE Frameworks 6 | Qt 6.10.2, KF6 6.24.0 | Custom-painted dense canvas, mature; matches the platform the program is for |
 | Build | CMake + Ninja, ECM | CMake 3.20+ | KDE's own conventions, so the project stays proposable upstream |
 | Synthesis | FluidSynth | 2.4.8 | SoundFont playback, one instance per track, offline rendering built in |
@@ -52,7 +52,7 @@ Wayland, PipeWire 1.6.2.
 | Amp simulation | guitarix LV2 | packaged | Already good, already free, already installed on the target machine |
 | Audio I/O | PipeWire native, JACK fallback | 1.6.2 | The target machine already runs a pro-audio PipeWire profile |
 | Audio files | libsndfile | 1.2.2 | Stem export |
-| Containers | libzip | 1.11.4 | Both `.gp` and Fretwork's own format are ZIP |
+| Containers | our own central-directory reader, on zlib | zlib 1.3 | Neither KArchive nor a local-header reader opens a Guitar Pro 8.1.4 file — see [gpif-format.md](gpif-format.md#the-container-changed-in-814) |
 | Notation font | Bravura (SMuFL) | vendored, SIL OFL | Only when standard notation arrives; tab needs almost none of it |
 | Tests | Qt Test + a file corpus | — | The corpus is the specification |
 
@@ -102,6 +102,16 @@ instructive places:
 All three are one-way compatible with GPL-3, which is what Fretwork ships
 under. They are read as the specification that does not exist. Nothing is
 copied without saying so in the file that copies it.
+
+**On which of these is written in Rust.** The stack says Rust for the
+importers, and the argument is untrusted binary input. GP7/8 is not that: it is
+a ZIP holding an XML document, and the parsing that matters is done by zlib and
+by Qt's XML reader, both of which have been fed malformed input by more people
+than this project will ever have users. So `Gpif` is C++, and the case for Rust
+is banked for GP3–GP5 and GPX, which are hand-rolled binary formats with no
+specification — where a fuzzer finds in an afternoon what review does not find
+at all. Writing it in Rust now would be following the letter of a decision
+while missing what the decision was for.
 
 Two rules that pay for themselves:
 
