@@ -31,11 +31,16 @@ service of it.
 on the left, a mixer on the right, a transport across the top, and the bar being
 played lit up as it goes.
 
-![The Fretwork window showing Cold Shot](docs/window.png)
+![The Fretwork window showing Horses by Slomosa: tablature on the left, mixer on the right](docs/window.png)
 
 Every track has a synthesiser of its own, so the **S** and **M** buttons take
 effect while it plays — no re-render, no bounce. The view follows the playhead
 until you scroll, and then leaves you where you looked.
+
+Where a score is beyond what it can honestly play, it says so rather than
+playing it wrongly:
+
+![The Crimson Path by DVNE, with repeat signs and a warning that alternate endings are not flattened](docs/window-repeats.png)
 
 It is still a command line tool when asked to be:
 

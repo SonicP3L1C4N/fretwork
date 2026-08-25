@@ -81,10 +81,13 @@ void paintSystem(QPainter &painter, const Tab::Layout &layout, const Tab::System
         }
 
         if (bar.repeatEnd && bar.repeatCount > 2) {
-            painter.setPen(palette.faint);
-            painter.setFont(sansOf(style.labelSize * 0.8));
-            painter.drawText(QRectF(left + bar.x + bar.width - 40,
-                                    top - style.labelSize * 2.4, 38, style.labelSize * 1.4),
+            // A row higher than the bar numbers, and in the colour used for
+            // things done to the music rather than the music itself: level
+            // with them, "×4" and the next bar's "3" read as one label.
+            painter.setPen(palette.accent);
+            painter.setFont(sansOf(style.labelSize * 0.85, true));
+            painter.drawText(QRectF(left + bar.x + bar.width - 42,
+                                    top - style.labelSize * 4.0, 38, style.labelSize * 1.5),
                              Qt::AlignRight | Qt::AlignBottom,
                              QStringLiteral("×%1").arg(bar.repeatCount));
         }

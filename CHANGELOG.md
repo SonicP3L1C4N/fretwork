@@ -14,6 +14,10 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
   one compiled into the binary as well — an installed copy takes its icon from
   the theme, and a copy run out of the build directory has no theme to take one
   from.
+- A repeat count no longer reads as part of the next bar's number. `×4` sat
+  level with the bar numbers and immediately left of one, so a repeated section
+  ending before bar 3 announced itself as "×4 3". It has a row of its own now,
+  in the colour used for things done to the music rather than the music itself.
 - **There is a window.** `fretwork FILE.gp` opens it: tablature on the left, a
   mixer on the right, a transport across the top, and the bar being played lit
   up behind the music. Asked to produce something — `--info`, `--play`,
