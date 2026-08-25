@@ -13,7 +13,7 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
   it in, expands repeats into a played timeline, and writes a standard MIDI
   file. `--stems` renders one WAV per track through FluidSynth, plus a mix,
   which is the project's whole premise demonstrated in 350 lines of throwaway
-  Python.
+  Python. Confirmed the only way it can be: by listening to it.
 - Verified against eleven Guitar Pro 8.1.3 and 8.1.4 scores: 1,451 bars, 9,157
   beats, 3,002 notes. All parse. *Horses* renders to 4:52 against a real track
   length of 4:53, which is the tempo map, the time signatures and the note

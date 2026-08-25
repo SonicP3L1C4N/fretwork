@@ -64,7 +64,7 @@ GPL — the reasoning for every line of that is in
 
 | | | |
 |---|---|---|
-| **P0** | Spike — parse, play, render stems | **done** |
+| **P0** | Spike — parse, play, render stems | **done**, and it plays |
 | P1 | Headless converter: importers, model, `.fw` format, technique translation, stem export. No window | next |
 | P2 | The player: tab rendering, transport, mixer, live playback | |
 | P3 | The editor: fret entry, undo, copy and paste | |
