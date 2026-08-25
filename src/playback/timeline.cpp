@@ -478,3 +478,25 @@ QList<Timeline::Message> Timeline::messagesFor(const Score &score, int trackInde
                      });
     return messages;
 }
+
+
+int Timeline::barAt(const Score &score, const QList<int> &order, const Clock &clock,
+                    double seconds)
+{
+    if (order.isEmpty() || seconds < 0) {
+        return -1;
+    }
+
+    // Walked rather than searched: a score is a few hundred bars, this is
+    // asked a few times a second, and a walk cannot disagree with the layout
+    // about where a bar begins.
+    Rational position;
+    for (int index = 0; index < order.size(); ++index) {
+        const Rational next = position + score.masterBars.at(order.at(index)).length();
+        if (seconds < clock.secondsAt(next)) {
+            return index;
+        }
+        position = next;
+    }
+    return -1;
+}

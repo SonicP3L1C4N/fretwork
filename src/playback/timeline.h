@@ -139,4 +139,14 @@ Rational length(const Score &score, const QList<int> &order);
 
 /** How long the performance is, in seconds, tempo changes included. */
 double seconds(const Score &score, const QList<int> &order);
+
+/**
+ * Which bar is sounding at `seconds`, as an index into `order`.
+ *
+ * Two answers are wanted here and they are different: `order[result]` is the
+ * bar as the score writes it, which is what a reader wants highlighted, while
+ * `result` itself is the pass through it, which is what a playhead is really
+ * on. Returns -1 before the beginning and after the end.
+ */
+int barAt(const Score &score, const QList<int> &order, const Clock &clock, double seconds);
 }

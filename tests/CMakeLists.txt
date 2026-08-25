@@ -42,3 +42,11 @@ ecm_add_test(timelinetest.cpp
     TEST_NAME timelinetest
     LINK_LIBRARIES Qt6::Test fretworkcore
 )
+
+find_program(DESKTOP_FILE_VALIDATE desktop-file-validate)
+if(DESKTOP_FILE_VALIDATE)
+    add_test(NAME desktopfiletest
+        COMMAND ${DESKTOP_FILE_VALIDATE}
+                ${CMAKE_SOURCE_DIR}/src/io.github.sonicp3l1c4n.fretwork.desktop
+    )
+endif()

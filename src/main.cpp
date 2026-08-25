@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
 #include "gpif.h"
+#include "session.h"
 #include "midi.h"
 #include "player.h"
 #include "renderer.h"
@@ -10,10 +11,14 @@
 #include "timeline.h"
 
 #include <KAboutData>
+#include <KLocalizedContext>
 #include <KLocalizedString>
 
 #include <QCommandLineParser>
-#include <QGuiApplication>
+#include <QApplication>
+#include <QQmlApplicationEngine>
+#include <QQmlContext>
+#include <QQuickStyle>
 #include <QStandardPaths>
 #include <QImage>
 #include <QDir>
@@ -299,13 +304,14 @@ bool playScore(QTextStream &out, QTextStream &error, const Score &score,
 int main(int argc, char *argv[])
 {
     // Drawing needs a font database, and a font database needs a GUI
-    // application -- but this is a command line tool that must work over ssh,
-    // so it asks for a screen only when there is one to ask for.
+    // application -- but this also has to work over ssh, where there is no
+    // screen to ask for. With one, the window opens; without, the command line
+    // still draws and renders.
     if (qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY")
         && qEnvironmentVariableIsEmpty("DISPLAY")) {
         qputenv("QT_QPA_PLATFORM", "offscreen");
     }
-    QGuiApplication app(argc, argv);
+    QApplication app(argc, argv);
     KLocalizedString::setApplicationDomain(QByteArrayLiteral("fretwork"));
 
     // KAboutData carries a desktop file name of its own, defaulting to
@@ -338,6 +344,9 @@ int main(int argc, char *argv[])
     about.setupCommandLine(&parser);
     parser.addPositionalArgument(QStringLiteral("file"),
                                  i18n("A Guitar Pro 7 or 8 file (.gp)"));
+    const QCommandLineOption info(QStringLiteral("info"),
+                                  i18n("Print what the file holds, and exit"));
+    parser.addOption(info);
     const QCommandLineOption asNotated(QStringLiteral("no-repeats"),
                                        i18n("Read the score as notated rather than as played"));
     parser.addOption(asNotated);
@@ -393,6 +402,28 @@ int main(int argc, char *argv[])
     QTextStream error(stderr);
 
     const QStringList files = parser.positionalArguments();
+
+    // Asked to produce something, this is a command line tool; asked for
+    // nothing in particular, it is an application and opens a window.
+    const bool asked = parser.isSet(info) || parser.isSet(midi) || parser.isSet(stems)
+        || parser.isSet(render) || parser.isSet(pdf) || parser.isSet(png)
+        || parser.isSet(playing);
+    if (!asked) {
+        QQuickStyle::setStyle(QStringLiteral("org.kde.desktop"));
+        QQmlApplicationEngine engine;
+        // The module is put at the root of the resources rather than under
+        // qt/qml, which is where the engine looks by default.
+        engine.addImportPath(QStringLiteral(":/"));
+        engine.rootContext()->setContextObject(new KLocalizedContext(&engine));
+        engine.setInitialProperties({{QStringLiteral("initialFile"), files.value(0)}});
+        engine.loadFromModule("org.kde.fretwork", "Main");
+        if (engine.rootObjects().isEmpty()) {
+            error << i18n("fretwork: the window could not be created\n");
+            return 1;
+        }
+        return app.exec();
+    }
+
     if (files.isEmpty()) {
         error << i18n("fretwork: name a .gp file to read\n");
         return 2;

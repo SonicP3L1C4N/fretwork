@@ -124,7 +124,7 @@ void Tab::paintPage(QPainter &painter, const Layout &layout, int pageIndex,
     painter.setRenderHint(QPainter::TextAntialiasing, true);
 
     const Style &style = layout.style;
-    if (pageIndex == 0) {
+    if (pageIndex == 0 && style.showTitle) {
         painter.setPen(palette.ink);
         painter.setFont(sansOf(style.titleSize, true));
         painter.drawText(QRectF(style.margin, style.margin,

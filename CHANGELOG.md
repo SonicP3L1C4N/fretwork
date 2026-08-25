@@ -8,6 +8,22 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## Unreleased — P2
 
+- **There is a window.** `fretwork FILE.gp` opens it: tablature on the left, a
+  mixer on the right, a transport across the top, and the bar being played lit
+  up behind the music. Asked to produce something — `--info`, `--play`,
+  `--render`, `--pdf` — it is still a command line tool; asked for nothing in
+  particular, it is an application.
+- **The mixer works while it plays**, because every track already had a synth
+  of its own. Soloing is one atomic store away from being heard.
+- **The view follows the playhead until you scroll**, and then stops chasing
+  you. It scrolls only when the bar being played has left the screen, rather
+  than every bar.
+- The score is painted by the same function that writes the PDF, so the window
+  and a printout cannot disagree; it paints only the systems on screen, which
+  is what makes a four-hundred-bar score scroll.
+- Nothing in the model, the timeline or the audio includes a Qt Quick header.
+  The window is a facade over things that were already tested without one.
+
 - **Live playback, with a mixer.** `--play` runs the same engine the renderer
   drives, from an audio callback instead of a loop — which is the entire reason
   `fill(frames, at)` was written that way. `--solo` and `--mute` take effect

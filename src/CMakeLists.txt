@@ -35,8 +35,43 @@ if(PipeWire_FOUND)
     target_compile_definitions(fretworkcore PRIVATE FRETWORK_HAVE_PIPEWIRE)
 endif()
 
-add_executable(fretwork main.cpp)
-target_link_libraries(fretwork PRIVATE fretworkcore Qt6::Gui KF6::CoreAddons KF6::I18n)
+# The window. The QML types are registered by the target that owns the QML
+# module, so the session and the view live here rather than in the library --
+# and nothing in the library knows that QML exists, which is what keeps the
+# model, the timeline and the audio testable without one.
+add_executable(fretwork
+    main.cpp
+    gui/session.cpp
+    gui/scoreview.cpp
+)
+
+# The generated type registrations include these headers by their own names.
+target_include_directories(fretwork PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/gui)
+
+# Aliased to the root of the module: without this the type is registered under
+# the directory it happens to sit in, and the module has no "Main" in it.
+set_source_files_properties(gui/Main.qml PROPERTIES QT_RESOURCE_ALIAS Main.qml)
+
+qt_add_qml_module(fretwork
+    URI org.kde.fretwork
+    VERSION 1.0
+    QML_FILES
+        gui/Main.qml
+)
+
+target_link_libraries(fretwork PRIVATE
+    fretworkcore
+    Qt6::Gui
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::QuickControls2
+    Qt6::Widgets
+    KF6::CoreAddons
+    KF6::I18n
+    KF6::Kirigami
+)
 target_compile_definitions(fretwork PRIVATE FRETWORK_VERSION="${PROJECT_VERSION}")
 
 install(TARGETS fretwork ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
+install(PROGRAMS io.github.sonicp3l1c4n.fretwork.desktop
+        DESTINATION ${KDE_INSTALL_APPDIR})

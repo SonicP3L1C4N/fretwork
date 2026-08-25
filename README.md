@@ -21,12 +21,20 @@ service of it.
 
 ## Status
 
-**P1 — the converter, begun.** There is a C++ program now: it reads Guitar Pro
-7 and 8 files, reconstructs the score, flattens repeats into the order the music
-is actually heard, and reports what it understood.
+**P2 — it is an application.** `fretwork FILE.gp` opens a window: the tablature
+on the left, a mixer on the right, a transport across the top, and the bar being
+played lit up as it goes.
+
+![The Fretwork window showing Cold Shot](docs/window.png)
+
+Every track has a synthesiser of its own, so the **S** and **M** buttons take
+effect while it plays — no re-render, no bounce. The view follows the playhead
+until you scroll, and then leaves you where you looked.
+
+It is still a command line tool when asked to be:
 
 ```
-$ fretwork "Beautiful Losers.gp"
+$ fretwork --info "Beautiful Losers.gp"
 Beautiful Losers — Coheed And Cambria
   Guitar Pro 8.1.4, 86 bars notated, 86 played, 3:24
   tempo   76 bpm at bar 1
@@ -143,7 +151,7 @@ GPL — the reasoning for every line of that is in
 |---|---|---|
 | **P0** | Spike — parse, play, render stems | **done**, and it plays |
 | **P1** | Headless converter: importers, model, technique translation, stem export. No window | **done** — the program is useful with no window |
-| **P2** | The player: tab rendering, transport, mixer, live playback | **in progress** — drawing, playback and mixing done; the window is next |
+| **P2** | The player: tab rendering, transport, mixer, live playback | **done** |
 | P3 | The editor: fret entry, undo, copy and paste | |
 | P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | |
 | P5 | Standard notation, PDF, MusicXML, GP6 | |

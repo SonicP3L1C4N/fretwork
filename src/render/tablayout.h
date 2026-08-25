@@ -36,6 +36,14 @@ struct Style {
                                 //  and the room the labels above it need
     qreal titleHeight = 64;     //< room at the top of the first page
 
+    /**
+     * Whether to draw the title and artist at the top.
+     *
+     * A printed page wants them; a window already says so in its title bar,
+     * and drawing them again costs a system's worth of the score.
+     */
+    bool showTitle = true;
+
     qreal minimumBarWidth = 46;
     qreal beatSpacing = 15;     //< the width a quarter note asks for
     qreal barPadding = 8;       //< inside a barline, before the first note

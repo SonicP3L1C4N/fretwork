@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Fretwork
+GenericName=Tablature Player
+Comment=Read Guitar Pro files and play every track as its own stem
+Exec=fretwork %f
+Icon=io.github.sonicp3l1c4n.fretwork
+Terminal=false
+Categories=Qt;KDE;AudioVideo;Audio;Music;
+MimeType=application/x-guitar-pro;
+Keywords=guitar;tablature;tab;guitar pro;bass;stem;
