@@ -64,6 +64,15 @@ as one long bar would be the same notes and not the same music — and a paste
 that would run off the end of the score is refused outright rather than half
 done.
 
+The score can grow. `Ctrl+B` puts a bar on the end and the caret in it,
+`Ctrl+Shift+B` makes room at the caret, and `Ctrl+Shift+Delete` takes a bar
+out — in every track at once, because a master bar is the score's own unit of
+time and one added to the guitar alone would put the bass out of step for the
+rest of the piece. A new bar is worth what the one it displaced was, so a bar
+added to a piece in 6/8 is in 6/8, and the tempo changes written after it move
+along with the music. The last bar of a score is kept: a score with no bars is
+not a shorter score.
+
 **It saves.** `Ctrl+S` writes a `.fw` — a ZIP holding readable JSON, so a file
 attached to a bug report can be understood by looking at it. Every score in the
 test corpus survives import, save and reopen describing exactly the same music.
@@ -199,7 +208,7 @@ GPL — the reasoning for every line of that is in
 | **P0** | Spike — parse, play, render stems | **done**, and it plays |
 | **P1** | Headless converter: importers, model, technique translation, stem export. No window | **done** — the program is useful with no window |
 | **P2** | The player: tab rendering, transport, mixer, live playback | **done** |
-| **P3** | The editor: fret entry, undo, copy and paste | **in progress** — caret, fret entry, beats, durations, selection, copy and paste, undo and saving |
+| **P3** | The editor: fret entry, undo, copy and paste | **in progress** — caret, fret entry, beats, bars, durations, selection, copy and paste, undo and saving |
 | P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | |
 | P5 | Standard notation, PDF, MusicXML, GP6 | |
 

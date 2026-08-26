@@ -128,6 +128,15 @@ public:
 
     Q_INVOKABLE void insertBeat();
     Q_INVOKABLE void deleteBeat();
+
+    /** An empty bar at the caret, across every track. */
+    Q_INVOKABLE void insertBar();
+
+    /** An empty bar on the end of the score, and the caret in it. */
+    Q_INVOKABLE void appendBar();
+
+    /** Takes the bar under the caret out, unless it is the only one. */
+    Q_INVOKABLE void deleteBar();
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
     /** Puts the caret where the score was clicked, in the view's own coordinates. */

@@ -125,6 +125,24 @@ Kirigami.ApplicationWindow {
         onActivated: session.redo()
     }
 
+    // B for bar. Not Insert and Ctrl+Insert, which would read better and are
+    // already spoken for: Ctrl+Insert is a copy and Shift+Insert a paste on
+    // this desktop, whatever else a program binds them to.
+    Shortcut {
+        sequence: "Ctrl+B"
+        onActivated: session.appendBar()
+    }
+
+    Shortcut {
+        sequence: "Ctrl+Shift+B"
+        onActivated: session.insertBar()
+    }
+
+    Shortcut {
+        sequence: "Ctrl+Shift+Delete"
+        onActivated: session.deleteBar()
+    }
+
     // ---- the transport ----
 
     header: QQC2.ToolBar {

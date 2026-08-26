@@ -629,6 +629,234 @@ private:
     Rational m_duration;
     int m_previous = -1;
 };
+
+/**
+ * A bar put into the score, across every track at once.
+ *
+ * A master bar is the score's own unit of time, and a bar added to one track
+ * and not the others would put every track after it out of step for the rest
+ * of the piece. So this makes a bar for each track and one master bar that
+ * names them, and there is no way to ask for less.
+ *
+ * The time signature comes from the bar being displaced, because that is the
+ * one whose music is having room made in it -- a bar added to a piece in 6/8
+ * is in 6/8. The section name and the repeat signs do not come with it: those
+ * were written on a particular bar, and a "Chorus" that suddenly starts a bar
+ * early is a worse mistake than one that has to be typed again.
+ */
+class InsertBarCommand : public QUndoCommand
+{
+public:
+    InsertBarCommand(Editor *editor, int index)
+        : m_editor(editor)
+    {
+        const Score &score = editor->score();
+        m_index = std::clamp(index, 0, int(score.masterBars.size()));
+
+        // The bar being displaced, or the last one where there is nothing to
+        // displace. A score with no bars at all gets four four, which is the
+        // only answer available.
+        const int model = std::min(m_index, int(score.masterBars.size()) - 1);
+        if (model >= 0) {
+            m_numerator = score.masterBars.at(model).numerator;
+            m_denominator = score.masterBars.at(model).denominator;
+        }
+
+        // Worked out once and then kept, so that undoing and redoing puts the
+        // same bar back under the same numbers rather than a fresh one each
+        // time -- the same reason a paste keeps its ids.
+        int nextBar = Editor::freshBarId(score);
+        for (int track = 0; track < score.tracks.size(); ++track) {
+            m_barIds.append(nextBar++);
+        }
+        setText(i18n("Insert bar"));
+    }
+
+    void redo() override
+    {
+        Score &score = m_editor->mutableScore();
+        for (const int barId : m_barIds) {
+            // Four empty slots: a voice is addressed by its position, and one
+            // gets made the moment something is typed into it.
+            score.bars.insert(barId, Bar{{-1, -1, -1, -1}});
+        }
+        MasterBar master;
+        master.bars = m_barIds;
+        master.numerator = m_numerator;
+        master.denominator = m_denominator;
+        score.masterBars.insert(m_index, master);
+
+        // Everything written at or after the new bar is a bar later than it
+        // was. A tempo change left pointing at the index it used to have is a
+        // tempo change that moved.
+        for (TempoChange &tempo : score.tempos) {
+            if (tempo.bar >= m_index) {
+                ++tempo.bar;
+            }
+        }
+        m_editor->noteEdited(-1);
+    }
+
+    void undo() override
+    {
+        Score &score = m_editor->mutableScore();
+        if (m_index < score.masterBars.size()) {
+            score.masterBars.removeAt(m_index);
+        }
+        for (const int barId : m_barIds) {
+            score.bars.remove(barId);
+        }
+        // Past the bar rather than at it: the bar being taken away carries no
+        // tempo of its own, so everything still sitting at its index is what
+        // the redo pushed there.
+        for (TempoChange &tempo : score.tempos) {
+            if (tempo.bar > m_index) {
+                --tempo.bar;
+            }
+        }
+        m_editor->noteEdited(-1);
+    }
+
+private:
+    Editor *m_editor;
+    int m_index = 0;
+    int m_numerator = 4;
+    int m_denominator = 4;
+    QList<int> m_barIds;
+};
+
+/**
+ * Taking a bar out of the score, with every track's share of it.
+ *
+ * Everything in it is remembered by id as well as by value -- the bars, their
+ * voices, the beats and the notes -- so that undoing puts back the score that
+ * was there rather than one that merely sounds the same. A bar is the largest
+ * thing this editor can delete in one act, and it is the one where getting
+ * reversal wrong loses the most.
+ *
+ * The last bar of a score cannot be deleted. A score with no bars is not a
+ * shorter score; it is a thing the rest of the program treats as empty.
+ */
+class DeleteBarCommand : public QUndoCommand
+{
+public:
+    DeleteBarCommand(Editor *editor, int index)
+        : m_editor(editor)
+        , m_index(index)
+    {
+        const Score &score = editor->score();
+        m_valid = index >= 0 && index < score.masterBars.size() && score.masterBars.size() > 1;
+        if (m_valid) {
+            m_master = score.masterBars.at(index);
+            for (const int barId : m_master.bars) {
+                const auto bar = score.bars.constFind(barId);
+                if (bar == score.bars.constEnd()) {
+                    continue;
+                }
+                m_bars.insert(barId, *bar);
+                for (const int voiceId : bar->voices) {
+                    const auto voice = score.voices.constFind(voiceId);
+                    if (voice == score.voices.constEnd()) {
+                        continue;
+                    }
+                    m_voices.insert(voiceId, *voice);
+                    for (const int beatId : voice->beats) {
+                        const auto beat = score.beats.constFind(beatId);
+                        if (beat == score.beats.constEnd()) {
+                            continue;
+                        }
+                        m_beats.insert(beatId, *beat);
+                        for (const int noteId : beat->notes) {
+                            m_notes.insert(noteId, score.notes.value(noteId));
+                        }
+                    }
+                }
+            }
+            m_tempos = score.tempos;
+        }
+        setText(i18n("Delete bar"));
+    }
+
+    bool isValid() const
+    {
+        return m_valid;
+    }
+
+    void redo() override
+    {
+        Score &score = m_editor->mutableScore();
+        for (auto note = m_notes.constBegin(); note != m_notes.constEnd(); ++note) {
+            score.notes.remove(note.key());
+        }
+        for (auto beat = m_beats.constBegin(); beat != m_beats.constEnd(); ++beat) {
+            score.beats.remove(beat.key());
+        }
+        for (auto voice = m_voices.constBegin(); voice != m_voices.constEnd(); ++voice) {
+            score.voices.remove(voice.key());
+        }
+        for (auto bar = m_bars.constBegin(); bar != m_bars.constEnd(); ++bar) {
+            score.bars.remove(bar.key());
+        }
+        if (m_index < score.masterBars.size()) {
+            score.masterBars.removeAt(m_index);
+        }
+
+        // A tempo change written in this bar goes with it -- it was a change
+        // made at a moment that is no longer in the piece. The exception is
+        // the one the score starts at: losing that would not shorten the score
+        // but silently re-time all of it, so it moves to the front of whatever
+        // bar takes this one's place.
+        QList<TempoChange> kept;
+        for (int index = 0; index < m_tempos.size(); ++index) {
+            TempoChange tempo = m_tempos.at(index);
+            if (tempo.bar == m_index) {
+                if (index > 0) {
+                    continue;
+                }
+                tempo.bar = std::min(m_index, int(score.masterBars.size()) - 1);
+                tempo.position = 0;
+            } else if (tempo.bar > m_index) {
+                --tempo.bar;
+            }
+            kept.append(tempo);
+        }
+        score.tempos = kept;
+        m_editor->noteEdited(-1);
+    }
+
+    void undo() override
+    {
+        Score &score = m_editor->mutableScore();
+        for (auto note = m_notes.constBegin(); note != m_notes.constEnd(); ++note) {
+            score.notes.insert(note.key(), note.value());
+        }
+        for (auto beat = m_beats.constBegin(); beat != m_beats.constEnd(); ++beat) {
+            score.beats.insert(beat.key(), beat.value());
+        }
+        for (auto voice = m_voices.constBegin(); voice != m_voices.constEnd(); ++voice) {
+            score.voices.insert(voice.key(), voice.value());
+        }
+        for (auto bar = m_bars.constBegin(); bar != m_bars.constEnd(); ++bar) {
+            score.bars.insert(bar.key(), bar.value());
+        }
+        score.masterBars.insert(std::clamp(m_index, 0, int(score.masterBars.size())), m_master);
+        // Kept whole rather than shifted back: a bar that carried the tempo
+        // the score starts at cannot be restored by moving indices around.
+        score.tempos = m_tempos;
+        m_editor->noteEdited(-1);
+    }
+
+private:
+    Editor *m_editor;
+    int m_index = 0;
+    bool m_valid = false;
+    MasterBar m_master;
+    QHash<int, Bar> m_bars;
+    QHash<int, Voice> m_voices;
+    QHash<int, Beat> m_beats;
+    QHash<int, Note> m_notes;
+    QList<TempoChange> m_tempos;
+};
 }
 
 Editor::Editor(QObject *parent)
@@ -936,6 +1164,24 @@ int Editor::freshBeatId(const Score &score)
     return highest + 1;
 }
 
+int Editor::freshBarId(const Score &score)
+{
+    int highest = -1;
+    for (auto bar = score.bars.constBegin(); bar != score.bars.constEnd(); ++bar) {
+        highest = std::max(highest, bar.key());
+    }
+    return highest + 1;
+}
+
+int Editor::freshVoiceId(const Score &score)
+{
+    int highest = -1;
+    for (auto voice = score.voices.constBegin(); voice != score.voices.constEnd(); ++voice) {
+        highest = std::max(highest, voice.key());
+    }
+    return highest + 1;
+}
+
 int Editor::voiceForEditing(Score &score, const Cursor &cursor, bool *created)
 {
     if (created) {
@@ -955,11 +1201,7 @@ int Editor::voiceForEditing(Score &score, const Cursor &cursor, bool *created)
         return bar.voices.at(cursor.voice);
     }
 
-    int highest = -1;
-    for (auto voice = score.voices.constBegin(); voice != score.voices.constEnd(); ++voice) {
-        highest = std::max(highest, voice.key());
-    }
-    const int voiceId = highest + 1;
+    const int voiceId = freshVoiceId(score);
     score.voices.insert(voiceId, Voice());
     bar.voices[cursor.voice] = voiceId;
     if (created) {
@@ -1001,6 +1243,56 @@ void Editor::deleteBeat()
     m_undo->push(command);
     // The beat the caret was on is gone; it now points at whatever moved up,
     // or at the end of the voice if nothing did.
+    setCursor(m_cursor);
+}
+
+bool Editor::canDeleteBar() const
+{
+    return m_cursor.bar >= 0 && m_cursor.bar < m_score.masterBars.size()
+        && m_score.masterBars.size() > 1;
+}
+
+void Editor::insertBar()
+{
+    endDigitEntry();
+    clearSelection();
+    if (m_score.tracks.isEmpty() || m_score.masterBars.isEmpty()) {
+        return;
+    }
+    m_undo->push(new InsertBarCommand(this, m_cursor.bar));
+    // The caret has not moved, and what it was on has: it is now sitting at
+    // the front of an empty bar, which is where a number wants typing next.
+    setCursor(m_cursor);
+}
+
+void Editor::appendBar()
+{
+    endDigitEntry();
+    clearSelection();
+    if (m_score.tracks.isEmpty()) {
+        return;
+    }
+    m_undo->push(new InsertBarCommand(this, int(m_score.masterBars.size())));
+    // Into the new bar, because a bar added at the end of a piece is a bar
+    // somebody is about to write in.
+    Cursor at = m_cursor;
+    at.bar = int(m_score.masterBars.size()) - 1;
+    at.beat = 0;
+    setCursor(at);
+}
+
+void Editor::deleteBar()
+{
+    endDigitEntry();
+    clearSelection();
+    auto *command = new DeleteBarCommand(this, m_cursor.bar);
+    if (!command->isValid()) {
+        delete command;
+        return;
+    }
+    m_undo->push(command);
+    // The bar the caret was in is gone; it now points at whatever moved up,
+    // or at the last bar of the score if nothing did.
     setCursor(m_cursor);
 }
 

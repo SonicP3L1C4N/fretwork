@@ -27,31 +27,39 @@ private:
         return someBars(2);
     }
 
-    /** The same, as many bars as a test needs. */
-    static Score someBars(int count)
+    /** The same, as many bars and as many tracks as a test needs. */
+    static Score someBars(int count, int trackCount = 1)
     {
         Score score;
-        Track guitar;
-        guitar.name = QStringLiteral("Guitar");
-        guitar.instrumentType = QStringLiteral("electricGuitar");
-        guitar.tuning = {40, 45, 50, 55, 59, 64};
-        score.tracks.append(guitar);
+        for (int track = 0; track < trackCount; ++track) {
+            Track guitar;
+            guitar.name = QStringLiteral("Guitar %1").arg(track + 1);
+            guitar.instrumentType = QStringLiteral("electricGuitar");
+            guitar.tuning = {40, 45, 50, 55, 59, 64};
+            score.tracks.append(guitar);
+        }
         score.rhythms.insert(0, Rational(1));
 
-        int id = 0;
+        int beatId = 0;
+        int barId = 0;
         for (int bar = 0; bar < count; ++bar) {
             MasterBar master;
-            master.bars = {bar};
-            score.masterBars.append(master);
-
-            QList<int> beats;
-            for (int beat = 0; beat < 4; ++beat) {
-                score.beats.insert(id, Beat{0, {}, Dynamic::F, false, false});
-                beats.append(id);
-                ++id;
+            for (int track = 0; track < trackCount; ++track) {
+                QList<int> beats;
+                for (int beat = 0; beat < 4; ++beat) {
+                    score.beats.insert(beatId, Beat{0, {}, Dynamic::F, false, false});
+                    beats.append(beatId);
+                    ++beatId;
+                }
+                // A voice per bar of per track, numbered alongside the bars
+                // they belong to, which is close enough to what an importer
+                // produces to be worth testing against.
+                score.voices.insert(barId, Voice{beats});
+                score.bars.insert(barId, Bar{{barId, -1, -1, -1}});
+                master.bars.append(barId);
+                ++barId;
             }
-            score.voices.insert(bar, Voice{beats});
-            score.bars.insert(bar, Bar{{bar, -1, -1, -1}});
+            score.masterBars.append(master);
         }
         return score;
     }
@@ -61,31 +69,50 @@ private:
     {
         QStringList out;
         for (int bar = 0; bar < score.masterBars.size(); ++bar) {
-            for (const int voiceId : score.bars.value(score.masterBars.at(bar).bars.value(0)).voices) {
-                if (voiceId < 0) {
-                    continue;
-                }
-                for (const int beatId : score.voices.value(voiceId).beats) {
-                    QStringList notes;
-                    for (const int noteId : score.beats.value(beatId).notes) {
-                        const Note note = score.notes.value(noteId);
-                        notes.append(QStringLiteral("s%1f%2m%3")
-                                         .arg(note.string)
-                                         .arg(note.fret)
-                                         .arg(note.midi));
+            const MasterBar &master = score.masterBars.at(bar);
+            // The bar itself and not only what is in it: an edit that added a
+            // bar, took one away, or changed what one is worth has to show up
+            // here too, or the reversal tests are agreeing with a bug.
+            out.append(QStringLiteral("[%1]%2/%3%4")
+                           .arg(bar)
+                           .arg(master.numerator)
+                           .arg(master.denominator)
+                           .arg(master.section));
+            for (const int barId : master.bars) {
+                for (const int voiceId : score.bars.value(barId).voices) {
+                    if (voiceId < 0) {
+                        continue;
                     }
-                    // The duration too: an edit that changed how long a beat
-                    // lasts and nothing else has to show up here, or the
-                    // reversal tests are agreeing with a bug.
-                    const Rational duration =
-                        score.rhythms.value(score.beats.value(beatId).rhythm, Rational(1));
-                    out.append(QStringLiteral("b%1:%2:%3/%4")
-                                   .arg(beatId)
-                                   .arg(notes.join(QLatin1Char(',')))
-                                   .arg(duration.numerator)
-                                   .arg(duration.denominator));
+                    for (const int beatId : score.voices.value(voiceId).beats) {
+                        QStringList notes;
+                        for (const int noteId : score.beats.value(beatId).notes) {
+                            const Note note = score.notes.value(noteId);
+                            notes.append(QStringLiteral("s%1f%2m%3")
+                                             .arg(note.string)
+                                             .arg(note.fret)
+                                             .arg(note.midi));
+                        }
+                        // The duration too: an edit that changed how long a beat
+                        // lasts and nothing else has to show up here, or the
+                        // reversal tests are agreeing with a bug.
+                        const Rational duration =
+                            score.rhythms.value(score.beats.value(beatId).rhythm, Rational(1));
+                        out.append(QStringLiteral("b%1:%2:%3/%4")
+                                       .arg(beatId)
+                                       .arg(notes.join(QLatin1Char(',')))
+                                       .arg(duration.numerator)
+                                       .arg(duration.denominator));
+                    }
                 }
             }
+        }
+        // And the tempo map, because a bar is where a tempo change lives: one
+        // left pointing at the index it used to have is a tempo that moved.
+        for (const TempoChange &tempo : score.tempos) {
+            out.append(QStringLiteral("t%1@%2:%3")
+                           .arg(tempo.bar)
+                           .arg(tempo.position)
+                           .arg(tempo.quarterBpm));
         }
         return out.join(QLatin1Char('|'));
     }
@@ -324,6 +351,13 @@ private Q_SLOTS:
         editor.paste();
         editor.setCursor(at(0, 0, 5));
         editor.clearNote();
+        editor.setCursor(at(1, 0, 0));
+        editor.insertBar();
+        editor.typeDigit(6);
+        editor.appendBar();
+        editor.typeDigit(4);
+        editor.setCursor(at(0, 0, 0));
+        editor.deleteBar();
 
         const QString edited = fingerprint(editor.score());
         QVERIFY(edited != empty);
@@ -824,6 +858,207 @@ private Q_SLOTS:
         second.typeDigit(5);
         second.insertBeat();
         QVERIFY(!second.canUndo());
+    }
+
+    // ---- bars ----
+
+    /** A bar made room for is a bar in every track, or the tracks drift apart. */
+    void insertingABarMakesOneInEveryTrack()
+    {
+        Editor editor;
+        editor.setScore(someBars(3, 2));
+        editor.setCursor(at(1, 0, 0));
+        const QString before = fingerprint(editor.score());
+
+        editor.insertBar();
+        QCOMPARE(int(editor.score().masterBars.size()), 4);
+        QCOMPARE(int(editor.score().masterBars.at(1).bars.size()), 2);
+
+        // Empty in both tracks, and the music that was in bar 1 is in bar 2.
+        for (int track = 0; track < 2; ++track) {
+            Cursor made = at(1, 0, 0);
+            made.track = track;
+            QCOMPARE(Editing::beatCount(editor.score(), made), 0);
+            Cursor moved = at(2, 0, 0);
+            moved.track = track;
+            QCOMPARE(Editing::beatCount(editor.score(), moved), 4);
+        }
+
+        editor.undo();
+        QCOMPARE(fingerprint(editor.score()), before);
+    }
+
+    /** A bar added to a piece in 6/8 is in 6/8. */
+    void aNewBarIsWorthWhatTheOneItDisplacedWas()
+    {
+        Score score = someBars(2);
+        score.masterBars[1].numerator = 6;
+        score.masterBars[1].denominator = 8;
+        score.masterBars[1].section = QStringLiteral("Chorus");
+        score.masterBars[1].repeatStart = true;
+
+        Editor editor;
+        editor.setScore(score);
+        editor.setCursor(at(1, 0, 0));
+        editor.insertBar();
+
+        QCOMPARE(editor.score().masterBars.at(1).numerator, 6);
+        QCOMPARE(editor.score().masterBars.at(1).denominator, 8);
+        // The name and the repeat sign were written on that bar, not on the
+        // moment before it: a chorus that starts a bar early is worse than one
+        // that has to be typed again.
+        QVERIFY(editor.score().masterBars.at(1).section.isEmpty());
+        QVERIFY(!editor.score().masterBars.at(1).repeatStart);
+        QCOMPARE(editor.score().masterBars.at(2).section, QStringLiteral("Chorus"));
+        QVERIFY(editor.score().masterBars.at(2).repeatStart);
+    }
+
+    /** A tempo change is written in a bar, so it goes where that bar goes. */
+    void insertingABarMovesTheTempoChangesAfterIt()
+    {
+        Score score = someBars(3);
+        score.tempos = {TempoChange{0, 0, 120}, TempoChange{2, 0, 90}};
+
+        Editor editor;
+        editor.setScore(score);
+        editor.setCursor(at(1, 0, 0));
+        const QString before = fingerprint(editor.score());
+
+        editor.insertBar();
+        QCOMPARE(editor.score().tempos.at(0).bar, 0);
+        QCOMPARE(editor.score().tempos.at(1).bar, 3);
+
+        editor.undo();
+        QCOMPARE(fingerprint(editor.score()), before);
+    }
+
+    /** Which is how music reaches the end of a piece and then goes past it. */
+    void aBarAddedAtTheEndCanBeWrittenInto()
+    {
+        Editor editor;
+        editor.setScore(someBars(2));
+        editor.setCursor(at(0, 0, 0));
+        const QString before = fingerprint(editor.score());
+
+        editor.appendBar();
+        QCOMPARE(int(editor.score().masterBars.size()), 3);
+        // The caret went with it: a bar added at the end is one somebody is
+        // about to write in.
+        QCOMPARE(editor.cursor().bar, 2);
+        QCOMPARE(editor.cursor().beat, 0);
+
+        editor.typeDigit(7);
+        QCOMPARE(editor.score().notes.value(
+                     Editing::noteIdAt(editor.score(), at(2, 0, 0))).fret, 7);
+
+        editor.undo();
+        editor.undo();
+        QCOMPARE(fingerprint(editor.score()), before);
+    }
+
+    void deletingABarTakesItsMusicWithIt()
+    {
+        Editor editor;
+        editor.setScore(someBars(3, 2));
+        editor.setCursor(at(1, 2, 3));
+        editor.typeDigit(5);
+        const QString before = fingerprint(editor.score());
+        const int notesBefore = int(editor.score().notes.size());
+
+        editor.setCursor(at(1, 0, 0));
+        editor.deleteBar();
+
+        QCOMPARE(int(editor.score().masterBars.size()), 2);
+        QCOMPARE(int(editor.score().notes.size()), notesBefore - 1);
+        // Both tracks lost their share of it, and nothing was left in the
+        // tables pointing at a bar that is no longer in the score.
+        QCOMPARE(int(editor.score().bars.size()), 4);
+        QCOMPARE(int(editor.score().voices.size()), 4);
+        QCOMPARE(int(editor.score().beats.size()), 16);
+
+        // Back exactly: the same bars, the same ids, the same note on it.
+        editor.undo();
+        QCOMPARE(fingerprint(editor.score()), before);
+        QCOMPARE(editor.score().notes.value(
+                     Editing::noteIdAt(editor.score(), at(1, 2, 3))).fret, 5);
+    }
+
+    /** A score with no bars is not a shorter score. */
+    void theLastBarOfAScoreIsKept()
+    {
+        Editor editor;
+        editor.setScore(someBars(1));
+        editor.setCursor(at(0, 0, 0));
+        const QString before = fingerprint(editor.score());
+
+        QVERIFY(!editor.canDeleteBar());
+        editor.deleteBar();
+        QCOMPARE(fingerprint(editor.score()), before);
+        QVERIFY(!editor.canUndo());
+    }
+
+    /**
+     * Losing the tempo a piece starts at would not shorten it: it would
+     * silently re-time all of it.
+     */
+    void deletingABarKeepsTheTempoTheScoreStartsAt()
+    {
+        Score score = someBars(3);
+        score.tempos = {TempoChange{0, 0, 90}, TempoChange{2, 0, 140}};
+
+        Editor editor;
+        editor.setScore(score);
+        editor.setCursor(at(0, 0, 0));
+        const QString before = fingerprint(editor.score());
+
+        editor.deleteBar();
+        QCOMPARE(int(editor.score().tempos.size()), 2);
+        QCOMPARE(editor.score().tempos.at(0).bar, 0);
+        QCOMPARE(editor.score().tempos.at(0).quarterBpm, 90.0);
+        QCOMPARE(editor.score().tempos.at(1).bar, 1);
+
+        // A change written inside a deleted bar goes with it: it was made at a
+        // moment that is no longer in the piece.
+        editor.setCursor(at(1, 0, 0));
+        editor.deleteBar();
+        QCOMPARE(int(editor.score().tempos.size()), 1);
+        QCOMPARE(editor.score().tempos.at(0).quarterBpm, 90.0);
+
+        editor.undo();
+        editor.undo();
+        QCOMPARE(fingerprint(editor.score()), before);
+    }
+
+    /** The answer to a paste that would run off the end is more score. */
+    void barsAddedAtTheEndMakeRoomForAPasteThatWasRefused()
+    {
+        Editor editor;
+        editor.setScore(someBars(3));
+        editor.setCursor(at(0, 0, 0));
+        editor.typeDigit(4);
+        editor.setCursor(at(0, 0, 0));
+        editor.setCursor(at(1, 3, 0), true);
+        editor.copy();
+
+        editor.setCursor(at(2, 0, 0));
+        QVERIFY(!editor.paste());
+
+        editor.appendBar();
+        editor.setCursor(at(2, 0, 0));
+        QVERIFY(editor.paste());
+        QCOMPARE(Editing::beatCount(editor.score(), at(2, 0, 0)), 8);
+        QCOMPARE(Editing::beatCount(editor.score(), at(3, 0, 0)), 4);
+    }
+
+    void doesNothingWithABarWhereThereIsNoScore()
+    {
+        Editor editor;
+        editor.setScore(Score());
+
+        editor.insertBar();
+        editor.appendBar();
+        editor.deleteBar();
+        QVERIFY(!editor.canUndo());
     }
 };
 

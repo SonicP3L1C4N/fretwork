@@ -132,6 +132,32 @@ public:
     /** Moves the note under the caret by a number of frets, staying on its string. */
     void transposeNote(int frets);
 
+    // ---- bars ----
+
+    /**
+     * Puts an empty bar in at the caret, pushing the rest of the score along.
+     *
+     * Across every track at once, because a master bar is the score's own unit
+     * of time and a bar added to one track alone would put the others out of
+     * step for the rest of the piece. It takes the time signature of the bar it
+     * displaces, and neither its section name nor its repeat signs.
+     */
+    void insertBar();
+
+    /** Puts an empty bar on the end of the score, and the caret in it. */
+    void appendBar();
+
+    /**
+     * Takes the bar under the caret out, across every track.
+     *
+     * Refused on the last bar of a score: a score with no bars is not a shorter
+     * score, it is one the rest of the program treats as empty.
+     */
+    void deleteBar();
+
+    /** Whether there is a bar under the caret that is not the only one. */
+    bool canDeleteBar() const;
+
     // ---- how long a beat lasts ----
 
     /**
@@ -172,6 +198,8 @@ public:
     void noteEdited(int bar);
     static int freshNoteId(const Score &score);
     static int freshBeatId(const Score &score);
+    static int freshBarId(const Score &score);
+    static int freshVoiceId(const Score &score);
 
     /**
      * The voice at the cursor, put into the bar if it is not there yet.

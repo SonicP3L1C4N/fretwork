@@ -8,6 +8,38 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## Unreleased — P3
 
+- **It adds and removes bars.** `Ctrl+B` puts an empty one on the end of the
+  score and the caret in it, `Ctrl+Shift+B` makes room at the caret, and
+  `Ctrl+Shift+Delete` takes the bar under the caret out. Until now a score
+  could only ever be as long as the file it was imported from, which is a
+  strange thing for an editor to insist on.
+- **A bar is added to every track at once.** A master bar is the score's own
+  unit of time, and one made for a guitar and not for the bass beside it would
+  put every bar after it out of step for the rest of the piece. There is no way
+  to ask for less, because there is no version of it that is right.
+- **A new bar is worth what the one it displaced was**, so a bar added to a
+  piece in 6/8 is in 6/8. Its section name and its repeat signs are not copied:
+  those were written on a particular bar, and a "Chorus" that suddenly starts a
+  bar early is a worse mistake than one that has to be typed again.
+- **Tempo changes move with the bars they were written in.** A tempo is
+  positioned by bar number, so inserting a bar ahead of one and leaving its
+  number alone would be moving the change rather than the music. Deleting a bar
+  takes the changes written inside it — they were made at a moment that is no
+  longer in the piece — with one exception: the tempo the score starts at moves
+  to the front of whatever bar takes its place. Losing that would not shorten
+  the score, it would silently re-time all of it.
+- **The last bar of a score cannot be deleted**, and the status bar says why. A
+  score with no bars is not a shorter score; it is one the rest of the program
+  treats as empty and refuses to draw or play.
+- Deleting a bar goes back exactly: the bars, voices, beats and notes return
+  under the ids they had, with the master bar in the place it was and the whole
+  tempo map as it stood. The whole-session reversal test adds and deletes bars
+  on its way through, and the fingerprint it compares now includes the bar
+  lines, what each bar is worth and the tempo map — an edit that moved any of
+  them had nowhere to show up before.
+- A paste refused for running off the end of the score now has an answer other
+  than shortening what was copied: add the bars, and paste again.
+
 - **It selects, and copies and pastes.** Shift with an arrow widens the
   selection from the beat the caret was on, dragging across the score does the
   same with the mouse, and `Ctrl+C`, `Ctrl+X` and `Ctrl+V` do what they do

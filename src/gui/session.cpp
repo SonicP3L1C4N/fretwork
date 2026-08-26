@@ -394,6 +394,30 @@ void Session::deleteBeat()
     m_editor.deleteBeat();
 }
 
+void Session::insertBar()
+{
+    m_editor.insertBar();
+}
+
+void Session::appendBar()
+{
+    m_editor.appendBar();
+}
+
+void Session::deleteBar()
+{
+    if (!hasScore()) {
+        return;
+    }
+    if (!m_editor.canDeleteBar()) {
+        // The only bar there is. Say so, because a key that does nothing and
+        // does not explain itself reads as a broken key.
+        setStatus(i18n("A score has to have a bar in it, so the last one is kept"));
+        return;
+    }
+    m_editor.deleteBar();
+}
+
 void Session::undo()
 {
     m_editor.undo();
