@@ -6,6 +6,7 @@
 #include "fwformat.h"
 #include "gpif.h"
 #include "notevalue.h"
+#include "swing.h"
 
 #include <KLocalizedString>
 
@@ -118,10 +119,23 @@ bool Session::open(const QString &path)
     Q_EMIT scoreChanged();
     Q_EMIT currentTrackChanged();
     Q_EMIT mixerChanged();
-    setStatus(Timeline::hasAlternateEndings(m_editor.score())
-                  ? i18n("Alternate endings are not flattened yet, so the playback "
-                         "order is approximate")
-                  : QString());
+    // What the window should say about a score the moment it opens: the things
+    // that are true of the whole piece and are not visible anywhere on the
+    // page. A shuffle is the second of those -- it is played and not printed,
+    // and until the page carries a label of its own this is the only place
+    // that says the quavers on it are not even.
+    QStringList remarks;
+    if (Timeline::hasAlternateEndings(m_editor.score())) {
+        remarks.append(i18n("Alternate endings are not flattened yet, so the playback "
+                            "order is approximate"));
+    }
+    for (const MasterBar &bar : m_editor.score().masterBars) {
+        if (bar.tripletFeel != TripletFeel::None) {
+            remarks.append(i18n("This score swings: %1", Swing::nameOf(bar.tripletFeel)));
+            break;
+        }
+    }
+    setStatus(remarks.join(QStringLiteral(" · ")));
     return true;
 }
 

@@ -11,6 +11,7 @@
 #include "renderer.h"
 #include "tablayout.h"
 #include "tabpainter.h"
+#include "swing.h"
 #include "timeline.h"
 #include "tuner.h"
 
@@ -83,6 +84,25 @@ void describe(QTextStream &out, const Score &score, const QList<int> &order)
             }
         }
         out << "  tempo   " << written.join(QStringLiteral(", ")) << "\n";
+    }
+
+    // What a shuffle does to a score is large and entirely invisible in a note
+    // count, so it is worth saying out loud that one was found.
+    int swung = 0;
+    TripletFeel feel = TripletFeel::None;
+    for (const MasterBar &bar : score.masterBars) {
+        if (bar.tripletFeel != TripletFeel::None) {
+            ++swung;
+            feel = bar.tripletFeel;
+        }
+    }
+    if (swung > 0) {
+        out << QStringLiteral("  feel    %1\n")
+                   .arg(swung == score.masterBars.size()
+                            ? i18n("%1 throughout", Swing::nameOf(feel))
+                            : i18n("%1 on %2 of %3 bars", Swing::nameOf(feel),
+                                   QString::number(swung),
+                                   QString::number(score.masterBars.size())));
     }
 
     if (Timeline::hasAlternateEndings(score)) {

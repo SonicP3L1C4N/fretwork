@@ -52,9 +52,28 @@ struct Rational {
                 denominator * other.denominator};
     }
 
+    Rational operator-(const Rational &other) const
+    {
+        return {numerator * other.denominator - other.numerator * denominator,
+                denominator * other.denominator};
+    }
+
     Rational operator*(const Rational &other) const
     {
         return {numerator * other.numerator, denominator * other.denominator};
+    }
+
+    Rational operator/(const Rational &other) const
+    {
+        Q_ASSERT(other.numerator != 0);
+        return {numerator * other.denominator, denominator * other.numerator};
+    }
+
+    /** How many whole `other`s fit, which for a positive value is the floor. */
+    qint64 dividedBy(const Rational &other) const
+    {
+        const Rational quotient = *this / other;
+        return quotient.numerator / quotient.denominator;
     }
 
     Rational &operator+=(const Rational &other)

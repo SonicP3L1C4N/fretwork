@@ -3,6 +3,8 @@
 
 #include "timeline.h"
 
+#include "swing.h"
+
 #include <QHash>
 #include <QSet>
 
@@ -191,6 +193,15 @@ QList<Timeline::NoteEvent> Timeline::notesFor(const Score &score, int trackIndex
         }
 
         const Bar bar = score.bars.value(master.bars.at(trackIndex));
+
+        // A shuffle is a warp of the bar's own time rather than a change to
+        // the notes in it. Every position below is written down first and
+        // moved once, here, so that nothing further on has to know which notes
+        // were meant to be a swung pair.
+        const auto swung = [&](const Rational &within) {
+            return position + Swing::played(within, master.tripletFeel, master.length());
+        };
+
         for (const int voiceId : bar.voices) {
             if (voiceId < 0) {
                 continue;
@@ -210,7 +221,11 @@ QList<Timeline::NoteEvent> Timeline::notesFor(const Score &score, int trackIndex
                     if (note == score.notes.constEnd() || note->midi < 0) {
                         continue;
                     }
-                    const Rational start = position + offset;
+                    const Rational start = swung(offset);
+                    // How long the note lasts once the bar has been warped,
+                    // which is what a bend has to be drawn across and what a
+                    // palm mute takes half of.
+                    const Rational sounding = swung(offset + duration) - start;
 
                     // A tie does not restrike: it lengthens what is already
                     // ringing. Searching backwards finds the most recent
@@ -227,11 +242,11 @@ QList<Timeline::NoteEvent> Timeline::notesFor(const Score &score, int trackIndex
 
                     NoteEvent event;
                     event.start = start;
-                    event.end = start + duration;
+                    event.end = start + sounding;
                     event.pitch = note->midi;
                     event.string = note->string;
                     event.channel = channelFor(track, *note);
-                    event.bend = bendCurve(*note, duration);
+                    event.bend = bendCurve(*note, sounding);
                     // A legato slide is fretted rather than picked, the same as
                     // the hammer-ons and pull-offs gpif calls Hopo.
                     event.legato = note->hammerDestination
@@ -252,10 +267,10 @@ QList<Timeline::NoteEvent> Timeline::notesFor(const Score &score, int trackIndex
                     }
                     if (note->muted) {
                         // A dead note is a click at no particular pitch.
-                        event.end = start + std::min(duration, Rational(1, 8));
+                        event.end = start + std::min(sounding, Rational(1, 8));
                         velocity = std::max(1, velocity - 20);
                     } else if (note->palmMuted) {
-                        event.end = start + duration * Rational(1, 2);
+                        event.end = start + sounding * Rational(1, 2);
                     }
                     event.velocity = velocity;
 

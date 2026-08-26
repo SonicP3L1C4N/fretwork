@@ -49,13 +49,15 @@ says it cannot play. Each of these closes one of those admissions.
   where transcriptions are most often wrong — a flattener that guessed would
   play music nobody wrote.
 
-- **Swing and shuffle feel.** Guitar Pro records it per bar and Fretwork
-  ignores it, so a shuffled piece plays straight. That is not a missing
-  ornament, it is the wrong music, which arguably promotes this off the
-  wishlist and into P3.
-
 - **Fermatas and free time.** Rare enough to have gone unnoticed, wrong enough
   to be worth an hour when it is.
+
+- **Printing the feel on the page.** The shuffle is played now and not drawn,
+  which is the one place where the page and the speakers disagree about a
+  score. Printed tablature puts "Triplet Feel" over the staff and there is no
+  row up there to put it in: the label stack above a system is exactly as tall
+  as the section names need, so this is a decision about how tall a system is
+  before it is a drawing job.
 
 ## Sounding like an instrument
 

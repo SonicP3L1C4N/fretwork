@@ -31,6 +31,30 @@ enum class Dynamic {
     PPP, PP, P, MP, MF, F, FF, FFF
 };
 
+/**
+ * Whether pairs of notes are played evenly or long-short.
+ *
+ * A shuffle is not written down as triplets. It is written as ordinary pairs
+ * with a note at the top of the page saying to play them unevenly, and every
+ * musician does. A program that took the notation literally would play a blues
+ * straight, which is not a missing ornament -- it is the wrong music, and the
+ * kind of wrong that sounds like a decision.
+ *
+ * gpif records it per master bar, and only where there is one: a bar with no
+ * `TripletFeel` element is a bar played as written. The corpus bears that out
+ * -- Virtual Insanity swings for 102 bars and has no element at all for the
+ * twenty-eight straight ones in the middle.
+ */
+enum class TripletFeel {
+    None,
+    Triplet8th,     //< a pair of quavers as two thirds and one third of a crotchet
+    Triplet16th,    //< the same, one level down
+    Dotted8th,      //< three quarters and one quarter: harder than a shuffle
+    Dotted16th,
+    Scottish8th,    //< a quarter and three quarters -- the snap, short note first
+    Scottish16th,
+};
+
 /** How a note gets from its own pitch to the next one. */
 enum class SlideType {
     None,
@@ -100,6 +124,9 @@ struct MasterBar {
     int numerator = 4;
     int denominator = 4;
     QString section;            //< "Intro", "Chorus" -- where the score names it
+
+    /** Whether pairs of notes in this bar are played long-short, and how. */
+    TripletFeel tripletFeel = TripletFeel::None;
 
     bool repeatStart = false;
     bool repeatEnd = false;

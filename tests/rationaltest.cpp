@@ -68,6 +68,22 @@ private Q_SLOTS:
         QVERIFY(Rational(-1, 2) < Rational(0));
     }
 
+    void subtractsAndDividesExactly()
+    {
+        QCOMPARE(Rational(1) - Rational(1, 3), Rational(2, 3));
+        QCOMPARE(Rational(1, 2) - Rational(3, 4), Rational(-1, 4));
+        QCOMPARE(Rational(2, 3) / Rational(1, 3), Rational(2));
+        QCOMPARE(Rational(1) / Rational(3), Rational(1, 3));
+        QCOMPARE(Rational(3, 4) / Rational(1, 2), Rational(3, 2));
+
+        // How many whole ones fit, which is what finding the pair a position
+        // falls in comes down to.
+        QCOMPARE(Rational(7, 2).dividedBy(Rational(1)), 3);
+        QCOMPARE(Rational(4).dividedBy(Rational(1)), 4);
+        QCOMPARE(Rational(1, 3).dividedBy(Rational(1, 2)), 0);
+        QCOMPARE(Rational(5, 4).dividedBy(Rational(1, 2)), 2);
+    }
+
     void convertsToTicksByRounding()
     {
         QCOMPARE(Rational(1).toTicks(960), 960);

@@ -21,6 +21,7 @@ add_library(fretworkcore STATIC
     edit/editor.cpp
     render/tablayout.cpp
     render/tabpainter.cpp
+    playback/swing.cpp
     playback/timeline.cpp
 )
 

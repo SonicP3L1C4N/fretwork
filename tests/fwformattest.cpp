@@ -62,7 +62,7 @@ private:
             for (const int id : bar.bars) {
                 bars.append(QString::number(id));
             }
-            out.append(QStringLiteral("mb %1/%2 s=%3 r=%4%5%6 alt=%7 [%8]")
+            out.append(QStringLiteral("mb %1/%2 s=%3 r=%4%5%6 alt=%7 feel=%8 [%9]")
                            .arg(bar.numerator)
                            .arg(bar.denominator)
                            .arg(bar.section)
@@ -70,6 +70,7 @@ private:
                            .arg(bar.repeatEnd)
                            .arg(bar.repeatCount)
                            .arg(bar.alternateEndings)
+                           .arg(int(bar.tripletFeel))
                            .arg(bars.join(QLatin1Char(','))));
         }
 
@@ -185,6 +186,10 @@ private:
         first.numerator = 7;
         first.denominator = 8;
         first.section = QStringLiteral("Intro");
+        // A shuffle in a bar that does not hold a whole number of pairs, which
+        // is the one the warp has to be careful about and therefore the one
+        // worth carrying through a save.
+        first.tripletFeel = TripletFeel::Triplet8th;
         first.repeatStart = true;
         MasterBar second;
         second.bars = {1, 3};

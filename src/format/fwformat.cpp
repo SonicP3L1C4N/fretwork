@@ -3,6 +3,8 @@
 
 #include "fwformat.h"
 
+#include "swing.h"
+
 #include "zipreader.h"
 
 #include <KZip>
@@ -250,6 +252,9 @@ QByteArray encode(const Score &score)
         if (!bar.section.isEmpty()) {
             object.insert(QStringLiteral("section"), bar.section);
         }
+        if (bar.tripletFeel != TripletFeel::None) {
+            object.insert(QStringLiteral("tripletFeel"), Swing::tokenOf(bar.tripletFeel));
+        }
         if (bar.repeatStart || bar.repeatEnd) {
             QJsonObject repeat;
             putFlag(repeat, QStringLiteral("start"), bar.repeatStart);
@@ -344,6 +349,8 @@ Score decode(const QByteArray &json, QString *error)
             bar.denominator = time.at(1).toInt(4);
         }
         bar.section = object.value(QStringLiteral("section")).toString();
+        bar.tripletFeel =
+            Swing::fromToken(object.value(QStringLiteral("tripletFeel")).toString());
         const QJsonObject repeat = object.value(QStringLiteral("repeat")).toObject();
         bar.repeatStart = repeat.value(QStringLiteral("start")).toBool();
         bar.repeatEnd = repeat.value(QStringLiteral("end")).toBool();

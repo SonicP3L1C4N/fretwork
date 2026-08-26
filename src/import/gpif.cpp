@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
 #include "gpif.h"
+
+#include "swing.h"
 #include "zipreader.h"
 
 #include <QDomDocument>
@@ -165,6 +167,11 @@ MasterBar readMasterBar(const QDomElement &element)
 
     bar.section = childText(element.firstChildElement(QStringLiteral("Section")),
                             QStringLiteral("Text"));
+
+    // Absent means straight. Guitar Pro writes the element only where there is
+    // a feel and never writes one saying there is none, which is why this is
+    // not inherited from the bar before it.
+    bar.tripletFeel = Swing::fromToken(childText(element, QStringLiteral("TripletFeel")));
 
     const QDomElement repeat = element.firstChildElement(QStringLiteral("Repeat"));
     if (!repeat.isNull()) {

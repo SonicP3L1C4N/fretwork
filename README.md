@@ -227,6 +227,31 @@ once, so the *MIDI* writer says what it gave up:
 Audio rendering has no such limit, because nothing is shared: that compromise
 is a property of the MIDI file format, not of the program.
 
+**It shuffles.** Guitar Pro records a triplet feel per bar, and a score that
+has one is not a score with a missing ornament — played evenly, a shuffle is
+the wrong music, and the kind of wrong that sounds like a decision. Fretwork
+plays the pair of quavers as two thirds and one third of a crotchet, which is
+what everybody means by a shuffle, along with the dotted and snapped feels
+Guitar Pro also writes.
+
+It is done as a warp of the bar's own time rather than as a rule about which
+notes count as a swung pair, which is the version that goes wrong. The warp is
+the identity at every pair boundary, so a crotchet on the beat does not move; a
+triplet written inside a swung bar — which happens, and is not a contradiction
+— is carried along with everything else instead of being argued about; and a
+7/8 bar, which holds three pairs and a quaver over, keeps that odd quaver where
+it was written and stays exactly as long as it was. A feel that changed how
+long a bar lasted would have quietly rewritten every bar after it.
+
+The page does not print the feel yet — printed tablature says "Triplet Feel"
+over the staff, and there is no row above the staff to put it in without making
+every system taller. Until there is, the window says so in the status bar when
+a score opens and `--info` prints it:
+
+```
+  feel    triplet quavers throughout
+```
+
 Not yet translated: slides, tremolo picking, harmonics, grace notes and trills
 sound as plain notes; alternate endings are not flattened, and a score using
 them says so.
