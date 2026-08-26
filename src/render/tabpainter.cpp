@@ -7,6 +7,8 @@
 #include <QPainter>
 #include <QPdfWriter>
 
+#include <algorithm>
+
 namespace
 {
 QFont sansOf(qreal size, bool bold = false)
@@ -23,6 +25,84 @@ qreal lineY(const Tab::Layout &layout, qreal top, int string)
     // String 0 is the lowest in pitch and sits at the bottom of the tablature.
     const int fromTop = layout.strings - 1 - std::clamp(string, 0, layout.strings - 1);
     return top + fromTop * layout.style.stringSpacing;
+}
+
+/**
+ * The stem under one column, saying how long it lasts.
+ *
+ * Only ink: which beams, which head and how many dots were all decided in the
+ * layout, where they can be tested by reading numbers rather than by looking
+ * at a picture. Beams stack upwards from the foot of the stem so that the row
+ * is the same height however many there are -- a bar of demisemiquavers must
+ * not push the next line of music down the page.
+ *
+ * A rest is drawn here too, as a bar in the middle of the staff with its
+ * duration on the stem below it. The proper glyph needs a music font, which
+ * this project does not vendor until standard notation arrives; a plain bar
+ * cannot say how long the silence is, and the stem already does.
+ */
+void paintRhythm(QPainter &painter, const Tab::Layout &layout, const Tab::LaidBeat &beat,
+                 qreal x, qreal nextX, qreal top, const Tab::Palette &palette)
+{
+    const Tab::Style &style = layout.style;
+    const Tab::LaidRhythm &rhythm = beat.rhythm;
+
+    const qreal stemTop = top + layout.staffHeight() + style.rhythmGap;
+    const qreal foot = stemTop + style.rhythmStem;
+
+    if (rhythm.rest) {
+        const qreal middle = top + layout.staffHeight() / 2;
+        painter.fillRect(QRectF(x - style.restWidth / 2, middle - 1.1, style.restWidth, 2.2),
+                         palette.staff);
+    }
+
+    painter.setPen(QPen(palette.staff, 0.9));
+    painter.setBrush(Qt::NoBrush);
+    if (rhythm.stem) {
+        painter.drawLine(QPointF(x, stemTop), QPointF(x, foot));
+    }
+
+    // A minim and a semibreve are told from a crotchet by an open head, which
+    // is the whole of the note-head shape tablature has ever needed.
+    if (rhythm.hollow) {
+        painter.drawEllipse(QPointF(x, rhythm.stem ? foot : (stemTop + foot) / 2), 1.9, 1.6);
+    }
+
+    const auto beamAt = [&](int level) {
+        return foot - level * style.beamSpacing;
+    };
+    const int shared = std::max(rhythm.beamLeft, rhythm.beamRight);
+    painter.setPen(QPen(palette.staff, style.beamThickness));
+
+    for (int level = 0; level < rhythm.beamRight; ++level) {
+        painter.drawLine(QPointF(x, beamAt(level)), QPointF(nextX, beamAt(level)));
+    }
+    for (int index = 0; index < rhythm.stubs; ++index) {
+        // The short beam on the semiquaver of a dotted pair: it points at the
+        // note it belongs with rather than into the space beside it.
+        const qreal reach = style.beamSpacing * (rhythm.stubRight ? 1.5 : -1.5);
+        painter.drawLine(QPointF(x, beamAt(shared + index)),
+                         QPointF(x + reach, beamAt(shared + index)));
+    }
+    for (int level = 0; level < rhythm.flags; ++level) {
+        // A flag, not a beam: it runs to nothing, so it lifts away from the
+        // stem instead of pointing level at a neighbour that is not there.
+        painter.drawLine(QPointF(x, beamAt(level)),
+                         QPointF(x + style.beamSpacing * 1.6,
+                                 beamAt(level) - style.beamSpacing));
+    }
+
+    if (rhythm.dots > 0) {
+        // Above whatever else is down here, so a dotted quaver in a beamed run
+        // does not put its dot through the beam.
+        const qreal dotY = beamAt(std::max({rhythm.flags, shared + rhythm.stubs}));
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(palette.staff);
+        for (int index = 0; index < rhythm.dots; ++index) {
+            painter.drawEllipse(QPointF(x + 2.6 + index * 2.2, dotY), 0.7, 0.7);
+        }
+        painter.setBrush(Qt::NoBrush);
+    }
 }
 
 void paintSystem(QPainter &painter, const Tab::Layout &layout, const Tab::System &system,
@@ -90,6 +170,15 @@ void paintSystem(QPainter &painter, const Tab::Layout &layout, const Tab::System
                                     top - style.labelSize * 4.0, 38, style.labelSize * 1.5),
                              Qt::AlignRight | Qt::AlignBottom,
                              QStringLiteral("×%1").arg(bar.repeatCount));
+        }
+
+        for (int index = 0; index < bar.beats.size(); ++index) {
+            const Tab::LaidBeat &beat = bar.beats.at(index);
+            // A beam runs to the next column along, which is the only place
+            // the layout ever joins one to.
+            const qreal nextX =
+                x + (index + 1 < bar.beats.size() ? bar.beats.at(index + 1).x : beat.x);
+            paintRhythm(painter, layout, beat, x + beat.x, nextX, top, palette);
         }
 
         painter.setFont(sansOf(style.fretSize));

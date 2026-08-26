@@ -94,7 +94,10 @@ fretwork FILE.gp --png page.png --page 2 --track 1
 ```
 
 Title, tuning, section names, bar numbers, time signatures, repeat signs, dead
-notes, and fret numbers coloured where a technique is marked on them. Bar widths
+notes, and fret numbers coloured where a technique is marked on them. Under the
+strings, a row of stems saying how long each column lasts — beamed in the groups
+the time signature makes, flagged where there is nothing to beam to, with an
+open head for a minim and a mark in the staff where nothing sounds. Bar widths
 follow the square root of duration rather than duration itself, which is what
 engravers have used for centuries and the reason a bar of semiquavers is
 readable; lines are justified to the page except the last, which is left alone.

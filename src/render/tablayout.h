@@ -51,6 +51,12 @@ struct Style {
     qreal fretSize = 8;         //< the type size of a fret number
     qreal labelSize = 8;
     qreal titleSize = 17;
+
+    qreal rhythmGap = 9;        //< between the lowest string and the top of a stem
+    qreal rhythmStem = 10;      //< how far a stem hangs below that
+    qreal beamSpacing = 2.8;    //< between one beam and the next, stacked upwards
+    qreal beamThickness = 1.3;
+    qreal restWidth = 6;        //< the bar drawn in the staff where nothing sounds
 };
 
 /** A fret number, on a string. */
@@ -65,9 +71,50 @@ struct LaidNote {
     bool letRing = false;
 };
 
+/**
+ * How long a column lasts, drawn as a stem under the staff.
+ *
+ * Tablature without this is a fingering chart: the numbers say where to put
+ * your hands and nothing whatever about when. It is a row of its own below the
+ * strings because that is where every tablature since the lute books has put
+ * it -- the staff says which note, the stem says how long.
+ *
+ * The written symbol is worked out here rather than stored in the document,
+ * because the document does not have it: `Score::rhythms` holds a duration
+ * with its dots and tuplets already multiplied in, which is what playback
+ * needs and what a page cannot draw. Asking which note value, dotted how many
+ * times, comes to five-eighths of a quarter is how the symbol comes back.
+ */
+struct LaidRhythm {
+    int beams = 0;              //< 0 crotchet or longer, 1 quaver, 2 semiquaver, ...
+    int dots = 0;
+    bool stem = true;           //< a semibreve has none
+    bool hollow = false;        //< a minim or longer: an open head at the foot
+    bool rest = false;          //< nothing sounds here
+
+    /**
+     * Beams shared with the neighbouring columns, and flags where there are
+     * none. A run of quavers is beamed together within one beat of the bar and
+     * never across one, which is the rule that makes a bar readable at a
+     * glance rather than merely correct.
+     */
+    int beamLeft = 0;
+    int beamRight = 0;
+    int flags = 0;              //< drawn only where nothing is beamed to it
+
+    /**
+     * Beams this column has that its neighbours do not -- the short stub on
+     * the semiquaver of a dotted-quaver pair. It points towards the note it
+     * belongs with, which is the side that is already beamed.
+     */
+    int stubs = 0;
+    bool stubRight = false;
+};
+
 struct LaidBeat {
     qreal x = 0;
     QList<LaidNote> notes;      //< empty is a rest
+    LaidRhythm rhythm;
 
     /**
      * Which beat of which voice this column came from.
@@ -121,6 +168,19 @@ struct Layout {
     qreal staffHeight() const
     {
         return style.stringSpacing * (strings - 1);
+    }
+
+    /**
+     * The whole of one system: the string lines and the rhythm under them.
+     *
+     * Kept apart from `staffHeight` because they answer different questions --
+     * where a string is drawn, and how much of the page a line of music
+     * occupies. Confusing the two is what puts the next system's bar numbers
+     * through this one's stems.
+     */
+    qreal systemHeight() const
+    {
+        return staffHeight() + style.rhythmGap + style.rhythmStem;
     }
 };
 

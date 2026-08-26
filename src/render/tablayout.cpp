@@ -35,6 +35,143 @@ QString textFor(const Note &note)
     return QString::number(note.fret);
 }
 
+/** Every note value is a power of two quarters, up or down. */
+bool isPowerOfTwo(qint64 value)
+{
+    return value > 0 && (value & (value - 1)) == 0;
+}
+
+bool isNoteValue(const Rational &duration)
+{
+    if (duration.numerator <= 0) {
+        return false;
+    }
+    return (duration.denominator == 1 && isPowerOfTwo(duration.numerator))
+        || (duration.numerator == 1 && isPowerOfTwo(duration.denominator));
+}
+
+/** An undotted note value, in quarters, and the dots written after it. */
+struct Written {
+    Rational value = Rational(1);
+    int dots = 0;
+};
+
+/**
+ * The symbol a duration was written as, which the document no longer knows.
+ *
+ * `Score::rhythms` holds durations with their dots and tuplets already
+ * multiplied in -- exactly right for playback, which wants to know how long a
+ * note lasts and not how somebody wrote it down. A page needs the other one
+ * back, and there is only one way a duration of three-quarters of a quarter
+ * can have been written.
+ *
+ * A tuplet cannot be recovered this way, because two-thirds of a quarter is
+ * not any note value dotted any number of times. Those are drawn as the next
+ * value up, which is how a triplet is written: three quavers in the time of
+ * two, each still a quaver on the page.
+ */
+Written writtenFor(const Rational &duration)
+{
+    // A dot adds half of what came before it; a second adds half of that.
+    static const Rational dotted[] = {Rational(1), Rational(3, 2), Rational(7, 4)};
+    for (int dots = 0; dots < 3; ++dots) {
+        const Rational &multiplier = dotted[dots];
+        const Rational value(duration.numerator * multiplier.denominator,
+                             duration.denominator * multiplier.numerator);
+        if (isNoteValue(value) && !(value < Rational(1, 64)) && !(Rational(8) < value)) {
+            return {value, dots};
+        }
+    }
+
+    Rational value(1, 64);
+    while (value < duration && value < Rational(8)) {
+        value = value * Rational(2);
+    }
+    return {value, 0};
+}
+
+/** How a note value is drawn: its beams, its head, and whether it has a stem. */
+Tab::LaidRhythm symbolFor(const Rational &duration)
+{
+    const Written written = writtenFor(duration);
+
+    Tab::LaidRhythm rhythm;
+    rhythm.dots = written.dots;
+
+    // A quaver is half a quarter and carries one beam; every halving adds one.
+    Rational value = written.value;
+    while (value < Rational(1) && rhythm.beams < 6) {
+        value = value * Rational(2);
+        ++rhythm.beams;
+    }
+
+    rhythm.hollow = !(written.value < Rational(2));
+    rhythm.stem = written.value < Rational(4);
+    return rhythm;
+}
+
+/**
+ * How the bar divides for the purpose of beaming.
+ *
+ * Compound time groups in threes: 6/8 is two dotted quarters and not six
+ * quavers, and beaming it in twos makes it read as 3/4 -- which is a different
+ * piece of music written with the same notes.
+ */
+Rational beamGroup(const MasterBar &master)
+{
+    if (master.denominator == 8 && master.numerator % 3 == 0) {
+        return Rational(3, 2);
+    }
+    return Rational(1);
+}
+
+/** Which beat of the bar an offset falls in. Offsets are never negative. */
+qint64 groupIndex(const Rational &offset, const Rational &group)
+{
+    return (offset.numerator * group.denominator) / (offset.denominator * group.numerator);
+}
+
+/**
+ * Joins the columns that share beams, and flags the ones that do not.
+ *
+ * Two columns are beamed together when both are quavers or shorter, in the
+ * same voice, next to each other in time, and inside the same beat of the bar.
+ * A rest breaks a beam: beaming over one is legal engraving and unreadable in
+ * a row this small.
+ */
+void beamColumns(Tab::LaidBar &bar, const QList<Rational> &offsets,
+                 const QList<Rational> &durations, const Rational &group)
+{
+    for (int index = 0; index + 1 < bar.beats.size(); ++index) {
+        Tab::LaidBeat &left = bar.beats[index];
+        const Tab::LaidBeat &right = bar.beats.at(index + 1);
+        const bool joined = left.voice == right.voice
+            && left.rhythm.beams > 0 && right.rhythm.beams > 0
+            && !left.rhythm.rest && !right.rhythm.rest
+            && offsets.at(index) + durations.at(index) == offsets.at(index + 1)
+            && groupIndex(offsets.at(index), group)
+                == groupIndex(offsets.at(index + 1), group);
+        if (!joined) {
+            continue;
+        }
+        const int shared = std::min(left.rhythm.beams, right.rhythm.beams);
+        left.rhythm.beamRight = shared;
+        bar.beats[index + 1].rhythm.beamLeft = shared;
+    }
+
+    for (Tab::LaidBeat &beat : bar.beats) {
+        Tab::LaidRhythm &rhythm = beat.rhythm;
+        const int shared = std::max(rhythm.beamLeft, rhythm.beamRight);
+        if (shared == 0) {
+            // Nothing to beam to, so a lone quaver keeps its flags.
+            rhythm.flags = rhythm.beams;
+            continue;
+        }
+        rhythm.stubs = std::max(0, rhythm.beams - shared);
+        rhythm.stubRight = rhythm.beamRight > rhythm.beamLeft;
+    }
+}
+
 /**
  * One bar of one track, measured but not yet placed.
  *
@@ -94,12 +231,21 @@ Tab::LaidBar measure(const Score &score, int trackIndex, int barIndex,
         }
     }
 
+    // A column is drawn with the rhythm of the beat that claimed it -- the same
+    // one a caret addresses -- while its width still comes from the shortest
+    // note in it, because that is what has to fit before the next one starts.
     qreal x = style.barPadding;
+    QList<Rational> offsets;
+    QList<Rational> durations;
     for (auto column = columns.constBegin(); column != columns.constEnd(); ++column) {
         Tab::LaidBeat laid;
         laid.x = x;
         laid.voice = column.value().voice;
         laid.index = column.value().index;
+
+        const Rational owned =
+            score.rhythms.value(column.value().beats.constFirst()->rhythm, Rational(1));
+        laid.rhythm = symbolFor(owned);
 
         Rational shortest(4);
         for (const Beat *beat : column.value().beats) {
@@ -125,11 +271,18 @@ Tab::LaidBar measure(const Score &score, int trackIndex, int barIndex,
             }
         }
 
+        // A column with nothing on any string is a rest. The page decides
+        // that rather than the document, because a beat whose notes all sit on
+        // strings this track does not have looks exactly the same.
+        laid.rhythm.rest = laid.notes.isEmpty();
+
+        offsets.append(column.key());
+        durations.append(owned);
         bar.beats.append(laid);
-        // The column is as wide as its shortest note needs, because that is
-        // what has to fit before the next column starts.
         x += widthFor(shortest, style);
     }
+
+    beamColumns(bar, offsets, durations, beamGroup(master));
 
     bar.width = std::max(style.minimumBarWidth, x + style.barPadding);
     return bar;
@@ -165,12 +318,15 @@ Tab::Layout Tab::layOut(const Score &score, int trackIndex, const Style &style)
             numerator = master.numerator;
             denominator = master.denominator;
             bar.timeSignature = QStringLiteral("%1/%2").arg(numerator).arg(denominator);
-            // A signature needs room of its own, before the music.
-            bar.width += style.beatSpacing;
+            // A signature needs room of its own, before the music, and how
+            // much depends on how many digits it has: a fixed gap fits "4/4"
+            // and puts the 2 of "12/8" through the first fret number.
+            const qreal room = style.labelSize * 0.68 * bar.timeSignature.size() + 6;
+            bar.width += room;
             for (LaidBeat &beat : bar.beats) {
-                beat.x += style.beatSpacing;
+                beat.x += room;
                 for (LaidNote &note : beat.notes) {
-                    note.x += style.beatSpacing;
+                    note.x += room;
                 }
             }
         }
@@ -178,7 +334,9 @@ Tab::Layout Tab::layOut(const Score &score, int trackIndex, const Style &style)
     }
 
     const qreal usable = style.pageWidth - style.margin * 2;
-    const qreal staff = layout.staffHeight();
+    // The room a line of music takes is the strings *and* the rhythm under
+    // them; the spacing on top of that is what the next line's labels live in.
+    const qreal systemHeight = layout.systemHeight();
 
     Page page;
     System system;
@@ -209,7 +367,7 @@ Tab::Layout Tab::layOut(const Score &score, int trackIndex, const Style &style)
         }
         system.y = y;
         page.systems.append(system);
-        y += staff + style.systemSpacing;
+        y += systemHeight + style.systemSpacing;
         system = System();
         used = 0;
     };
@@ -217,7 +375,7 @@ Tab::Layout Tab::layOut(const Score &score, int trackIndex, const Style &style)
     for (LaidBar &bar : bars) {
         if (used + bar.width > usable && !system.bars.isEmpty()) {
             finishSystem(true);
-            if (y + staff > style.pageHeight - style.margin) {
+            if (y + systemHeight > style.pageHeight - style.margin) {
                 layout.pages.append(page);
                 page = Page();
                 // The same room the labels want, since a new page starts with
@@ -261,11 +419,12 @@ bool Tab::hitTest(const Layout &layout, qreal x, qreal y, int *bar, int *voice, 
     if (layout.isEmpty()) {
         return false;
     }
-    const qreal staff = layout.staffHeight();
     const qreal reach = layout.style.systemSpacing / 2;
 
     for (const System *system : allSystems(layout)) {
-        if (y < system->y - reach || y > system->y + staff + reach) {
+        // The rhythm row belongs to the system above it, so a click on a stem
+        // lands on the bar it describes rather than falling between two lines.
+        if (y < system->y - reach || y > system->y + layout.systemHeight() + reach) {
             continue;
         }
 

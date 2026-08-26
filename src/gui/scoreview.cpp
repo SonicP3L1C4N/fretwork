@@ -111,7 +111,7 @@ qreal ScoreView::heightOfContent() const
     if (page.systems.isEmpty()) {
         return 0;
     }
-    return page.systems.constLast().y + layout.staffHeight() + layout.style.systemSpacing;
+    return page.systems.constLast().y + layout.systemHeight() + layout.style.systemSpacing;
 }
 
 void ScoreView::onLayoutChanged()
@@ -148,7 +148,7 @@ void ScoreView::onPositionChanged()
                 continue;
             }
             const qreal top = system.y - m_session->layout().style.systemSpacing;
-            const qreal bottom = system.y + m_session->layout().staffHeight();
+            const qreal bottom = system.y + m_session->layout().systemHeight();
             if (top < m_scrollY || bottom > m_scrollY + height()) {
                 setScrollY(top - height() / 3);
             }
@@ -184,11 +184,11 @@ void ScoreView::scrollCursorIntoView()
                          &x, &y, nullptr)) {
         return;
     }
-    const qreal staff = m_session->layout().staffHeight();
+    const qreal system = m_session->layout().systemHeight();
     if (y < m_scrollY) {
         setScrollY(y - m_session->layout().style.systemSpacing);
-    } else if (y + staff > m_scrollY + height()) {
-        setScrollY(y + staff + m_session->layout().style.systemSpacing - height());
+    } else if (y + system > m_scrollY + height()) {
+        setScrollY(y + system + m_session->layout().style.systemSpacing - height());
     }
 }
 
@@ -225,7 +225,7 @@ void ScoreView::paint(QPainter *painter)
                 painter->fillRect(QRectF(layout.style.margin + bar.x,
                                          system.y - layout.style.stringSpacing,
                                          bar.width,
-                                         layout.staffHeight() + layout.style.stringSpacing * 2),
+                                         layout.systemHeight() + layout.style.stringSpacing),
                                   wash);
             }
         }

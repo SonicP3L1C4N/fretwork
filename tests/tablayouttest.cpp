@@ -60,6 +60,64 @@ private:
         return out;
     }
 
+    /**
+     * One bar of one voice with the durations given, one note in each beat.
+     *
+     * Rhythm is the whole point of these, so they are written as a list of
+     * durations rather than built out of a score with a shape.
+     */
+    static Score oneBar(const QList<Rational> &durations, int numerator = 4,
+                        int denominator = 4, const QList<int> &silent = {})
+    {
+        Score out;
+        Track guitar;
+        guitar.name = QStringLiteral("Guitar");
+        guitar.instrumentType = QStringLiteral("electricGuitar");
+        for (int string = 0; string < 6; ++string) {
+            guitar.tuning.append(40 + string * 5);
+        }
+        out.tracks.append(guitar);
+
+        MasterBar master;
+        master.bars = {0};
+        master.numerator = numerator;
+        master.denominator = denominator;
+        out.masterBars.append(master);
+
+        QList<int> beats;
+        int noteId = 0;
+        for (int index = 0; index < durations.size(); ++index) {
+            out.rhythms.insert(index, durations.at(index));
+            QList<int> notes;
+            if (!silent.contains(index)) {
+                Note written;
+                written.string = 0;
+                written.fret = 5;
+                written.midi = 45;
+                out.notes.insert(noteId, written);
+                notes.append(noteId);
+                ++noteId;
+            }
+            out.beats.insert(index, Beat{index, notes, Dynamic::MF, false, false});
+            beats.append(index);
+        }
+        out.voices.insert(0, Voice{beats});
+        out.bars.insert(0, Bar{{0, -1, -1, -1}});
+        return out;
+    }
+
+    /** The rhythm of every column of a one-bar score, in order. */
+    static QList<Tab::LaidRhythm> rhythms(const Score &score)
+    {
+        QList<Tab::LaidRhythm> out;
+        const Tab::Layout layout = Tab::layOut(score, 0);
+        for (const Tab::LaidBeat &beat :
+             layout.pages.constFirst().systems.constFirst().bars.constFirst().beats) {
+            out.append(beat.rhythm);
+        }
+        return out;
+    }
+
 private Q_SLOTS:
     void laysBarsLeftToRightWithoutOverlapping()
     {
@@ -136,7 +194,7 @@ private Q_SLOTS:
         for (const Tab::Page &page : layout.pages) {
             for (const Tab::System &system : page.systems) {
                 QVERIFY(system.y >= style.margin);
-                QVERIFY(system.y + layout.staffHeight() <= style.pageHeight - style.margin);
+                QVERIFY(system.y + layout.systemHeight() <= style.pageHeight - style.margin);
             }
         }
     }
@@ -230,6 +288,139 @@ private Q_SLOTS:
             }
         }
         QCOMPARE(bars, 4);
+    }
+
+    /**
+     * The written symbol is worked back out of a duration.
+     *
+     * The document keeps durations with their dots already multiplied in,
+     * which is what playback wants; the page needs to know it was written as a
+     * dotted crotchet, and there is only one way three-quarters of a minim can
+     * have been written down.
+     */
+    void readsTheWrittenSymbolBackOutOfADuration()
+    {
+        const auto row = rhythms(oneBar({Rational(4), Rational(2), Rational(1), Rational(1, 2),
+                                         Rational(1, 4), Rational(3, 2), Rational(7, 4)},
+                                        15, 4));
+        QCOMPARE(row.size(), 7);
+
+        // A semibreve is an open head and no stem at all.
+        QVERIFY(!row.at(0).stem);
+        QVERIFY(row.at(0).hollow);
+        QCOMPARE(row.at(0).beams, 0);
+
+        // A minim is that head on a stem; a crotchet is a stem alone.
+        QVERIFY(row.at(1).stem);
+        QVERIFY(row.at(1).hollow);
+        QVERIFY(!row.at(2).hollow);
+        QCOMPARE(row.at(2).beams, 0);
+
+        // A quaver has one beam and a semiquaver two.
+        QCOMPARE(row.at(3).beams, 1);
+        QCOMPARE(row.at(4).beams, 2);
+
+        // Dots, which are the only way those two durations can be written.
+        QCOMPARE(row.at(5).beams, 0);
+        QCOMPARE(row.at(5).dots, 1);
+        QCOMPARE(row.at(6).dots, 2);
+    }
+
+    /** A triplet quaver is a third of a crotchet and still written as a quaver. */
+    void drawsATripletAsTheValueItIsWrittenAs()
+    {
+        const auto row = rhythms(oneBar({Rational(1, 3), Rational(1, 3), Rational(1, 3)}));
+        for (const Tab::LaidRhythm &rhythm : row) {
+            QCOMPARE(rhythm.beams, 1);
+            QCOMPARE(rhythm.dots, 0);
+        }
+    }
+
+    void beamsWithinABeatAndNeverAcrossOne()
+    {
+        const auto row = rhythms(oneBar(QList<Rational>(8, Rational(1, 2))));
+        QCOMPARE(row.size(), 8);
+        for (int index = 0; index < row.size(); ++index) {
+            // In pairs: the first quaver of each crotchet carries the beam to
+            // the second, and the second carries nothing into the next beat.
+            const bool first = index % 2 == 0;
+            QCOMPARE(row.at(index).beamRight, first ? 1 : 0);
+            QCOMPARE(row.at(index).beamLeft, first ? 0 : 1);
+            QCOMPARE(row.at(index).flags, 0);
+        }
+    }
+
+    /** 6/8 is two dotted crotchets. Beaming it in twos makes it read as 3/4. */
+    void beamsCompoundTimeInThrees()
+    {
+        const auto row = rhythms(oneBar(QList<Rational>(6, Rational(1, 2)), 6, 8));
+        QCOMPARE(row.size(), 6);
+        QCOMPARE(row.at(1).beamLeft, 1);
+        QCOMPARE(row.at(1).beamRight, 1);
+        QCOMPARE(row.at(2).beamRight, 0);
+        QCOMPARE(row.at(3).beamLeft, 0);
+        QCOMPARE(row.at(4).beamRight, 1);
+    }
+
+    /** A lone quaver has nothing to beam to, so it keeps its flag. */
+    void flagsWhatItCannotBeam()
+    {
+        const auto row = rhythms(oneBar({Rational(1, 2), Rational(1), Rational(1), Rational(1)}));
+        QCOMPARE(row.at(0).flags, 1);
+        QCOMPARE(row.at(0).beamRight, 0);
+        QCOMPARE(row.at(1).flags, 0);
+    }
+
+    void pointsAPartialBeamAtTheNoteItBelongsWith()
+    {
+        // A dotted quaver and a semiquaver share one beam. The semiquaver's
+        // second beam has nowhere to run to, and belongs with the note behind
+        // it rather than with the empty space in front.
+        const auto row = rhythms(oneBar({Rational(3, 4), Rational(1, 4), Rational(1),
+                                         Rational(1), Rational(1)}));
+        QCOMPARE(row.at(0).beams, 1);
+        QCOMPARE(row.at(0).dots, 1);
+        QCOMPARE(row.at(0).beamRight, 1);
+
+        QCOMPARE(row.at(1).beams, 2);
+        QCOMPARE(row.at(1).beamLeft, 1);
+        QCOMPARE(row.at(1).stubs, 1);
+        QVERIFY(!row.at(1).stubRight);
+
+        // The other way round, the stub points forwards.
+        const auto reversed = rhythms(oneBar({Rational(1, 4), Rational(3, 4), Rational(1),
+                                              Rational(1), Rational(1)}));
+        QCOMPARE(reversed.at(0).stubs, 1);
+        QVERIFY(reversed.at(0).stubRight);
+    }
+
+    void marksARestAndDoesNotBeamOverIt()
+    {
+        const auto row = rhythms(oneBar(QList<Rational>(4, Rational(1, 2)), 4, 4, {1}));
+        QVERIFY(!row.at(0).rest);
+        QVERIFY(row.at(1).rest);
+
+        // The pair is broken: the quaver before the rest has nothing to beam
+        // to and keeps its flag, and the rest still says how long it lasts.
+        QCOMPARE(row.at(0).beamRight, 0);
+        QCOMPARE(row.at(0).flags, 1);
+        QCOMPARE(row.at(1).flags, 1);
+        QCOMPARE(row.at(2).beamRight, 1);
+    }
+
+    /** The stems need room, and the line below must not be drawn through them. */
+    void leavesRoomBelowTheStringsForTheRhythm()
+    {
+        const Tab::Layout layout = Tab::layOut(score(40), 0);
+        QVERIFY(layout.systemHeight() > layout.staffHeight());
+
+        const Tab::Page &page = layout.pages.constFirst();
+        QVERIFY(page.systems.size() > 1);
+        for (int index = 1; index < page.systems.size(); ++index) {
+            QVERIFY2(page.systems.at(index).y - page.systems.at(index - 1).y
+                         >= layout.systemHeight(),
+                     "a system's stems run into the line below it");
+        }
     }
 
     void asksForNothingItCannotDraw()

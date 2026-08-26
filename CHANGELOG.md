@@ -8,6 +8,36 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## Unreleased — P3
 
+- **The tablature says how long a note lasts.** A row of stems under the
+  strings: beams in the groups the time signature makes, flags where there is
+  nothing to beam to, an open head for a minim, dots, and a mark in the staff
+  where nothing sounds. Without it the page is a fingering chart — the numbers
+  say where to put your hands and not one thing about when — and a bar of rests
+  looked exactly like a bar somebody had forgotten to transcribe.
+- **The written symbol has to be worked back out of the duration**, because the
+  document does not keep it. `Score::rhythms` holds durations with their dots
+  and tuplets already multiplied in, which is exactly what playback wants and
+  what a page cannot draw; there is only one way three quarters of a crotchet
+  can have been written down, so asking gets it back. A tuplet cannot be
+  recovered that way — two thirds of a crotchet is no dotted anything — and is
+  drawn as the value it is written as, which for a triplet quaver is a quaver.
+- **Beams follow the beat rather than the bar.** 6/8 is two dotted crotchets,
+  and beaming it in twos makes it read as 3/4: the same notes and a different
+  piece of music. A rest breaks a beam instead of being drawn under one, and
+  the short beam on the semiquaver of a dotted pair points at the note it
+  belongs with, which is the only thing that says which of the two it is part
+  of.
+- **A rest is a bar in the middle of the staff, with its duration on the stem
+  below it.** The proper glyph wants a music font, which is not vendored until
+  standard notation arrives; a plain bar cannot say how long the silence lasts,
+  and the stem already does.
+- A line of music now measures the strings **and** the rhythm under them. They
+  are different questions — where a string is drawn, and how much of the page a
+  line takes — and confusing them puts one system's bar numbers through the
+  stems of the one above.
+- A time signature is given room for the digits it actually has. `12/8` was
+  allowed the same gap as `4/4` and put its `2` through the first fret number.
+
 - **It saves.** `.fw` is a ZIP holding `score.json` and a `manifest.json` saying
   which version of the format wrote it. Readable text on purpose: a bug report
   can arrive with a file attached and be understood by looking at it, and a
