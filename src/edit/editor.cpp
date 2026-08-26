@@ -11,6 +11,7 @@
 #include <QHash>
 
 #include <algorithm>
+#include <utility>
 
 namespace
 {
@@ -631,6 +632,120 @@ private:
 };
 
 /**
+ * Moving notes along the strings they are already on.
+ *
+ * A fret and a pitch move together or the score stops meaning anything: the
+ * number on the page and the note that sounds are two descriptions of one
+ * thing, and a program that changed one of them would be drawing music it
+ * does not play.
+ *
+ * It carries a list rather than a note because transposing a phrase is one
+ * act. Eight notes moved and a ninth left where it was because it would not
+ * fit is not the phrase anybody asked for, so the editor checks all of them
+ * before pushing this at all.
+ */
+class TransposeCommand : public QUndoCommand
+{
+public:
+    TransposeCommand(Editor *editor, const QList<int> &notes, int frets)
+        : m_editor(editor)
+        , m_notes(notes)
+        , m_frets(frets)
+    {
+        setText(i18np("Transpose note", "Transpose %1 notes", int(notes.size())));
+    }
+
+    void redo() override
+    {
+        move(m_frets);
+    }
+
+    void undo() override
+    {
+        move(-m_frets);
+    }
+
+private:
+    void move(int frets)
+    {
+        Score &score = m_editor->mutableScore();
+        for (const int noteId : std::as_const(m_notes)) {
+            const auto found = score.notes.find(noteId);
+            if (found == score.notes.end()) {
+                continue;
+            }
+            found->fret += frets;
+            // A note the importer could not give a pitch to keeps not having
+            // one: -1 means "no pitch", and arithmetic on it would invent a
+            // note somewhere near the bottom of the piano.
+            if (found->midi >= 0) {
+                found->midi += frets;
+            }
+        }
+        m_editor->noteEdited(-1);
+    }
+
+    Editor *m_editor;
+    QList<int> m_notes;
+    int m_frets;
+};
+
+/**
+ * The same note, played somewhere else on the neck.
+ *
+ * This is the one edit that deliberately changes the fret and *not* the pitch:
+ * moving a note to the next string is a fingering decision, and the whole
+ * point of it is that the music does not change. The fret it lands on is
+ * whatever makes that true, which is why it is worked out from the tuning
+ * rather than carried across.
+ */
+class MoveNoteAcrossCommand : public QUndoCommand
+{
+public:
+    MoveNoteAcrossCommand(Editor *editor, int noteId, int string, int fret)
+        : m_editor(editor)
+        , m_noteId(noteId)
+        , m_string(string)
+        , m_fret(fret)
+    {
+        const Note note = editor->score().notes.value(noteId);
+        m_wasString = note.string;
+        m_wasFret = note.fret;
+        setText(i18n("Move note to another string"));
+    }
+
+    void redo() override
+    {
+        put(m_string, m_fret);
+    }
+
+    void undo() override
+    {
+        put(m_wasString, m_wasFret);
+    }
+
+private:
+    void put(int string, int fret)
+    {
+        Score &score = m_editor->mutableScore();
+        const auto found = score.notes.find(m_noteId);
+        if (found == score.notes.end()) {
+            return;
+        }
+        found->string = string;
+        found->fret = fret;
+        m_editor->noteEdited(-1);
+    }
+
+    Editor *m_editor;
+    int m_noteId;
+    int m_string;
+    int m_fret;
+    int m_wasString = 0;
+    int m_wasFret = 0;
+};
+
+/**
  * A bar put into the score, across every track at once.
  *
  * A master bar is the score's own unit of time, and a bar added to one track
@@ -1137,22 +1252,104 @@ void Editor::clearNote()
     m_undo->push(command);
 }
 
-void Editor::transposeNote(int frets)
+QList<int> Editor::notesToMove() const
+{
+    QList<int> notes;
+    if (!hasSelection()) {
+        const int noteId = Editing::noteIdAt(m_score, m_cursor);
+        if (noteId >= 0) {
+            notes.append(noteId);
+        }
+        return notes;
+    }
+
+    // Every note of every selected beat, on every string: a phrase is
+    // transposed as a phrase, and picking out the caret's own string would be
+    // answering a question nobody asked.
+    const Editing::Range range = selection();
+    for (int bar = range.from.bar; bar <= range.to.bar; ++bar) {
+        Cursor at = m_cursor;
+        at.bar = bar;
+        const int beats = Editing::beatCount(m_score, at);
+        for (int beat = 0; beat < beats; ++beat) {
+            if (!range.holds(bar, beat)) {
+                continue;
+            }
+            at.beat = beat;
+            const int beatId = Editing::beatIdAt(m_score, at);
+            if (beatId < 0) {
+                continue;
+            }
+            notes.append(m_score.beats.value(beatId).notes);
+        }
+    }
+    return notes;
+}
+
+Editor::Edit Editor::transpose(int frets)
+{
+    endDigitEntry();
+    const QList<int> notes = notesToMove();
+    if (notes.isEmpty() || frets == 0) {
+        return Edit::Nothing;
+    }
+
+    // All of them or none of them, checked before anything moves. A phrase
+    // with one note left behind because it would not fit is not the phrase
+    // that was asked for, and it is worse than a refusal because it looks
+    // like it worked.
+    for (const int noteId : notes) {
+        const int fret = m_score.notes.value(noteId).fret + frets;
+        if (fret < 0 || fret > HighestFret) {
+            return Edit::Refused;
+        }
+    }
+
+    // Its own command rather than a merged one: transposing twice is two
+    // deliberate acts, unlike typing two digits of one number. The selection
+    // stays where it is, because it is the thing being worked on.
+    m_undo->push(new TransposeCommand(this, notes, frets));
+    return Edit::Done;
+}
+
+Editor::Edit Editor::moveNoteAcross(int strings)
 {
     endDigitEntry();
     const int noteId = Editing::noteIdAt(m_score, m_cursor);
-    if (noteId < 0) {
-        return;
+    if (noteId < 0 || strings == 0) {
+        return Edit::Nothing;
     }
-    const int fret = m_score.notes.value(noteId).fret + frets;
+    if (m_cursor.track < 0 || m_cursor.track >= m_score.tracks.size()) {
+        return Edit::Nothing;
+    }
+
+    const QList<int> tuning = m_score.tracks.at(m_cursor.track).tuning;
+    const int string = m_cursor.string + strings;
+    if (string < 0 || string >= tuning.size()) {
+        return Edit::Refused;
+    }
+
+    // The fret that sounds the same note on the string it is landing on. A
+    // drum kit has no tuning and so has no answer to this, which is the same
+    // as saying the question does not apply to it.
+    const Note note = m_score.notes.value(noteId);
+    const int fret = note.midi - tuning.at(string);
     if (fret < 0 || fret > HighestFret) {
-        return;
+        return Edit::Refused;
     }
-    // Its own command rather than a merged one: transposing twice is two
-    // deliberate acts, unlike typing two digits of one number.
-    endDigitEntry();
-    m_undo->push(new SetFretCommand(this, m_cursor, fret, m_digitRun));
-    endDigitEntry();
+
+    Cursor destination = m_cursor;
+    destination.string = string;
+    // Two notes on one string at one moment is not a chord, it is a mistake.
+    if (Editing::noteIdAt(m_score, destination) >= 0) {
+        return Edit::Refused;
+    }
+
+    clearSelection();
+    m_undo->push(new MoveNoteAcrossCommand(this, noteId, string, fret));
+    // The caret goes with the note: it is still the note being worked on.
+    setCursor(destination);
+    return Edit::Done;
 }
 
 int Editor::freshBeatId(const Score &score)

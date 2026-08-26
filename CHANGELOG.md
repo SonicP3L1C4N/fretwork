@@ -8,6 +8,25 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## Unreleased — P3
 
+- **It transposes a phrase, not just a note.** `+` and `-` move everything in
+  the selection along the strings it is already on, and the selection stays
+  where it is so a riff can be walked up a fret at a time. One press of undo
+  brings the whole phrase back, because moving it was one act.
+- **A transposition that would strand a note is refused entirely**, and the
+  status bar says which end of the neck it ran off. Eight notes moved and a
+  ninth left behind is not the phrase anybody asked for, and it is worse than a
+  refusal because it looks like it worked.
+- **`Alt` with an arrow moves a note to the next string and keeps its pitch.**
+  This is the one edit that changes a fret without changing the music: which
+  string a note is played on is a fingering decision, and the fret it lands on
+  is whatever makes it sound the same — fret 5 on the low E becomes the open A
+  above it. Refused where the note would fall behind that string's nut, past
+  the end of the neck, or on top of a note already sounding, because two notes
+  on one string at one moment is not a chord.
+- Pressing `+` on an empty string is not a refusal and says nothing: there is a
+  difference between "that will not fit" and "there is nothing there", and only
+  the first is worth interrupting somebody about.
+
 - **It adds and removes bars.** `Ctrl+B` puts an empty one on the end of the
   score and the caret in it, `Ctrl+Shift+B` makes room at the caret, and
   `Ctrl+Shift+Delete` takes the bar under the caret out. Until now a score

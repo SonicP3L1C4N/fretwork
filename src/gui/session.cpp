@@ -364,9 +364,28 @@ void Session::clearNote()
     }
 }
 
-void Session::transposeNote(int frets)
+void Session::transpose(int frets)
 {
-    m_editor.transposeNote(frets);
+    if (m_editor.transpose(frets) != Editor::Edit::Refused) {
+        return;
+    }
+    // Nothing there to move is not worth saying anything about; something
+    // there that would not fit is, because the alternative is a key that
+    // silently does nothing.
+    if (m_editor.hasSelection()) {
+        setStatus(i18n("Not all of that would fit on the neck, so none of it moved"));
+        return;
+    }
+    setStatus(frets > 0 ? i18n("There is no room for that further up the neck")
+                        : i18n("That would put the note behind the nut"));
+}
+
+void Session::moveNoteAcross(int strings)
+{
+    if (m_editor.moveNoteAcross(strings) != Editor::Edit::Refused) {
+        return;
+    }
+    setStatus(i18n("There is nowhere for that note on the next string"));
 }
 
 void Session::setDuration(int denominator)

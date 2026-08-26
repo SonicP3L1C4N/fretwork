@@ -334,7 +334,7 @@ private Q_SLOTS:
         editor.typeDigit(9);
         editor.setCursor(at(1, 2, 0));
         editor.typeDigit(3);
-        editor.transposeNote(2);
+        editor.transpose(2);
         editor.setDuration(8);
         editor.toggleDot();
         editor.setCursor(at(1, 3, 0));
@@ -351,6 +351,8 @@ private Q_SLOTS:
         editor.paste();
         editor.setCursor(at(0, 0, 5));
         editor.clearNote();
+        editor.setCursor(at(0, 1, 4));
+        editor.moveNoteAcross(-1);
         editor.setCursor(at(1, 0, 0));
         editor.insertBar();
         editor.typeDigit(6);
@@ -473,15 +475,122 @@ private Q_SLOTS:
         editor.setCursor(at(0, 0, 0));
         editor.typeDigit(5);
 
-        editor.transposeNote(2);
+        QCOMPARE(editor.transpose(2), Editor::Edit::Done);
         const Note note = editor.score().notes.value(Editing::noteIdAt(editor.score(), editor.cursor()));
         QCOMPARE(note.fret, 7);
         QCOMPARE(note.midi, 40 + 7);
 
         // Off the end of the neck, or behind the nut, is refused rather than
         // wrapped around.
-        editor.transposeNote(-99);
+        QCOMPARE(editor.transpose(-99), Editor::Edit::Refused);
         QCOMPARE(editor.score().notes.value(Editing::noteIdAt(editor.score(), editor.cursor())).fret, 7);
+
+        // An empty string is not a refusal: there is simply nothing there.
+        editor.setCursor(at(0, 1, 3));
+        QCOMPARE(editor.transpose(1), Editor::Edit::Nothing);
+        QVERIFY(!editor.score().notes.contains(Editing::noteIdAt(editor.score(), at(0, 1, 3))));
+    }
+
+    /** A phrase is transposed as a phrase, on every string it uses. */
+    void transposingASelectionMovesEveryNoteInIt()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(0, 0, 0));
+        editor.typeDigit(5);
+        editor.setCursor(at(0, 0, 2));
+        editor.typeDigit(7);
+        editor.setCursor(at(1, 1, 0));
+        editor.typeDigit(3);
+        const QString before = fingerprint(editor.score());
+
+        editor.setCursor(at(0, 0, 0));
+        editor.setCursor(at(1, 1, 0), true);
+        QCOMPARE(editor.transpose(2), Editor::Edit::Done);
+
+        QCOMPARE(editor.score().notes.value(Editing::noteIdAt(editor.score(), at(0, 0, 0))).fret, 7);
+        QCOMPARE(editor.score().notes.value(Editing::noteIdAt(editor.score(), at(0, 0, 2))).fret, 9);
+        QCOMPARE(editor.score().notes.value(Editing::noteIdAt(editor.score(), at(1, 1, 0))).fret, 5);
+        QCOMPARE(editor.score().notes.value(Editing::noteIdAt(editor.score(), at(1, 1, 0))).midi,
+                 40 + 5);
+
+        // The selection is the thing being worked on, so it stays: a phrase
+        // can be walked up a fret at a time.
+        QVERIFY(editor.hasSelection());
+
+        // And one press of undo puts the whole phrase back.
+        editor.undo();
+        QCOMPARE(fingerprint(editor.score()), before);
+    }
+
+    /**
+     * A phrase with one note left behind is not the phrase that was asked
+     * for, and it looks like it worked.
+     */
+    void refusesATranspositionThatWouldStrandANote()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(0, 0, 0));
+        editor.typeDigit(5);
+        editor.setCursor(at(0, 1, 0));
+        editor.typeDigit(1);
+        const QString before = fingerprint(editor.score());
+        const int history = editor.undoStack()->index();
+
+        editor.setCursor(at(0, 0, 0));
+        editor.setCursor(at(0, 1, 0), true);
+        QCOMPARE(editor.transpose(-3), Editor::Edit::Refused);
+        QCOMPARE(fingerprint(editor.score()), before);
+        // Nothing was pushed, so there is nothing to undo back out of.
+        QCOMPARE(editor.undoStack()->index(), history);
+    }
+
+    /** Which string a note is played on is a fingering, not a change of music. */
+    void movingANoteAcrossKeepsThePitchAndChangesTheFret()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(0, 0, 0));
+        editor.typeDigit(5);
+        const QString before = fingerprint(editor.score());
+
+        // The low E at fret 5 is an A, which is the open A string above it.
+        QCOMPARE(editor.moveNoteAcross(1), Editor::Edit::Done);
+        QCOMPARE(editor.cursor().string, 1);
+        const Note moved = editor.score().notes.value(Editing::noteIdAt(editor.score(), at(0, 0, 1)));
+        QCOMPARE(moved.fret, 0);
+        QCOMPARE(moved.midi, 45);
+
+        editor.undo();
+        QCOMPARE(fingerprint(editor.score()), before);
+    }
+
+    void refusesAStringMoveWithNowhereToLand()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+
+        // Fret 1 on the low E cannot be played on the A string: it is behind
+        // that string's nut.
+        editor.setCursor(at(0, 0, 0));
+        editor.typeDigit(1);
+        QCOMPARE(editor.moveNoteAcross(1), Editor::Edit::Refused);
+
+        // Nor off the top of the neck.
+        editor.setCursor(at(0, 1, 5));
+        editor.typeDigit(1);
+        QCOMPARE(editor.moveNoteAcross(1), Editor::Edit::Refused);
+
+        // Nor on to a string that is already sounding: two notes on one string
+        // at one moment is not a chord, it is a mistake.
+        editor.setCursor(at(0, 2, 0));
+        editor.typeDigit(7);
+        editor.setCursor(at(0, 2, 1));
+        editor.typeDigit(0);
+        editor.setCursor(at(0, 2, 0));
+        QCOMPARE(editor.moveNoteAcross(1), Editor::Edit::Refused);
+        QVERIFY(editor.canUndo());
     }
 
     void knowsWhetherItHasBeenChanged()

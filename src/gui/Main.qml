@@ -287,6 +287,10 @@ Kirigami.ApplicationWindow {
                             return
                         }
                         const control = event.modifiers & Qt.ControlModifier
+                        // Alt and a movement key moves the note rather than
+                        // the caret, which is the gesture every editor uses
+                        // for "the same thing, somewhere else".
+                        const alt = event.modifiers & Qt.AltModifier
                         // Shift and a movement key widens the selection from
                         // wherever it started, which is what shift does.
                         const extend = event.modifiers & Qt.ShiftModifier
@@ -307,11 +311,21 @@ Kirigami.ApplicationWindow {
                         case Qt.Key_Right:
                             session.moveCursor(control ? "barForward" : "right", extend); break
                         case Qt.Key_Up:
-                            control ? session.scaleDuration(1)
-                                    : session.moveCursor("up", extend); break
+                            if (alt) {
+                                session.moveNoteAcross(1)
+                            } else {
+                                control ? session.scaleDuration(1)
+                                        : session.moveCursor("up", extend)
+                            }
+                            break
                         case Qt.Key_Down:
-                            control ? session.scaleDuration(-1)
-                                    : session.moveCursor("down", extend); break
+                            if (alt) {
+                                session.moveNoteAcross(-1)
+                            } else {
+                                control ? session.scaleDuration(-1)
+                                        : session.moveCursor("down", extend)
+                            }
+                            break
                         case Qt.Key_Home:  session.moveCursor("start", extend); break
                         case Qt.Key_End:   session.moveCursor("end", extend); break
                         case Qt.Key_Insert: session.insertBeat(); break
@@ -322,8 +336,8 @@ Kirigami.ApplicationWindow {
                             control ? session.deleteBeat() : session.clearNote(); break
                         case Qt.Key_Period: session.toggleDot(); break
                         case Qt.Key_Plus:
-                        case Qt.Key_Equal: session.transposeNote(1); break
-                        case Qt.Key_Minus: session.transposeNote(-1); break
+                        case Qt.Key_Equal: session.transpose(1); break
+                        case Qt.Key_Minus: session.transpose(-1); break
                         case Qt.Key_Space:
                             session.playing ? session.pause() : session.play(); break
                         default:

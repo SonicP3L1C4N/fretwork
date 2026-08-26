@@ -34,6 +34,13 @@ class Editor : public QObject
     Q_OBJECT
 
 public:
+    /** What an edit that is allowed to say no did. */
+    enum class Edit {
+        Done,       //< the score changed
+        Nothing,    //< there was nothing there to change, which is not a refusal
+        Refused,    //< there was, and it would not fit
+    };
+
     explicit Editor(QObject *parent = nullptr);
     ~Editor() override;
 
@@ -129,8 +136,26 @@ public:
     /** Removes the beat under the caret, notes and all. */
     void deleteBeat();
 
-    /** Moves the note under the caret by a number of frets, staying on its string. */
-    void transposeNote(int frets);
+    /**
+     * Moves the note under the caret along its string, or the whole selection.
+     *
+     * All of it or none of it: a phrase with one note left behind because it
+     * would not fit on the neck is not the phrase that was asked for, and it
+     * is worse than a refusal because it looks like it worked. The selection
+     * stays, so a phrase can be walked up a fret at a time.
+     */
+    Edit transpose(int frets);
+
+    /**
+     * Moves the note under the caret to the next string, keeping its pitch.
+     *
+     * The one edit that changes a fret without changing the music: which
+     * string a note is played on is a fingering decision, and the fret it
+     * lands on is whatever makes it sound the same. Refused where the note
+     * would fall behind the nut, past the end of the neck, or on top of a
+     * note that is already there.
+     */
+    Edit moveNoteAcross(int strings);
 
     // ---- bars ----
 
@@ -234,6 +259,9 @@ Q_SIGNALS:
 private:
     /** Pushes a duration change, if it is a change and there is a beat to change. */
     void applyDuration(const Rational &duration);
+
+    /** The notes an edit means: the selection's, or the caret's own. */
+    QList<int> notesToMove() const;
 
     Score m_score;
     Cursor m_cursor;

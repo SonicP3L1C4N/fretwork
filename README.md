@@ -43,9 +43,15 @@ playing it wrongly:
 ![The Crimson Path by DVNE, with repeat signs and a warning that alternate endings are not flattened](docs/window-repeats.png)
 
 **P3 has begun: it edits.** Click a string, type a fret number, and the score
-changes. Arrows move the caret, `Delete` clears a note, `+` and `-` move one
-along its string, and every change is undoable — typing `1` then `2` is fret 12
-and one press of undo, not two.
+changes. Arrows move the caret, `Delete` clears a note, and every change is
+undoable — typing `1` then `2` is fret 12 and one press of undo, not two.
+
+`+` and `-` transpose: the note under the caret, or everything in the
+selection, along the strings it is already on — refused outright where any of
+it would run off the neck, because a phrase with one note left behind is not
+the phrase that was asked for. `Alt` with an arrow moves a note to the next
+string and keeps its pitch, which is the one edit that changes a fret without
+changing the music.
 
 Rhythm is editable too: `Ctrl` and a digit sets how long a beat lasts — 1 a
 semibreve, 2 a minim, and on down by halves — `.` dots it, and `Ctrl` with an

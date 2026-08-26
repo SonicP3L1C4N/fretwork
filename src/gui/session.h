@@ -119,7 +119,12 @@ public:
     Q_INVOKABLE void moveCursor(const QString &direction, bool extend = false);
     Q_INVOKABLE void typeDigit(int digit);
     Q_INVOKABLE void clearNote();
-    Q_INVOKABLE void transposeNote(int frets);
+
+    /** Moves the note under the caret along its string, or the whole selection. */
+    Q_INVOKABLE void transpose(int frets);
+
+    /** Moves the note under the caret to the next string, keeping its pitch. */
+    Q_INVOKABLE void moveNoteAcross(int strings);
 
     /** 4 is a crotchet, 8 a quaver: the name musicians already use. */
     Q_INVOKABLE void setDuration(int denominator);
