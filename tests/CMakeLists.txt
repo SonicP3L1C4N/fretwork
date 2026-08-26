@@ -60,7 +60,7 @@ ecm_add_test(playertest.cpp
 
 ecm_add_test(tablayouttest.cpp
     TEST_NAME tablayouttest
-    LINK_LIBRARIES Qt6::Test fretworkcore
+    LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n
 )
 
 ecm_add_test(swingtest.cpp

@@ -129,6 +129,22 @@ private:
         return out;
     }
 
+    /** Every bar's direction, in order, for the bars that carry one. */
+    static QList<QPair<int, QString>> directionsOf(const Tab::Layout &layout)
+    {
+        QList<QPair<int, QString>> out;
+        for (const Tab::Page &page : layout.pages) {
+            for (const Tab::System &system : page.systems) {
+                for (const Tab::LaidBar &bar : system.bars) {
+                    if (!bar.direction.isEmpty()) {
+                        out.append({bar.index, bar.direction});
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
 private Q_SLOTS:
     void laysBarsLeftToRightWithoutOverlapping()
     {
@@ -559,6 +575,64 @@ private Q_SLOTS:
         QCOMPARE(bar.beats.at(0).notes.constFirst().text, QStringLiteral("(0)"));
         QCOMPARE(bar.beats.at(1).notes.constFirst().text, QStringLiteral("x"));
         QCOMPARE(bar.beats.at(2).notes.constFirst().text, QStringLiteral("(x)"));
+    }
+
+    // ---- directions to the player ----
+
+    void saysWhenTheFeelStartsAndWhenItStops()
+    {
+        Score swung = score(8);
+        for (int bar = 0; bar < 4; ++bar) {
+            swung.masterBars[bar].tripletFeel = TripletFeel::Triplet8th;
+        }
+
+        // Once where it starts and once where it stops, and not on the bars
+        // in between: a direction printed over every bar is one nobody reads.
+        // The bar that goes back to playing as written says so, because a
+        // shuffle that merely stopped being printed reads as one carrying on.
+        const QList<QPair<int, QString>> said = directionsOf(Tab::layOut(swung, 0));
+        QCOMPARE(said.size(), 2);
+        QCOMPARE(said.at(0).first, 0);
+        QCOMPARE(said.at(1).first, 4);
+        QCOMPARE(said.at(1).second, QStringLiteral("straight"));
+    }
+
+    void aScoreWithNothingToSayIsDrawnExactlyAsItWas()
+    {
+        // The whole argument for a row that is only sometimes there: adding it
+        // must not move a single system on a score that has no directions in
+        // it, or every page of every piece is repaginated for a feature it
+        // does not use.
+        const Score plain = score(12);
+        Score swung = plain;
+        swung.masterBars[0].tripletFeel = TripletFeel::Triplet8th;
+
+        const Tab::Layout without = Tab::layOut(plain, 0);
+        const Tab::Layout with = Tab::layOut(swung, 0);
+        QCOMPARE(without.style.systemSpacing, Tab::Style().systemSpacing);
+        QCOMPARE(with.style.systemSpacing,
+                 Tab::Style().systemSpacing + Tab::Style().directionGap);
+
+        const qreal first = without.pages.first().systems.first().y;
+        QCOMPARE(with.pages.first().systems.first().y, first + Tab::Style().directionGap);
+    }
+
+    void everySystemGetsTheRoomAndNotJustTheFirst()
+    {
+        // A direction can start on any line, so the room has to be under every
+        // one of them: reserving it only where a direction lands would put the
+        // one on line four through the stems of line three.
+        Score swung = score(40);
+        swung.masterBars[0].tripletFeel = TripletFeel::Triplet16th;
+        const Tab::Layout layout = Tab::layOut(swung, 0);
+
+        const Tab::Style style;
+        const qreal step = layout.systemHeight() + style.systemSpacing + style.directionGap;
+        const QList<Tab::System> &systems = layout.pages.first().systems;
+        QVERIFY(systems.size() > 2);
+        for (int index = 1; index < systems.size(); ++index) {
+            QCOMPARE(systems.at(index).y - systems.at(index - 1).y, step);
+        }
     }
 };
 

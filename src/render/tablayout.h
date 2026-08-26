@@ -45,6 +45,18 @@ struct Style {
      * on the top string.
      */
     qreal markGap = 11;
+
+    /**
+     * The row above the section names, where a direction to the player goes.
+     *
+     * "Triplet quavers", and in time a tempo marking or a fermata: the things
+     * printed music says to whoever is playing rather than draws as notes.
+     * Reserved only on a score that has one -- a piece with nothing to say to
+     * the player is laid out exactly as tall as it was before this row
+     * existed, which is why adding it re-paginates nothing that was not
+     * already carrying a direction.
+     */
+    qreal directionGap = 14;
     /**
      * Room for the title block on the first page, where there is one.
      *
@@ -178,6 +190,17 @@ struct LaidBar {
     int index = 0;              //< into Score::masterBars
     QString section;            //< printed above the bar where the score names it
     QString timeSignature;      //< only where it changes
+
+    /**
+     * What to tell the player from this bar on: "triplet quavers", "straight".
+     *
+     * Only where it changes, the same as a time signature and for the same
+     * reason -- a direction repeated over every bar is a direction nobody
+     * reads. A score that goes back to playing as written says so, because a
+     * shuffle that simply stopped being printed would read as one that carries
+     * on.
+     */
+    QString direction;
     bool repeatStart = false;
     bool repeatEnd = false;
     int repeatCount = 0;

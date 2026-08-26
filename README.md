@@ -243,10 +243,21 @@ triplet written inside a swung bar — which happens, and is not a contradiction
 it was written and stays exactly as long as it was. A feel that changed how
 long a bar lasted would have quietly rewritten every bar after it.
 
-The page does not print the feel yet — printed tablature says "Triplet Feel"
-over the staff, and there is no row above the staff to put it in without making
-every system taller. Until there is, the window says so in the status bar when
-a score opens and `--info` prints it:
+The page prints it, in a row above the section names where printed music has
+always put what it says to the player rather than what it draws for them to
+play — italic, over the bar the feel starts on, and again where it stops,
+because a shuffle that merely stopped being printed would read as one that
+carries on:
+
+![The top of Cold Shot: the title, the tuning, and "triplet quavers" in italic above the first bar](docs/page-direction.png)
+
+That row is reserved only on a score that has something to say in it, so a
+piece with no directions is laid out exactly as it was before the row existed
+and nothing is repaginated for a feature it does not use. It is the first
+tenant of a band the score is going to want anyway: a tempo marking, a
+fermata, a `rit.` and free time all belong in the same place.
+
+`--info` prints it too:
 
 ```
   feel    triplet quavers throughout

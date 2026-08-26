@@ -12,11 +12,12 @@
 
 namespace
 {
-QFont sansOf(qreal size, bool bold = false)
+QFont sansOf(qreal size, bool bold = false, bool italic = false)
 {
     QFont font;
     font.setPointSizeF(size);
     font.setBold(bold);
+    font.setItalic(italic);
     return font;
 }
 
@@ -223,6 +224,20 @@ void paintSystem(QPainter &painter, const Tab::Layout &layout, const Tab::System
             painter.drawText(QRectF(x + 1, top - style.markGap - style.labelSize * 4.2, 200,
                                     style.labelSize * 1.6),
                              Qt::AlignLeft | Qt::AlignBottom, bar.section);
+        }
+
+        if (!bar.direction.isEmpty()) {
+            // Above the section names, and italic, which is how printed music
+            // has always distinguished what it says to the player from what it
+            // draws for them to play. In ink rather than the accent: this is
+            // the composer talking, not the program.
+            painter.setPen(palette.ink);
+            painter.setFont(sansOf(style.labelSize, false, true));
+            painter.drawText(QRectF(x + 1,
+                                    top - style.markGap - style.labelSize * 4.2
+                                        - style.directionGap,
+                                    240, style.labelSize * 1.6),
+                             Qt::AlignLeft | Qt::AlignBottom, bar.direction);
         }
 
         if (!bar.timeSignature.isEmpty()) {

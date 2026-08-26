@@ -3,6 +3,10 @@
 
 #include "tablayout.h"
 
+#include "swing.h"
+
+#include <KLocalizedString>
+
 #include "notevalue.h"
 
 #include <QHash>
@@ -297,6 +301,21 @@ Tab::Layout Tab::layOut(const Score &score, int trackIndex, const Style &style)
         return layout;
     }
 
+    // Whether this score says anything to the player at all. Asked before
+    // anything is placed, because the answer decides how much room every
+    // system on every page needs above it.
+    bool speaks = false;
+    for (const MasterBar &master : score.masterBars) {
+        if (master.tripletFeel != TripletFeel::None) {
+            speaks = true;
+            break;
+        }
+    }
+    if (speaks) {
+        layout.style.systemSpacing += layout.style.directionGap;
+    }
+    const Style &measured = layout.style;
+
     const Track &track = score.tracks.at(trackIndex);
     layout.title = score.title;
     layout.artist = score.artist;
@@ -311,9 +330,16 @@ Tab::Layout Tab::layOut(const Score &score, int trackIndex, const Style &style)
     bars.reserve(int(score.masterBars.size()));
     int numerator = 0;
     int denominator = 0;
+    TripletFeel feel = TripletFeel::None;
     for (int index = 0; index < score.masterBars.size(); ++index) {
-        LaidBar bar = measure(score, trackIndex, index, style);
+        LaidBar bar = measure(score, trackIndex, index, measured);
         const MasterBar &master = score.masterBars.at(index);
+        if (master.tripletFeel != feel) {
+            feel = master.tripletFeel;
+            bar.direction = feel == TripletFeel::None
+                ? i18nc("a direction to the player: play it as it is written", "straight")
+                : Swing::nameOf(feel);
+        }
         if (master.numerator != numerator || master.denominator != denominator) {
             numerator = master.numerator;
             denominator = master.denominator;
@@ -333,7 +359,7 @@ Tab::Layout Tab::layOut(const Score &score, int trackIndex, const Style &style)
         bars.append(bar);
     }
 
-    const qreal usable = style.pageWidth - style.margin * 2;
+    const qreal usable = measured.pageWidth - measured.margin * 2;
     // The room a line of music takes is the strings *and* the rhythm under
     // them; the spacing on top of that is what the next line's labels live in.
     const qreal systemHeight = layout.systemHeight();
@@ -345,8 +371,9 @@ Tab::Layout Tab::layOut(const Score &score, int trackIndex, const Style &style)
     // that, and the row the marks live in. Reserved whether or not this
     // particular line has any, so that one that does is not drawn on top of
     // whatever is above it.
-    const qreal labelRoom = style.labelSize * 4.2 + style.markGap;
-    qreal y = style.margin + (style.showTitle ? style.titleHeight : 0) + labelRoom;
+    const qreal labelRoom =
+        measured.labelSize * 4.2 + measured.markGap + (speaks ? measured.directionGap : 0);
+    qreal y = measured.margin + (measured.showTitle ? measured.titleHeight : 0) + labelRoom;
 
     const auto finishSystem = [&](bool justify) {
         if (system.bars.isEmpty()) {
@@ -376,7 +403,7 @@ Tab::Layout Tab::layOut(const Score &score, int trackIndex, const Style &style)
         findRuns(system);
         system.y = y;
         page.systems.append(system);
-        y += systemHeight + style.systemSpacing;
+        y += systemHeight + measured.systemSpacing;
         system = System();
         used = 0;
     };
@@ -384,12 +411,12 @@ Tab::Layout Tab::layOut(const Score &score, int trackIndex, const Style &style)
     for (LaidBar &bar : bars) {
         if (used + bar.width > usable && !system.bars.isEmpty()) {
             finishSystem(true);
-            if (y + systemHeight > style.pageHeight - style.margin) {
+            if (y + systemHeight > measured.pageHeight - measured.margin) {
                 layout.pages.append(page);
                 page = Page();
                 // The same room again: a new page starts with a system that
                 // may carry a section name of its own.
-                y = style.margin + labelRoom;
+                y = measured.margin + labelRoom;
             }
         }
         bar.x = used;
