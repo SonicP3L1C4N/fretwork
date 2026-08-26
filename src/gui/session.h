@@ -116,7 +116,7 @@ public:
 
     // ---- editing ----
 
-    Q_INVOKABLE void moveCursor(const QString &direction);
+    Q_INVOKABLE void moveCursor(const QString &direction, bool extend = false);
     Q_INVOKABLE void typeDigit(int digit);
     Q_INVOKABLE void clearNote();
     Q_INVOKABLE void transposeNote(int frets);
@@ -131,7 +131,16 @@ public:
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
     /** Puts the caret where the score was clicked, in the view's own coordinates. */
-    Q_INVOKABLE void placeCursorAt(qreal x, qreal y);
+    Q_INVOKABLE void placeCursorAt(qreal x, qreal y, bool extend = false);
+
+    // ---- selection and the clipboard ----
+
+    Q_INVOKABLE void copy();
+    Q_INVOKABLE void cut();
+    Q_INVOKABLE void paste();
+
+    bool hasSelection() const;
+    Editing::Range selection() const;
 
     bool canUndo() const;
     bool canRedo() const;

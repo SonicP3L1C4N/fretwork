@@ -54,6 +54,16 @@ int Editing::noteIdAt(const Score &score, const Cursor &cursor)
     return -1;
 }
 
+bool Editing::before(const Cursor &a, const Cursor &b)
+{
+    return a.bar != b.bar ? a.bar < b.bar : a.beat < b.beat;
+}
+
+Editing::Range Editing::ordered(const Cursor &a, const Cursor &b)
+{
+    return before(b, a) ? Range{b, a} : Range{a, b};
+}
+
 Rational Editing::durationAt(const Score &score, const Cursor &cursor)
 {
     const int beat = beatIdAt(score, cursor);

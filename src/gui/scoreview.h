@@ -57,6 +57,7 @@ Q_SIGNALS:
 protected:
     void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
     void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
 
 private:
     void onLayoutChanged();

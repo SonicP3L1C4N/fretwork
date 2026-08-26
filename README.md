@@ -57,6 +57,13 @@ A bar that no longer adds up to its time signature is marked rather than
 corrected: taking the difference out of the next note along would be rewriting
 music nobody asked it to touch.
 
+Shift with an arrow selects, and so does dragging across the score; `Ctrl+C`,
+`Ctrl+X` and `Ctrl+V` do what they do everywhere else. A clip keeps the bars it
+was copied from — four bars of a riff paste as four bars, because pasting them
+as one long bar would be the same notes and not the same music — and a paste
+that would run off the end of the score is refused outright rather than half
+done.
+
 **It saves.** `Ctrl+S` writes a `.fw` — a ZIP holding readable JSON, so a file
 attached to a bug report can be understood by looking at it. Every score in the
 test corpus survives import, save and reopen describing exactly the same music.
@@ -192,7 +199,7 @@ GPL — the reasoning for every line of that is in
 | **P0** | Spike — parse, play, render stems | **done**, and it plays |
 | **P1** | Headless converter: importers, model, technique translation, stem export. No window | **done** — the program is useful with no window |
 | **P2** | The player: tab rendering, transport, mixer, live playback | **done** |
-| **P3** | The editor: fret entry, undo, copy and paste | **in progress** — caret, fret entry, beats, durations, undo and saving; copy and paste to come |
+| **P3** | The editor: fret entry, undo, copy and paste | **in progress** — caret, fret entry, beats, durations, selection, copy and paste, undo and saving |
 | P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | |
 | P5 | Standard notation, PDF, MusicXML, GP6 | |
 

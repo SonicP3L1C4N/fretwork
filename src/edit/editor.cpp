@@ -383,6 +383,203 @@ private:
 };
 
 /**
+ * Taking a run of beats out, across as many bars as it covers.
+ *
+ * Everything is remembered by id and by value both: the beats and their notes
+ * go back under the numbers they had, in the places they were, because a
+ * selection deleted and undone has to leave a score that is not merely
+ * equivalent to the one before but identical to it.
+ */
+class DeleteRangeCommand : public QUndoCommand
+{
+public:
+    DeleteRangeCommand(Editor *editor, const Editing::Range &range)
+        : m_editor(editor)
+    {
+        const Score &score = editor->score();
+        for (int bar = range.from.bar; bar <= range.to.bar; ++bar) {
+            Cursor at = range.from;
+            at.bar = bar;
+            const int beats = Editing::beatCount(score, at);
+            for (int beat = 0; beat < beats; ++beat) {
+                if (!range.holds(bar, beat)) {
+                    continue;
+                }
+                at.beat = beat;
+                Removed removed;
+                removed.at = at;
+                removed.beatId = Editing::beatIdAt(score, at);
+                if (removed.beatId < 0) {
+                    continue;
+                }
+                removed.beat = score.beats.value(removed.beatId);
+                for (const int noteId : removed.beat.notes) {
+                    removed.notes.insert(noteId, score.notes.value(noteId));
+                }
+                m_removed.append(removed);
+            }
+        }
+        setText(i18np("Delete beat", "Delete %1 beats", int(m_removed.size())));
+    }
+
+    bool isValid() const
+    {
+        return !m_removed.isEmpty();
+    }
+
+    void redo() override
+    {
+        Score &score = m_editor->mutableScore();
+        for (const Removed &removed : m_removed) {
+            const int voiceId = Editing::voiceIdAt(score, removed.at);
+            if (voiceId >= 0) {
+                // By id rather than by index: the indices behind this one have
+                // already moved by the time we reach it.
+                score.voices[voiceId].beats.removeAll(removed.beatId);
+            }
+            score.beats.remove(removed.beatId);
+            for (auto note = removed.notes.constBegin(); note != removed.notes.constEnd();
+                 ++note) {
+                score.notes.remove(note.key());
+            }
+        }
+        m_editor->noteEdited(-1);
+    }
+
+    void undo() override
+    {
+        Score &score = m_editor->mutableScore();
+        // Forwards, so that each beat finds the index it came from already
+        // occupied by the ones that were in front of it.
+        for (const Removed &removed : m_removed) {
+            const int voiceId = Editor::voiceForEditing(score, removed.at, nullptr);
+            if (voiceId < 0) {
+                continue;
+            }
+            for (auto note = removed.notes.constBegin(); note != removed.notes.constEnd();
+                 ++note) {
+                score.notes.insert(note.key(), note.value());
+            }
+            score.beats.insert(removed.beatId, removed.beat);
+            QList<int> &beats = score.voices[voiceId].beats;
+            beats.insert(std::clamp(removed.at.beat, 0, int(beats.size())), removed.beatId);
+        }
+        m_editor->noteEdited(-1);
+    }
+
+private:
+    struct Removed {
+        Cursor at;
+        int beatId = -1;
+        Beat beat;
+        QHash<int, Note> notes;
+    };
+
+    Editor *m_editor;
+    QList<Removed> m_removed;
+};
+
+/**
+ * Putting the clipboard in at the caret, bar for bar.
+ *
+ * The ids are worked out once and then kept, so that undoing and redoing a
+ * paste puts the same music back under the same numbers rather than a fresh
+ * copy each time. That is safe because a stack cannot redo past a command that
+ * has been superseded: nothing else can have taken the numbers in the meantime.
+ */
+class PasteCommand : public QUndoCommand
+{
+public:
+    PasteCommand(Editor *editor, const Cursor &at, const Clip &clip)
+        : m_editor(editor)
+    {
+        const Score &score = editor->score();
+        int nextBeat = Editor::freshBeatId(score);
+        int nextNote = Editor::freshNoteId(score);
+
+        for (int index = 0; index < clip.bars.size(); ++index) {
+            Landing landing;
+            landing.at = at;
+            landing.at.bar = at.bar + index;
+            // The first bar's worth lands at the caret; the rest start their
+            // own bars, which is where they were when they were copied.
+            landing.at.beat = index == 0 ? at.beat : 0;
+            for (const Clip::Item &item : clip.bars.at(index)) {
+                landing.items.append(item);
+                landing.beatIds.append(nextBeat++);
+                QList<int> noteIds;
+                for (int note = 0; note < item.notes.size(); ++note) {
+                    noteIds.append(nextNote++);
+                }
+                landing.noteIds.append(noteIds);
+            }
+            m_landings.append(landing);
+        }
+        setText(i18np("Paste beat", "Paste %1 beats", clip.beatCount()));
+    }
+
+    void redo() override
+    {
+        Score &score = m_editor->mutableScore();
+        for (Landing &landing : m_landings) {
+            const int voiceId = Editor::voiceForEditing(score, landing.at, &landing.madeVoice);
+            if (voiceId < 0) {
+                continue;
+            }
+            QList<int> &beats = score.voices[voiceId].beats;
+            for (int index = 0; index < landing.items.size(); ++index) {
+                const Clip::Item &item = landing.items.at(index);
+                Beat beat = item.beat;
+                beat.rhythm = Editor::rhythmIdFor(score, item.duration);
+                beat.notes.clear();
+                for (int note = 0; note < item.notes.size(); ++note) {
+                    const int noteId = landing.noteIds.at(index).at(note);
+                    score.notes.insert(noteId, item.notes.at(note));
+                    beat.notes.append(noteId);
+                }
+                score.beats.insert(landing.beatIds.at(index), beat);
+                beats.insert(std::clamp(landing.at.beat + index, 0, int(beats.size())),
+                             landing.beatIds.at(index));
+            }
+        }
+        m_editor->noteEdited(-1);
+    }
+
+    void undo() override
+    {
+        Score &score = m_editor->mutableScore();
+        for (const Landing &landing : m_landings) {
+            const int voiceId = Editing::voiceIdAt(score, landing.at);
+            for (int index = 0; index < landing.beatIds.size(); ++index) {
+                if (voiceId >= 0) {
+                    score.voices[voiceId].beats.removeAll(landing.beatIds.at(index));
+                }
+                score.beats.remove(landing.beatIds.at(index));
+                for (const int noteId : landing.noteIds.at(index)) {
+                    score.notes.remove(noteId);
+                }
+            }
+            if (landing.madeVoice) {
+                Editor::dropVoice(score, landing.at);
+            }
+        }
+        m_editor->noteEdited(-1);
+    }
+
+private:
+    struct Landing {
+        Cursor at;
+        QList<Clip::Item> items;
+        QList<int> beatIds;
+        QList<QList<int>> noteIds;
+        bool madeVoice = false;
+    };
+
+    Editor *m_editor;
+    QList<Landing> m_landings;
+};
+
+/**
  * Changing how long a beat lasts, which is the one thing a fret cannot say.
  *
  * The beat keeps its notes: a quaver that becomes a crotchet is the same
@@ -450,6 +647,7 @@ void Editor::setScore(const Score &score)
     m_score = score;
     m_undo->clear();
     m_cursor = Editing::clamped(m_score, Cursor());
+    m_selecting = false;
     endDigitEntry();
     Q_EMIT scoreEdited(-1);
     Q_EMIT cursorChanged();
@@ -476,22 +674,152 @@ Cursor Editor::cursor() const
     return m_cursor;
 }
 
-void Editor::setCursor(const Cursor &cursor)
+void Editor::setCursor(const Cursor &cursor, bool extend)
 {
-    const Cursor clamped = Editing::clamped(m_score, cursor);
-    if (clamped == m_cursor) {
+    const Cursor next = Editing::clamped(m_score, cursor);
+    const bool wasSelecting = m_selecting;
+    const Cursor wasAnchor = m_anchor;
+
+    if (extend) {
+        if (!m_selecting) {
+            // The selection starts from where the caret was, not from where it
+            // is going: the beat you were on is part of what you are selecting.
+            m_anchor = m_cursor;
+            m_selecting = true;
+        }
+        if (next.track != m_anchor.track || next.voice != m_anchor.voice) {
+            m_selecting = false;
+        }
+    } else {
+        m_selecting = false;
+    }
+
+    if (next == m_cursor && m_selecting == wasSelecting && m_anchor == wasAnchor) {
         return;
     }
-    m_cursor = clamped;
+    m_cursor = next;
     // Moving ends a number: the next digit starts a new fret rather than
     // extending one typed somewhere else.
     endDigitEntry();
     Q_EMIT cursorChanged();
 }
 
-void Editor::move(Editing::Move move)
+void Editor::move(Editing::Move move, bool extend)
 {
-    setCursor(Editing::moved(m_score, m_cursor, move));
+    setCursor(Editing::moved(m_score, m_cursor, move), extend);
+}
+
+bool Editor::hasSelection() const
+{
+    return m_selecting && !(m_anchor == m_cursor);
+}
+
+Editing::Range Editor::selection() const
+{
+    return hasSelection() ? Editing::ordered(m_anchor, m_cursor)
+                          : Editing::Range{m_cursor, m_cursor};
+}
+
+void Editor::clearSelection()
+{
+    if (!m_selecting) {
+        return;
+    }
+    m_selecting = false;
+    Q_EMIT cursorChanged();
+}
+
+const Clip &Editor::clip() const
+{
+    return m_clip;
+}
+
+bool Editor::canPaste() const
+{
+    return !m_clip.isEmpty();
+}
+
+void Editor::copy()
+{
+    endDigitEntry();
+    const Editing::Range range = selection();
+
+    Clip clip;
+    for (int bar = range.from.bar; bar <= range.to.bar; ++bar) {
+        Cursor at = m_cursor;
+        at.bar = bar;
+        QList<Clip::Item> items;
+        const int beats = Editing::beatCount(m_score, at);
+        for (int beat = 0; beat < beats; ++beat) {
+            if (!range.holds(bar, beat)) {
+                continue;
+            }
+            at.beat = beat;
+            const int beatId = Editing::beatIdAt(m_score, at);
+            if (beatId < 0) {
+                continue;
+            }
+            Clip::Item item;
+            item.beat = m_score.beats.value(beatId);
+            item.duration = Editing::durationAt(m_score, at);
+            for (const int noteId : item.beat.notes) {
+                item.notes.append(m_score.notes.value(noteId));
+            }
+            items.append(item);
+        }
+        clip.bars.append(items);
+    }
+
+    // Copying nothing leaves what was copied before, the way every other
+    // clipboard behaves: a missed selection should not lose your last copy.
+    if (!clip.isEmpty()) {
+        m_clip = clip;
+    }
+}
+
+void Editor::deleteSelection()
+{
+    endDigitEntry();
+    auto *command = new DeleteRangeCommand(this, selection());
+    if (!command->isValid()) {
+        delete command;
+        return;
+    }
+    m_undo->push(command);
+    clearSelection();
+    setCursor(m_cursor);
+}
+
+void Editor::cut()
+{
+    copy();
+    deleteSelection();
+}
+
+bool Editor::paste()
+{
+    endDigitEntry();
+    if (m_clip.isEmpty()) {
+        return false;
+    }
+
+    // Every bar it would land in has to exist first. Half a paste is worse
+    // than none: the half that landed has to be found and undone by hand.
+    const int lastBar = m_cursor.bar + int(m_clip.bars.size()) - 1;
+    if (lastBar >= m_score.masterBars.size()) {
+        return false;
+    }
+    for (int bar = m_cursor.bar; bar <= lastBar; ++bar) {
+        Cursor at = m_cursor;
+        at.bar = bar;
+        if (!hasBarAt(m_score, at)) {
+            return false;
+        }
+    }
+
+    clearSelection();
+    m_undo->push(new PasteCommand(this, m_cursor, m_clip));
+    return true;
 }
 
 int Editor::freshNoteId(const Score &score)
@@ -558,6 +886,9 @@ void Editor::setFret(int fret)
     if (fret < 0 || fret > HighestFret) {
         return;
     }
+    // An edit that touches one beat must not leave a selection on screen
+    // saying it touched several.
+    clearSelection();
     // Where there is no beat under the caret the command makes one, so the only
     // thing that stops it here is a score with no bar to put it in.
     if (Editing::beatIdAt(m_score, m_cursor) < 0 && !hasBarAt(m_score, m_cursor)) {
@@ -569,6 +900,7 @@ void Editor::setFret(int fret)
 void Editor::clearNote()
 {
     endDigitEntry();
+    clearSelection();
     auto *command = new ClearNoteCommand(this, m_cursor);
     if (!command->isValid()) {
         delete command;
@@ -650,6 +982,7 @@ void Editor::dropVoice(Score &score, const Cursor &cursor)
 void Editor::insertBeat()
 {
     endDigitEntry();
+    clearSelection();
     if (!hasBarAt(m_score, m_cursor)) {
         return;
     }
@@ -659,6 +992,7 @@ void Editor::insertBeat()
 void Editor::deleteBeat()
 {
     endDigitEntry();
+    clearSelection();
     auto *command = new DeleteBeatCommand(this, m_cursor);
     if (!command->isValid()) {
         delete command;
@@ -687,6 +1021,7 @@ int Editor::rhythmIdFor(Score &score, const Rational &duration)
 void Editor::applyDuration(const Rational &duration)
 {
     endDigitEntry();
+    clearSelection();
     if (duration.isZero() || Editing::beatIdAt(m_score, m_cursor) < 0) {
         return;
     }

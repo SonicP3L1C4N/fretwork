@@ -24,6 +24,12 @@ private:
     /** Two bars of four quarter-note beats, on a guitar in standard tuning. */
     static Score twoBars()
     {
+        return someBars(2);
+    }
+
+    /** The same, as many bars as a test needs. */
+    static Score someBars(int count)
+    {
         Score score;
         Track guitar;
         guitar.name = QStringLiteral("Guitar");
@@ -33,7 +39,7 @@ private:
         score.rhythms.insert(0, Rational(1));
 
         int id = 0;
-        for (int bar = 0; bar < 2; ++bar) {
+        for (int bar = 0; bar < count; ++bar) {
             MasterBar master;
             master.bars = {bar};
             score.masterBars.append(master);
@@ -311,6 +317,11 @@ private Q_SLOTS:
         editor.typeDigit(8);
         editor.setCursor(at(1, 0, 0));
         editor.deleteBeat();
+        editor.setCursor(at(0, 1, 0));
+        editor.setCursor(at(0, 3, 0), true);
+        editor.cut();
+        editor.setCursor(at(1, 1, 0));
+        editor.paste();
         editor.setCursor(at(0, 0, 5));
         editor.clearNote();
 
@@ -618,6 +629,176 @@ private Q_SLOTS:
         QCOMPARE(Editing::beatCount(editor.score(), editor.cursor()), 3);
         QVERIFY(editor.cursor().beat <= 3);
         QVERIFY(Editing::clamped(editor.score(), editor.cursor()) == editor.cursor());
+    }
+
+    // ---- selection and the clipboard ----
+
+    /** The beat the caret was on is part of what shift selects, not the next one. */
+    void shiftAndAnArrowSelectsFromWhereTheCaretWas()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(0, 1, 0));
+        QVERIFY(!editor.hasSelection());
+
+        editor.move(Editing::Move::Right, true);
+        QVERIFY(editor.hasSelection());
+        QCOMPARE(editor.selection().from.beat, 1);
+        QCOMPARE(editor.selection().to.beat, 2);
+
+        // Backwards past the start: the range comes out in score order
+        // whichever way round it was made.
+        editor.move(Editing::Move::Left, true);
+        editor.move(Editing::Move::Left, true);
+        QCOMPARE(editor.selection().from.beat, 0);
+        QCOMPARE(editor.selection().to.beat, 1);
+
+        // Moving without shift is the end of it.
+        editor.move(Editing::Move::Right);
+        QVERIFY(!editor.hasSelection());
+    }
+
+    /** A selection is one voice of one track. Leaving either ends it. */
+    void leavingTheVoiceEndsTheSelection()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(0, 0, 0));
+        editor.move(Editing::Move::Right, true);
+        QVERIFY(editor.hasSelection());
+
+        Cursor elsewhere = editor.cursor();
+        elsewhere.voice = 1;
+        editor.setCursor(elsewhere, true);
+        QVERIFY(!editor.hasSelection());
+    }
+
+    void copiesAndPastesABeatWithItsNotes()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(0, 0, 2));
+        editor.typeDigit(7);
+        editor.setDuration(8);
+
+        editor.copy();
+        editor.setCursor(at(1, 0, 0));
+        QVERIFY(editor.paste());
+
+        // A new beat with a new note on it, sounding the same and lasting the
+        // same, and the bar it went into is a beat longer.
+        QCOMPARE(Editing::beatCount(editor.score(), editor.cursor()), 5);
+        QCOMPARE(Editing::durationAt(editor.score(), at(1, 0, 0)), Rational(1, 2));
+        Cursor pasted = at(1, 0, 2);
+        QCOMPARE(editor.score().notes.value(
+                     Editing::noteIdAt(editor.score(), pasted)).fret, 7);
+
+        // Not the same note: the original is untouched by anything done to it.
+        QCOMPARE(int(editor.score().notes.size()), 2);
+    }
+
+    /** Four bars copied are four bars pasted, not one bar of sixteen beats. */
+    void pasteKeepsTheBarsItWasCopiedFrom()
+    {
+        Editor editor;
+        editor.setScore(someBars(6));
+        editor.setCursor(at(0, 0, 0));
+        editor.typeDigit(1);
+        editor.setCursor(at(1, 0, 0));
+        editor.typeDigit(2);
+
+        editor.setCursor(at(0, 0, 0));
+        editor.setCursor(at(1, 3, 0), true);
+        QCOMPARE(editor.selection().barCount(), 2);
+        editor.copy();
+
+        editor.setCursor(at(3, 0, 0));
+        QVERIFY(editor.paste());
+
+        QCOMPARE(Editing::beatCount(editor.score(), at(3, 0, 0)), 8);
+        QCOMPARE(Editing::beatCount(editor.score(), at(4, 0, 0)), 8);
+        QCOMPARE(editor.score().notes.value(
+                     Editing::noteIdAt(editor.score(), at(3, 0, 0))).fret, 1);
+        QCOMPARE(editor.score().notes.value(
+                     Editing::noteIdAt(editor.score(), at(4, 0, 0))).fret, 2);
+    }
+
+    /** Half a paste is worse than none: the half that landed has to be found. */
+    void refusesAPasteThatWouldRunOffTheEnd()
+    {
+        Editor editor;
+        editor.setScore(someBars(3));
+        editor.setCursor(at(0, 0, 0));
+        editor.setCursor(at(1, 3, 0), true);
+        editor.copy();
+
+        editor.setCursor(at(2, 0, 0));
+        const QString before = fingerprint(editor.score());
+        QVERIFY(!editor.paste());
+        QCOMPARE(fingerprint(editor.score()), before);
+        QVERIFY(!editor.canUndo());
+    }
+
+    void deletingASelectionTakesEveryBeatInIt()
+    {
+        Editor editor;
+        editor.setScore(someBars(3));
+        editor.setCursor(at(0, 2, 0));
+        editor.typeDigit(5);
+        const QString before = fingerprint(editor.score());
+
+        editor.setCursor(at(0, 2, 0));
+        editor.setCursor(at(1, 1, 0), true);
+        editor.deleteSelection();
+
+        // Two beats gone from the first bar and two from the second, and the
+        // note that was on one of them with them.
+        QCOMPARE(Editing::beatCount(editor.score(), at(0, 0, 0)), 2);
+        QCOMPARE(Editing::beatCount(editor.score(), at(1, 0, 0)), 2);
+        QCOMPARE(int(editor.score().notes.size()), 0);
+        QVERIFY(!editor.hasSelection());
+
+        // Back exactly as it was, ids and all.
+        editor.undo();
+        QCOMPARE(fingerprint(editor.score()), before);
+    }
+
+    void cutTakesWhatItCopied()
+    {
+        Editor editor;
+        editor.setScore(someBars(3));
+        editor.setCursor(at(0, 1, 1));
+        editor.typeDigit(9);
+
+        editor.setCursor(at(0, 1, 1));
+        editor.setCursor(at(0, 2, 1), true);
+        editor.cut();
+        QCOMPARE(Editing::beatCount(editor.score(), at(0, 0, 0)), 2);
+
+        editor.setCursor(at(2, 0, 0));
+        QVERIFY(editor.paste());
+        QCOMPARE(Editing::beatCount(editor.score(), at(2, 0, 0)), 6);
+        QCOMPARE(editor.score().notes.value(
+                     Editing::noteIdAt(editor.score(), at(2, 0, 1))).fret, 9);
+    }
+
+    /** A missed selection should not lose what was on the clipboard. */
+    void copyingFromAnEmptyPlaceKeepsTheLastCopy()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(0, 0, 0));
+        editor.typeDigit(4);
+        editor.copy();
+
+        Score hollow = twoBars();
+        hollow.bars[1] = Bar{{-1, -1, -1, -1}};
+        editor.setScore(hollow);
+        editor.setCursor(at(1, 0, 0));
+        editor.copy();
+
+        QVERIFY(editor.canPaste());
+        QCOMPARE(editor.clip().beatCount(), 1);
     }
 
     void doesNothingWhereThereIsNowhereToPutABeat()

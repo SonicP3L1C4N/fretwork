@@ -39,6 +39,39 @@ struct Cursor {
 
 namespace Editing
 {
+/** True where `a` comes before `b` in the music, reading left to right. */
+bool before(const Cursor &a, const Cursor &b);
+
+/**
+ * A run of beats, both ends included.
+ *
+ * Within one track and one voice: selecting across two voices at once is a
+ * different feature and mostly a different question -- what a person means by
+ * dragging across a bar with two parts in it is not obvious, and guessing is
+ * worse than not offering it.
+ */
+struct Range {
+    Cursor from;
+    Cursor to;
+
+    /** Whether a beat of a bar falls inside it. */
+    bool holds(int bar, int beat) const
+    {
+        const bool afterStart = bar > from.bar || (bar == from.bar && beat >= from.beat);
+        const bool beforeEnd = bar < to.bar || (bar == to.bar && beat <= to.beat);
+        return afterStart && beforeEnd;
+    }
+
+    /** How many bars it touches, including the ones it only passes through. */
+    int barCount() const
+    {
+        return to.bar - from.bar + 1;
+    }
+};
+
+/** The two cursors the right way round. */
+Range ordered(const Cursor &a, const Cursor &b);
+
 /** Which way a key press moves the caret. */
 enum class Move {
     Left, Right,

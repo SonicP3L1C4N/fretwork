@@ -101,6 +101,21 @@ Kirigami.ApplicationWindow {
     }
 
     Shortcut {
+        sequences: [StandardKey.Copy]
+        onActivated: session.copy()
+    }
+
+    Shortcut {
+        sequences: [StandardKey.Cut]
+        onActivated: session.cut()
+    }
+
+    Shortcut {
+        sequences: [StandardKey.Paste]
+        onActivated: session.paste()
+    }
+
+    Shortcut {
         sequences: [StandardKey.Undo]
         onActivated: session.undo()
     }
@@ -254,6 +269,9 @@ Kirigami.ApplicationWindow {
                             return
                         }
                         const control = event.modifiers & Qt.ControlModifier
+                        // Shift and a movement key widens the selection from
+                        // wherever it started, which is what shift does.
+                        const extend = event.modifiers & Qt.ShiftModifier
 
                         // Ctrl and a digit is a note value rather than a fret:
                         // 1 is a semibreve, 2 a minim, and on down by halves,
@@ -267,15 +285,17 @@ Kirigami.ApplicationWindow {
 
                         switch (event.key) {
                         case Qt.Key_Left:
-                            session.moveCursor(control ? "barBack" : "left"); break
+                            session.moveCursor(control ? "barBack" : "left", extend); break
                         case Qt.Key_Right:
-                            session.moveCursor(control ? "barForward" : "right"); break
+                            session.moveCursor(control ? "barForward" : "right", extend); break
                         case Qt.Key_Up:
-                            control ? session.scaleDuration(1) : session.moveCursor("up"); break
+                            control ? session.scaleDuration(1)
+                                    : session.moveCursor("up", extend); break
                         case Qt.Key_Down:
-                            control ? session.scaleDuration(-1) : session.moveCursor("down"); break
-                        case Qt.Key_Home:  session.moveCursor("start"); break
-                        case Qt.Key_End:   session.moveCursor("end"); break
+                            control ? session.scaleDuration(-1)
+                                    : session.moveCursor("down", extend); break
+                        case Qt.Key_Home:  session.moveCursor("start", extend); break
+                        case Qt.Key_End:   session.moveCursor("end", extend); break
                         case Qt.Key_Insert: session.insertBeat(); break
                         case Qt.Key_Delete:
                         case Qt.Key_Backspace:

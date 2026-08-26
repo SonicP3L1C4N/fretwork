@@ -331,7 +331,7 @@ void Session::relayout(qreal width)
 
 // ---- editing ----
 
-void Session::moveCursor(const QString &direction)
+void Session::moveCursor(const QString &direction, bool extend)
 {
     static const QHash<QString, Editing::Move> moves = {
         {QStringLiteral("left"), Editing::Move::Left},
@@ -344,7 +344,7 @@ void Session::moveCursor(const QString &direction)
         {QStringLiteral("end"), Editing::Move::End},
     };
     if (moves.contains(direction)) {
-        m_editor.move(moves.value(direction));
+        m_editor.move(moves.value(direction), extend);
     }
 }
 
@@ -355,7 +355,13 @@ void Session::typeDigit(int digit)
 
 void Session::clearNote()
 {
-    m_editor.clearNote();
+    // Delete takes the selection where there is one, which is what it does
+    // everywhere else a person has ever pressed it.
+    if (m_editor.hasSelection()) {
+        m_editor.deleteSelection();
+    } else {
+        m_editor.clearNote();
+    }
 }
 
 void Session::transposeNote(int frets)
@@ -398,14 +404,44 @@ void Session::redo()
     m_editor.redo();
 }
 
-void Session::placeCursorAt(qreal x, qreal y)
+void Session::placeCursorAt(qreal x, qreal y, bool extend)
 {
     Cursor found;
     if (!Tab::hitTest(m_layout, x, y, &found.bar, &found.voice, &found.beat, &found.string)) {
         return;
     }
     found.track = m_currentTrack;
-    m_editor.setCursor(found);
+    m_editor.setCursor(found, extend);
+}
+
+void Session::copy()
+{
+    m_editor.copy();
+}
+
+void Session::cut()
+{
+    m_editor.cut();
+}
+
+void Session::paste()
+{
+    if (!m_editor.paste() && m_editor.canPaste()) {
+        // Refused rather than half done: say which, because "nothing
+        // happened" is the least useful thing a program can do.
+        setStatus(i18n("There are not enough bars left to paste %1 into",
+                       i18np("one bar", "%1 bars", int(m_editor.clip().bars.size()))));
+    }
+}
+
+bool Session::hasSelection() const
+{
+    return m_editor.hasSelection();
+}
+
+Editing::Range Session::selection() const
+{
+    return m_editor.selection();
 }
 
 bool Session::canUndo() const

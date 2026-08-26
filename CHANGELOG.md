@@ -8,6 +8,36 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## Unreleased — P3
 
+- **It selects, and copies and pastes.** Shift with an arrow widens the
+  selection from the beat the caret was on, dragging across the score does the
+  same with the mouse, and `Ctrl+C`, `Ctrl+X` and `Ctrl+V` do what they do
+  everywhere. `Delete` with a selection takes all of it.
+- **A clip keeps the bars it was copied from.** Four bars of a riff pasted as
+  one long bar would be the same notes and not the same music, so the first
+  bar's worth lands at the caret and each further bar's worth at the start of
+  the next bar of the score. Re-barring somebody's phrase for them is not a
+  decision a paste gets to make.
+- **A paste that would run off the end of the score is refused outright**, and
+  the status bar says why. Half a paste is worse than none: the half that
+  landed has to be found and undone by hand, and by then the person has stopped
+  trusting the program.
+- **The clipboard holds music, not ids.** The ids in a score belong to that
+  score, and a clipboard full of them stops meaning anything the moment the
+  beat it names is deleted. What is kept is what each beat *is* — how long it
+  lasts, everything else the beat carries, and the notes on the strings by
+  value — so pasting makes new beats rather than aliases of old ones. It is
+  Fretwork's own clipboard and does not reach the desktop's: copying between
+  two windows means choosing a MIME type and a serialisation, which is a format
+  decision and belongs with the ones in `fwformat`.
+- A selection lives in one voice of one track, and stepping out of either ends
+  it rather than being reinterpreted. What a selection spanning two parts of a
+  bar is supposed to mean is not obvious enough to guess at.
+- An edit that touches one beat clears the selection first, so what is
+  highlighted never disagrees with what was changed.
+- Cut, paste and a deleted selection all go back exactly: the beats and their
+  notes return under the ids they had, in the places they were. The
+  whole-session reversal test now cuts and pastes on its way through.
+
 - **It adds and removes beats.** `Insert` puts an empty one at the caret and
   pushes the rest of the bar along; `Ctrl+Delete` takes the one under the caret
   out, notes and all. A new beat lasts as long as the one it displaced, or as

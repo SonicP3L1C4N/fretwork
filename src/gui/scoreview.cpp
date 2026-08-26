@@ -166,8 +166,20 @@ void ScoreView::mousePressEvent(QMouseEvent *event)
     }
     // The view scrolls by drawing elsewhere, so what was clicked is further
     // down the page than where the pointer is.
-    m_session->placeCursorAt(event->position().x(), event->position().y() + m_scrollY);
+    m_session->placeCursorAt(event->position().x(), event->position().y() + m_scrollY,
+                             event->modifiers() & Qt::ShiftModifier);
     forceActiveFocus();
+    event->accept();
+}
+
+/** Dragging selects, which is the gesture everybody tries first. */
+void ScoreView::mouseMoveEvent(QMouseEvent *event)
+{
+    if (!m_session || !(event->buttons() & Qt::LeftButton)) {
+        QQuickPaintedItem::mouseMoveEvent(event);
+        return;
+    }
+    m_session->placeCursorAt(event->position().x(), event->position().y() + m_scrollY, true);
     event->accept();
 }
 
@@ -226,6 +238,49 @@ void ScoreView::paint(QPainter *painter)
                                          system.y - layout.style.stringSpacing,
                                          bar.width,
                                          layout.systemHeight() + layout.style.stringSpacing),
+                                  wash);
+            }
+        }
+    }
+
+    if (m_session->hasSelection()) {
+        // Behind the music, like the played bar, and in the same colour the
+        // caret uses -- it is the caret, widened.
+        const Editing::Range range = m_session->selection();
+        QColor wash = palette.accent;
+        wash.setAlphaF(0.18);
+        const qreal padding = layout.style.stringSpacing * 0.6;
+
+        for (const Tab::System &system : layout.pages.constFirst().systems) {
+            for (const Tab::LaidBar &bar : system.bars) {
+                if (bar.index < range.from.bar || bar.index > range.to.bar) {
+                    continue;
+                }
+                const qreal barLeft = layout.style.margin + bar.x;
+                qreal first = 0;
+                qreal last = 0;
+                bool any = false;
+                for (const Tab::LaidBeat &beat : bar.beats) {
+                    if (beat.voice != range.from.voice
+                        || !range.holds(bar.index, beat.index)) {
+                        continue;
+                    }
+                    const qreal x = barLeft + beat.x;
+                    first = any ? std::min(first, x) : x;
+                    last = any ? std::max(last, x) : x;
+                    any = true;
+                }
+                if (!any) {
+                    continue;
+                }
+                // Where the selection carries on past this bar it is drawn to
+                // the barline, so a run of bars reads as one block rather than
+                // as a row of separate patches.
+                const qreal from = bar.index > range.from.bar ? barLeft : first - padding;
+                const qreal to =
+                    bar.index < range.to.bar ? barLeft + bar.width : last + padding;
+                painter->fillRect(QRectF(from, system.y - padding, to - from,
+                                         layout.systemHeight() + padding),
                                   wash);
             }
         }

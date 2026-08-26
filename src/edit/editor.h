@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "clip.h"
 #include "cursor.h"
 #include "notevalue.h"
 #include "score.h"
@@ -41,8 +42,50 @@ public:
     const Score &score() const;
 
     Cursor cursor() const;
-    void setCursor(const Cursor &cursor);
-    void move(Editing::Move move);
+    void setCursor(const Cursor &cursor, bool extend = false);
+    void move(Editing::Move move, bool extend = false);
+
+    // ---- selection ----
+
+    /**
+     * Whether more than the beat under the caret is selected.
+     *
+     * A selection runs from where it was started to where the caret is now,
+     * both ends included, within one track and one voice. Moving to another
+     * track or voice drops it rather than reinterpreting it: what a selection
+     * that spans two parts is supposed to mean is not obvious enough to guess.
+     */
+    bool hasSelection() const;
+
+    /** The selected beats, or the caret's own beat where nothing is selected. */
+    Editing::Range selection() const;
+
+    void clearSelection();
+
+    // ---- the clipboard ----
+
+    /** Takes a copy of the selection. Changes nothing, so there is nothing to undo. */
+    void copy();
+
+    /** Copies the selection and then removes it, which is one undoable act. */
+    void cut();
+
+    /**
+     * Puts the clipboard in at the caret, bar for bar.
+     *
+     * The first bar's worth goes in at the caret and pushes what follows along;
+     * each further bar's worth goes in at the start of the next bar of the
+     * score. Returns false and does nothing at all where the music would run
+     * off the end -- half a paste is worse than none, because the half that
+     * landed has to be found and undone by hand.
+     */
+    bool paste();
+
+    /** Removes every selected beat, which is what Delete means with a selection. */
+    void deleteSelection();
+
+    bool canPaste() const;
+    const Clip &clip() const;
 
     // ---- editing ----
 
@@ -167,6 +210,10 @@ private:
     Score m_score;
     Cursor m_cursor;
     QUndoStack *m_undo;
+
+    Cursor m_anchor;
+    bool m_selecting = false;
+    Clip m_clip;
 
     QElapsedTimer m_typing;
     int m_digitRun = 0;         //< bumped whenever a run of digits ends
