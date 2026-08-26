@@ -106,6 +106,17 @@ private:
         return out;
     }
 
+    /** Marks every note of the given columns of bar 0 as palm muted. */
+    static void palmMute(Score &score, const QList<int> &columns)
+    {
+        const QList<int> beats = score.voices.value(0).beats;
+        for (const int column : columns) {
+            for (const int noteId : score.beats.value(beats.value(column)).notes) {
+                score.notes[noteId].palmMuted = true;
+            }
+        }
+    }
+
     /** The rhythm of every column of a one-bar score, in order. */
     static QList<Tab::LaidRhythm> rhythms(const Score &score)
     {
@@ -454,6 +465,100 @@ private Q_SLOTS:
         QVERIFY(Tab::layOut(Score(), 0).isEmpty());
         QVERIFY(Tab::layOut(score(4), -1).isEmpty());
         QVERIFY(Tab::layOut(score(4), 9).isEmpty());
+    }
+
+    // ---- the marks that carry over a run of notes ----
+
+    /** A run is drawn from the first column it covers to the last. */
+    void marksARunFromItsFirstColumnToItsLast()
+    {
+        Score marked = score(2);
+        palmMute(marked, {1, 2, 3});
+
+        const Tab::Layout layout = Tab::layOut(marked, 0);
+        const Tab::System &system = layout.pages.constFirst().systems.constFirst();
+        QCOMPARE(int(system.runs.size()), 1);
+        QCOMPARE(system.runs.constFirst().mark, Tab::Mark::PalmMute);
+
+        const Tab::LaidBar &bar = system.bars.constFirst();
+        QCOMPARE(system.runs.constFirst().from, bar.x + bar.beats.at(1).x);
+        QCOMPARE(system.runs.constFirst().to, bar.x + bar.beats.at(3).x);
+    }
+
+    /** A column without it ends the run, and the label starts again after. */
+    void aGapEndsTheRunRatherThanBeingDrawnThrough()
+    {
+        Score marked = score(2);
+        palmMute(marked, {0, 2, 3});
+
+        const Tab::Layout layout = Tab::layOut(marked, 0);
+        const Tab::System &system = layout.pages.constFirst().systems.constFirst();
+        QCOMPARE(int(system.runs.size()), 2);
+
+        const Tab::LaidBar &bar = system.bars.constFirst();
+        // The first covers one column and so has nowhere to draw a line to.
+        QCOMPARE(system.runs.at(0).from, bar.x + bar.beats.at(0).x);
+        QCOMPARE(system.runs.at(0).to, system.runs.at(0).from);
+        QCOMPARE(system.runs.at(1).from, bar.x + bar.beats.at(2).x);
+        QCOMPARE(system.runs.at(1).to, bar.x + bar.beats.at(3).x);
+    }
+
+    /** Two voices palm-muting one moment are one mark: there is one hand. */
+    void oneColumnMarkedInEitherVoiceIsOneRun()
+    {
+        Score marked = score(1);
+        palmMute(marked, {0, 1, 2, 3});
+        // Only the second note of each chord keeps the mark, which is still
+        // the same column being palm muted.
+        for (auto note = marked.notes.begin(); note != marked.notes.end(); ++note) {
+            note->palmMuted = note->string == 1;
+        }
+
+        const Tab::Layout layout = Tab::layOut(marked, 0);
+        QCOMPARE(int(layout.pages.constFirst().systems.constFirst().runs.size()), 1);
+    }
+
+    /**
+     * A dashed line cannot cross a line break, so the run stops at the end of
+     * the system and the label is printed again on the next one.
+     */
+    void aRunStopsAtTheEndOfALine()
+    {
+        Score marked = score(40);
+        for (auto note = marked.notes.begin(); note != marked.notes.end(); ++note) {
+            note->palmMuted = true;
+        }
+
+        const Tab::Layout layout = Tab::layOut(marked, 0);
+        int systems = 0;
+        for (const Tab::Page &page : layout.pages) {
+            for (const Tab::System &system : page.systems) {
+                ++systems;
+                // One unbroken run over the whole line, every line.
+                QCOMPARE(int(system.runs.size()), 1);
+                QCOMPARE(system.runs.constFirst().from,
+                         system.bars.constFirst().x + system.bars.constFirst().beats.constFirst().x);
+                QCOMPARE(system.runs.constFirst().to,
+                         system.bars.constLast().x + system.bars.constLast().beats.constLast().x);
+            }
+        }
+        QVERIFY(systems > 2);
+    }
+
+    /** A ghost note is drawn in brackets, and a dead one is still a cross. */
+    void ghostNotesAreDrawnInBrackets()
+    {
+        Score marked = score(1, 1);
+        marked.notes[0].ghost = true;
+        marked.notes[2].muted = true;
+        marked.notes[4].muted = true;
+        marked.notes[4].ghost = true;
+
+        const Tab::LaidBar &bar =
+            Tab::layOut(marked, 0).pages.constFirst().systems.constFirst().bars.constFirst();
+        QCOMPARE(bar.beats.at(0).notes.constFirst().text, QStringLiteral("(0)"));
+        QCOMPARE(bar.beats.at(1).notes.constFirst().text, QStringLiteral("x"));
+        QCOMPARE(bar.beats.at(2).notes.constFirst().text, QStringLiteral("(x)"));
     }
 };
 

@@ -105,6 +105,56 @@ void paintRhythm(QPainter &painter, const Tab::Layout &layout, const Tab::LaidBe
     }
 }
 
+/**
+ * The marks that carry over a run of notes: "P.M." and "let ring".
+ *
+ * Drawn in the row above the staff, with a dashed line saying how far each one
+ * lasts -- which is how tablature has always written the things a hand keeps
+ * doing rather than the things a note is. A run that is one column wide gets
+ * the label and no line: a dash to nowhere reads as a mistake.
+ *
+ * Where the runs are was decided in the layout. This only puts ink on them.
+ */
+void paintRuns(QPainter &painter, const Tab::Layout &layout, const Tab::System &system,
+               const Tab::Palette &palette)
+{
+    if (system.runs.isEmpty()) {
+        return;
+    }
+    const Tab::Style &style = layout.style;
+    const qreal left = style.margin;
+    // Just clear of the fret numbers on the top string, which are centred on
+    // the line itself and reach half a line-height above it.
+    const qreal baseline = system.y - style.markGap * 0.35;
+
+    painter.setFont(sansOf(style.labelSize * 0.8));
+    const QFontMetricsF metrics(painter.font());
+    painter.setPen(palette.accent);
+
+    for (const Tab::LaidRun &run : system.runs) {
+        const QString label = run.mark == Tab::Mark::PalmMute ? QStringLiteral("P.M.")
+                                                              : QStringLiteral("let ring");
+        const qreal from = left + run.from;
+        painter.drawText(QPointF(from - 3, baseline), label);
+        if (run.to <= run.from) {
+            continue;
+        }
+        // From the end of the label to the last column it covers, level with
+        // the middle of the type rather than its feet.
+        const qreal start = from - 3 + metrics.horizontalAdvance(label) + 2;
+        const qreal end = left + run.to;
+        if (end <= start) {
+            continue;
+        }
+        QPen pen(palette.accent, 0.6);
+        pen.setStyle(Qt::DashLine);
+        painter.setPen(pen);
+        const qreal y = baseline - metrics.xHeight() / 2;
+        painter.drawLine(QPointF(start, y), QPointF(end, y));
+        painter.setPen(palette.accent);
+    }
+}
+
 void paintSystem(QPainter &painter, const Tab::Layout &layout, const Tab::System &system,
                  const Tab::Palette &palette)
 {
@@ -144,13 +194,14 @@ void paintSystem(QPainter &painter, const Tab::Layout &layout, const Tab::System
         // which is the only label every bar already has.
         painter.setPen(bar.incomplete ? palette.warning : palette.faint);
         painter.setFont(sansOf(style.labelSize * 0.8));
-        painter.drawText(QRectF(x + 1, top - style.labelSize * 2.4, 40, style.labelSize * 1.4),
+        painter.drawText(QRectF(x + 1, top - style.markGap - style.labelSize * 2.4, 40,
+                                style.labelSize * 1.4),
                          Qt::AlignLeft | Qt::AlignBottom, QString::number(bar.index + 1));
 
         if (!bar.section.isEmpty()) {
             painter.setPen(palette.ink);
             painter.setFont(sansOf(style.labelSize, true));
-            painter.drawText(QRectF(x + 1, top - style.labelSize * 4.2, 200,
+            painter.drawText(QRectF(x + 1, top - style.markGap - style.labelSize * 4.2, 200,
                                     style.labelSize * 1.6),
                              Qt::AlignLeft | Qt::AlignBottom, bar.section);
         }
@@ -169,7 +220,8 @@ void paintSystem(QPainter &painter, const Tab::Layout &layout, const Tab::System
             painter.setPen(palette.accent);
             painter.setFont(sansOf(style.labelSize * 0.85, true));
             painter.drawText(QRectF(left + bar.x + bar.width - 42,
-                                    top - style.labelSize * 4.0, 38, style.labelSize * 1.5),
+                                    top - style.markGap - style.labelSize * 4.0, 38,
+                                    style.labelSize * 1.5),
                              Qt::AlignRight | Qt::AlignBottom,
                              QStringLiteral("×%1").arg(bar.repeatCount));
         }
@@ -201,6 +253,8 @@ void paintSystem(QPainter &painter, const Tab::Layout &layout, const Tab::System
             }
         }
     }
+
+    paintRuns(painter, layout, system, palette);
 
     // The closing barline of the system.
     painter.setPen(QPen(palette.staff, 0.6));

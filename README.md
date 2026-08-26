@@ -46,6 +46,13 @@ playing it wrongly:
 changes. Arrows move the caret, `Delete` clears a note, and every change is
 undoable — typing `1` then `2` is fret 12 and one press of undo, not two.
 
+`x` marks a dead note, `g` a ghost note, `p` palm mutes and `l` lets ring —
+the note under the caret or the whole selection, and on unless it is on
+already. Only those four, because they are the ones Fretwork can both draw and
+play: palm muting and letting ring are printed the way tablature prints them,
+as a label over the staff with a dashed line saying how far the hand keeps
+doing it.
+
 `+` and `-` transpose: the note under the caret, or everything in the
 selection, along the strings it is already on — refused outright where any of
 it would run off the neck, because a phrase with one note left behind is not
@@ -126,7 +133,9 @@ fretwork FILE.gp --png page.png --page 2 --track 1
 ```
 
 Title, tuning, section names, bar numbers, time signatures, repeat signs, dead
-notes, and fret numbers coloured where a technique is marked on them. Under the
+notes and ghost notes, palm-muted and let-ring runs labelled over the staff
+with a dashed line for as long as they last, and fret numbers coloured where a
+technique is marked on them. Under the
 strings, a row of stems saying how long each column lasts — beamed in the groups
 the time signature makes, flagged where there is nothing to beam to, with an
 open head for a minim and a mark in the staff where nothing sounds. Bar widths

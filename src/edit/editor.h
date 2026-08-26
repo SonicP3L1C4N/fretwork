@@ -34,6 +34,22 @@ class Editor : public QObject
     Q_OBJECT
 
 public:
+    /**
+     * A mark a note either carries or does not.
+     *
+     * Only the four the program can both draw and play. A mark the page cannot
+     * show is a key that appears to do nothing, and one the synthesiser
+     * ignores is a lie about what will come out of the speakers -- accents,
+     * ghosts of the other kind, vibrato and the rest wait until both ends can
+     * honour them.
+     */
+    enum class Mark {
+        Dead,       //< a click at no particular pitch, drawn as a cross
+        Ghost,      //< played but barely heard, drawn in brackets
+        PalmMute,   //< damped by the picking hand, drawn as a run over the staff
+        LetRing,    //< held past its written length, drawn the same way
+    };
+
     /** What an edit that is allowed to say no did. */
     enum class Edit {
         Done,       //< the score changed
@@ -145,6 +161,16 @@ public:
      * stays, so a phrase can be walked up a fret at a time.
      */
     Edit transpose(int frets);
+
+    /**
+     * Puts a mark on the note under the caret, or on the whole selection.
+     *
+     * On unless every note in it is marked already: "palm mute this" is what a
+     * person means the first time and "stop" is what they mean the second.
+     * Flipping each note separately would turn a half-marked phrase inside out
+     * instead of finishing the job.
+     */
+    Edit toggleMark(Mark mark);
 
     /**
      * Moves the note under the caret to the next string, keeping its pitch.

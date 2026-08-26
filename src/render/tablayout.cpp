@@ -31,10 +31,56 @@ qreal widthFor(const Rational &duration, const Tab::Style &style)
 /** The text that goes on the string: a fret number, or a cross for a dead note. */
 QString textFor(const Note &note)
 {
-    if (note.muted) {
-        return QStringLiteral("x");
+    const QString text = note.muted ? QStringLiteral("x") : QString::number(note.fret);
+    // A ghost note is played but barely heard, and tablature has always drawn
+    // that as brackets. It is the note text that changes rather than anything
+    // above the staff, because the note is still there.
+    return note.ghost ? QStringLiteral("(%1)").arg(text) : text;
+}
+
+/**
+ * Where one kind of mark starts and stops across a line of music.
+ *
+ * A run carries while consecutive columns have it and ends at the first that
+ * does not. Columns rather than beats: two voices palm-muting the same moment
+ * are one mark, because there is one hand doing it.
+ */
+void appendRuns(Tab::System &system, Tab::Mark mark, const QList<qreal> &xs,
+                const QList<bool> &on)
+{
+    int start = -1;
+    for (int index = 0; index <= on.size(); ++index) {
+        const bool marked = index < on.size() && on.at(index);
+        if (marked && start < 0) {
+            start = index;
+        } else if (!marked && start >= 0) {
+            system.runs.append(Tab::LaidRun{mark, xs.at(start), xs.at(index - 1)});
+            start = -1;
+        }
     }
-    return QString::number(note.fret);
+}
+
+/** The palm-muted and let-ring runs over a finished line, in reading order. */
+void findRuns(Tab::System &system)
+{
+    QList<qreal> xs;
+    QList<bool> palmMuted;
+    QList<bool> letRing;
+    for (const Tab::LaidBar &bar : system.bars) {
+        for (const Tab::LaidBeat &beat : bar.beats) {
+            bool palm = false;
+            bool ring = false;
+            for (const Tab::LaidNote &note : beat.notes) {
+                palm = palm || note.palmMuted;
+                ring = ring || note.letRing;
+            }
+            xs.append(bar.x + beat.x);
+            palmMuted.append(palm);
+            letRing.append(ring);
+        }
+    }
+    appendRuns(system, Tab::Mark::PalmMute, xs, palmMuted);
+    appendRuns(system, Tab::Mark::LetRing, xs, letRing);
 }
 
 /**
@@ -295,7 +341,12 @@ Tab::Layout Tab::layOut(const Score &score, int trackIndex, const Style &style)
     Page page;
     System system;
     qreal used = 0;
-    qreal y = style.margin + style.titleHeight;
+    // What every system needs over it: a section name, the bar numbers under
+    // that, and the row the marks live in. Reserved whether or not this
+    // particular line has any, so that one that does is not drawn on top of
+    // whatever is above it.
+    const qreal labelRoom = style.labelSize * 4.2 + style.markGap;
+    qreal y = style.margin + (style.showTitle ? style.titleHeight : 0) + labelRoom;
 
     const auto finishSystem = [&](bool justify) {
         if (system.bars.isEmpty()) {
@@ -319,6 +370,10 @@ Tab::Layout Tab::layOut(const Score &score, int trackIndex, const Style &style)
                 x += bar.width;
             }
         }
+        // After the justifying, so the runs are measured where the columns
+        // actually ended up rather than where they were before the line was
+        // spread to the page.
+        findRuns(system);
         system.y = y;
         page.systems.append(system);
         y += systemHeight + style.systemSpacing;
@@ -332,9 +387,9 @@ Tab::Layout Tab::layOut(const Score &score, int trackIndex, const Style &style)
             if (y + systemHeight > style.pageHeight - style.margin) {
                 layout.pages.append(page);
                 page = Page();
-                // The same room the labels want, since a new page starts with
-                // a system that may carry a section name of its own.
-                y = style.margin + style.labelSize * 4.2;
+                // The same room again: a new page starts with a system that
+                // may carry a section name of its own.
+                y = style.margin + labelRoom;
             }
         }
         bar.x = used;

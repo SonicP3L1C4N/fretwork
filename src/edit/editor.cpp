@@ -745,6 +745,104 @@ private:
     int m_wasFret = 0;
 };
 
+/** Where a mark lives on a note. One place, so nothing can disagree about it. */
+bool *markOf(Note &note, Editor::Mark mark)
+{
+    switch (mark) {
+    case Editor::Mark::Dead:
+        return &note.muted;
+    case Editor::Mark::Ghost:
+        return &note.ghost;
+    case Editor::Mark::PalmMute:
+        return &note.palmMuted;
+    case Editor::Mark::LetRing:
+        return &note.letRing;
+    }
+    return nullptr;
+}
+
+bool hasMark(const Note &note, Editor::Mark mark)
+{
+    Note copy = note;
+    const bool *flag = markOf(copy, mark);
+    return flag && *flag;
+}
+
+/**
+ * Marking notes, and unmarking them.
+ *
+ * The previous value of every note is kept rather than assumed, because a
+ * selection is rarely uniform: palm-muting four bars where the first bar
+ * already was has to leave that first bar alone when it is undone, or the undo
+ * has quietly edited music the person never touched.
+ */
+class ToggleMarkCommand : public QUndoCommand
+{
+public:
+    ToggleMarkCommand(Editor *editor, const QList<int> &notes, Editor::Mark mark, bool on)
+        : m_editor(editor)
+        , m_mark(mark)
+        , m_on(on)
+    {
+        const Score &score = editor->score();
+        for (const int noteId : notes) {
+            m_was.insert(noteId, hasMark(score.notes.value(noteId), mark));
+        }
+        setText(nameOf(mark, on, int(notes.size())));
+    }
+
+    void redo() override
+    {
+        Score &score = m_editor->mutableScore();
+        for (auto note = m_was.constBegin(); note != m_was.constEnd(); ++note) {
+            set(score, note.key(), m_on);
+        }
+        m_editor->noteEdited(-1);
+    }
+
+    void undo() override
+    {
+        Score &score = m_editor->mutableScore();
+        for (auto note = m_was.constBegin(); note != m_was.constEnd(); ++note) {
+            set(score, note.key(), note.value());
+        }
+        m_editor->noteEdited(-1);
+    }
+
+private:
+    static QString nameOf(Editor::Mark mark, bool on, int count)
+    {
+        switch (mark) {
+        case Editor::Mark::Dead:
+            return on ? i18np("Dead note", "Dead notes", count) : i18n("Undo dead note");
+        case Editor::Mark::Ghost:
+            return on ? i18np("Ghost note", "Ghost notes", count) : i18n("Undo ghost note");
+        case Editor::Mark::PalmMute:
+            return on ? i18n("Palm mute") : i18n("Stop palm muting");
+        case Editor::Mark::LetRing:
+            return on ? i18n("Let ring") : i18n("Stop letting ring");
+        }
+        return i18n("Mark note");
+    }
+
+    void set(Score &score, int noteId, bool on)
+    {
+        const auto found = score.notes.find(noteId);
+        if (found == score.notes.end()) {
+            return;
+        }
+        bool *flag = markOf(*found, m_mark);
+        if (flag) {
+            *flag = on;
+        }
+    }
+
+    Editor *m_editor;
+    Editor::Mark m_mark;
+    bool m_on;
+    QHash<int, bool> m_was;
+};
+
 /**
  * A bar put into the score, across every track at once.
  *
@@ -1309,6 +1407,32 @@ Editor::Edit Editor::transpose(int frets)
     // deliberate acts, unlike typing two digits of one number. The selection
     // stays where it is, because it is the thing being worked on.
     m_undo->push(new TransposeCommand(this, notes, frets));
+    return Edit::Done;
+}
+
+Editor::Edit Editor::toggleMark(Mark mark)
+{
+    endDigitEntry();
+    const QList<int> notes = notesToMove();
+    if (notes.isEmpty()) {
+        return Edit::Nothing;
+    }
+
+    // On unless every one of them is on already. "Palm mute this" is what a
+    // person means the first time and "stop" is what they mean the second, and
+    // flipping each note separately would turn a half-marked phrase inside out
+    // rather than finishing the job.
+    bool marked = true;
+    for (const int noteId : notes) {
+        if (!hasMark(m_score.notes.value(noteId), mark)) {
+            marked = false;
+            break;
+        }
+    }
+
+    // The selection stays: marking a phrase and then marking it differently is
+    // two edits to the same phrase.
+    m_undo->push(new ToggleMarkCommand(this, notes, mark, !marked));
     return Edit::Done;
 }
 

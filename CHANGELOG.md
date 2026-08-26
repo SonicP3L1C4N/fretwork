@@ -8,6 +8,39 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## Unreleased — P3
 
+- **It marks notes.** `x` makes a dead note, `g` a ghost note, `p` palm mutes
+  and `l` lets ring — the note under the caret, or every note in the selection.
+  Only these four, because they are the ones the program can both draw and
+  play: a mark the page cannot show is a key that appears to do nothing, and
+  one the synthesiser ignores is a lie about what will come out of the
+  speakers. Accents, vibrato and the rest wait until both ends can honour them.
+- **A mark goes on unless it is on already.** "Palm mute this" is what a person
+  means the first time and "stop" is what they mean the second; flipping each
+  note separately would turn a half-marked phrase inside out instead of
+  finishing the job. Undo restores what each note had rather than clearing the
+  lot, so undoing a palm mute over four bars leaves alone the bar that was
+  already muted.
+- **The page has a row for the marks that describe a run of notes.** Palm
+  muting is not a property of a note the way a fret is; it is something a hand
+  keeps doing for a while, so it is drawn the way printed tablature draws it —
+  "P.M." with a dashed line saying how far it carries. A run stops at the end of
+  a line and the label is printed again on the next one, because a dashed line
+  cannot cross a line break. Where the runs start and stop is worked out in the
+  layout, so it can be tested by reading numbers rather than by looking at a
+  picture.
+- A ghost note is drawn in brackets and a dead one is still a cross, which
+  needs no room above the staff at all: the note is still there, and it is the
+  note that changed.
+- **The first line of a page no longer prints its section name over the
+  title.** The room a system's labels need is now reserved by the layout rather
+  than assumed to be inside `titleHeight`, so a page with no title still leaves
+  space for a section name and one with a title leaves space for both. That was
+  wrong before the mark row existed and would have been worse after it.
+- The fingerprint the reversal tests compare now includes every mark a note
+  carries. An edit that palm-muted four bars and an undo that only appeared to
+  take it off would have agreed with each other perfectly, because nothing in
+  the test could see the difference.
+
 - **It transposes a phrase, not just a note.** `+` and `-` move everything in
   the selection along the strings it is already on, and the selection stays
   where it is so a riff can be walked up a fret at a time. One press of undo

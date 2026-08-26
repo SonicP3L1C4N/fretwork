@@ -32,15 +32,34 @@ struct Style {
     qreal margin = 40;
 
     qreal stringSpacing = 11;   //< between the lines of the tablature
-    qreal systemSpacing = 44;   //< between one line of music and the next,
+    qreal systemSpacing = 54;   //< between one line of music and the next,
                                 //  and the room the labels above it need
-    qreal titleHeight = 64;     //< room at the top of the first page
+
+    /**
+     * The row between the top string and the bar numbers.
+     *
+     * Where the marks that describe a run of notes rather than one note go --
+     * "P.M." and "let ring" and the dashed lines that say how far they carry.
+     * A row of its own because that is where every printed tablature puts
+     * them: over the staff, under the section names, clear of the fret numbers
+     * on the top string.
+     */
+    qreal markGap = 11;
+    /**
+     * Room for the title block on the first page, where there is one.
+     *
+     * The title and the line under it, and nothing else: the room the first
+     * system's own labels need is added to this rather than hidden inside it,
+     * so that a page with no title still leaves space for a section name.
+     */
+    qreal titleHeight = 48;
 
     /**
      * Whether to draw the title and artist at the top.
      *
      * A printed page wants them; a window already says so in its title bar,
-     * and drawing them again costs a system's worth of the score.
+     * and drawing them again costs a system's worth of the score. Where it is
+     * off, no room is left for them either.
      */
     bool showTitle = true;
 
@@ -69,6 +88,31 @@ struct LaidNote {
     bool hammer = false;
     bool slide = false;
     bool letRing = false;
+};
+
+/** Which mark a run over the staff is: they share a row, so they are one list. */
+enum class Mark {
+    PalmMute,
+    LetRing,
+};
+
+/**
+ * A mark that describes several notes at once, and how far it carries.
+ *
+ * Palm muting is not a property of a note the way a fret is; it is something
+ * being done to the hand for a while, and tablature draws it as a label with a
+ * dashed line under it for as long as it lasts. Working out where those runs
+ * start and stop belongs here rather than in the painting, because it is a
+ * question about the music with an answer that can be read as numbers.
+ *
+ * A run stops at the end of a system: a dashed line cannot cross a line break,
+ * so the label is printed again on the next one, which is what a reader
+ * expects and what printed tablature does.
+ */
+struct LaidRun {
+    Mark mark = Mark::PalmMute;
+    qreal from = 0;             //< the first column it covers, in system coordinates
+    qreal to = 0;               //< the last one; the same as `from` for a single column
 };
 
 /**
@@ -155,6 +199,9 @@ struct LaidBar {
 struct System {
     qreal y = 0;
     QList<LaidBar> bars;
+
+    /** The palm-muted and let-ring runs over this line, in reading order. */
+    QList<LaidRun> runs;
 };
 
 struct Page {

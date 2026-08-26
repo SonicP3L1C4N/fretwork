@@ -126,6 +126,12 @@ public:
     /** Moves the note under the caret to the next string, keeping its pitch. */
     Q_INVOKABLE void moveNoteAcross(int strings);
 
+    /**
+     * Marks the note under the caret, or the whole selection: "dead", "ghost",
+     * "palmMute" or "letRing".
+     */
+    Q_INVOKABLE void toggleMark(const QString &mark);
+
     /** 4 is a crotchet, 8 a quaver: the name musicians already use. */
     Q_INVOKABLE void setDuration(int denominator);
     Q_INVOKABLE void toggleDot();

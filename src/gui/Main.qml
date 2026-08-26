@@ -338,6 +338,13 @@ Kirigami.ApplicationWindow {
                         case Qt.Key_Plus:
                         case Qt.Key_Equal: session.transpose(1); break
                         case Qt.Key_Minus: session.transpose(-1); break
+                        // Letters mark what is already there rather than
+                        // typing anything: x is a dead note, and the rest are
+                        // the first letter of what they do.
+                        case Qt.Key_X: session.toggleMark("dead"); break
+                        case Qt.Key_G: session.toggleMark("ghost"); break
+                        case Qt.Key_P: session.toggleMark("palmMute"); break
+                        case Qt.Key_L: session.toggleMark("letRing"); break
                         case Qt.Key_Space:
                             session.playing ? session.pause() : session.play(); break
                         default:

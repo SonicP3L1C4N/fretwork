@@ -104,8 +104,9 @@ void Session::rebuildLayout()
     style.pageHeight = 1e9;
     // The window's own title bar carries the name of the piece, so the page
     // does not: on screen that would cost a system of music to say it twice.
+    // The room for it goes with it; the labels above the first line keep
+    // theirs.
     style.showTitle = false;
-    style.titleHeight = style.labelSize * 4.2;
 
     m_layout = Tab::layOut(m_editor.score(), m_currentTrack, style);
     Q_EMIT layoutChanged();
@@ -386,6 +387,19 @@ void Session::moveNoteAcross(int strings)
         return;
     }
     setStatus(i18n("There is nowhere for that note on the next string"));
+}
+
+void Session::toggleMark(const QString &mark)
+{
+    static const QHash<QString, Editor::Mark> marks = {
+        {QStringLiteral("dead"), Editor::Mark::Dead},
+        {QStringLiteral("ghost"), Editor::Mark::Ghost},
+        {QStringLiteral("palmMute"), Editor::Mark::PalmMute},
+        {QStringLiteral("letRing"), Editor::Mark::LetRing},
+    };
+    if (marks.contains(mark)) {
+        m_editor.toggleMark(marks.value(mark));
+    }
 }
 
 void Session::setDuration(int denominator)

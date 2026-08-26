@@ -87,10 +87,11 @@ private:
                         QStringList notes;
                         for (const int noteId : score.beats.value(beatId).notes) {
                             const Note note = score.notes.value(noteId);
-                            notes.append(QStringLiteral("s%1f%2m%3")
+                            notes.append(QStringLiteral("s%1f%2m%3%4")
                                              .arg(note.string)
                                              .arg(note.fret)
-                                             .arg(note.midi));
+                                             .arg(note.midi)
+                                             .arg(marksOf(note)));
                         }
                         // The duration too: an edit that changed how long a beat
                         // lasts and nothing else has to show up here, or the
@@ -115,6 +116,34 @@ private:
                            .arg(tempo.quarterBpm));
         }
         return out.join(QLatin1Char('|'));
+    }
+
+    /**
+     * The marks on a note, as letters.
+     *
+     * In the fingerprint because a mark is a change to the music like any
+     * other: an edit that palm-muted four bars and an undo that only appeared
+     * to take it off would agree with each other perfectly if nothing here
+     * could see it.
+     */
+    static QString marksOf(const Note &note)
+    {
+        QString out;
+        const QList<QPair<bool, char>> flags = {
+            {note.muted, 'x'},          {note.ghost, 'g'},
+            {note.palmMuted, 'p'},      {note.letRing, 'l'},
+            {note.accent, 'a'},         {note.vibrato, 'v'},
+            {note.hammerOrigin, 'h'},   {note.hammerDestination, 'H'},
+            {note.tieOrigin, 't'},      {note.tieDestination, 'T'},
+            {note.tapped, 'k'},         {note.harmonic, 'r'},
+            {note.bended, 'b'},         {note.slide != SlideType::None, 's'},
+        };
+        for (const auto &flag : flags) {
+            if (flag.first) {
+                out.append(QLatin1Char(flag.second));
+            }
+        }
+        return out;
     }
 
     static Cursor at(int bar, int beat, int string)
@@ -353,6 +382,10 @@ private Q_SLOTS:
         editor.clearNote();
         editor.setCursor(at(0, 1, 4));
         editor.moveNoteAcross(-1);
+        editor.setCursor(at(0, 1, 3));
+        editor.toggleMark(Editor::Mark::PalmMute);
+        editor.setCursor(at(1, 2, 0));
+        editor.toggleMark(Editor::Mark::Dead);
         editor.setCursor(at(1, 0, 0));
         editor.insertBar();
         editor.typeDigit(6);
@@ -1168,6 +1201,93 @@ private Q_SLOTS:
         editor.appendBar();
         editor.deleteBar();
         QVERIFY(!editor.canUndo());
+    }
+
+    // ---- marks ----
+
+    void marksTheNoteUnderTheCaretAndTakesItOffAgain()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(0, 0, 0));
+        editor.typeDigit(5);
+        const QString before = fingerprint(editor.score());
+
+        QCOMPARE(editor.toggleMark(Editor::Mark::PalmMute), Editor::Edit::Done);
+        QVERIFY(editor.score().notes.value(Editing::noteIdAt(editor.score(), at(0, 0, 0))).palmMuted);
+
+        // The second press means stop, not "flip it again and see".
+        editor.toggleMark(Editor::Mark::PalmMute);
+        QVERIFY(!editor.score().notes.value(Editing::noteIdAt(editor.score(), at(0, 0, 0))).palmMuted);
+
+        editor.undo();
+        editor.undo();
+        QCOMPARE(fingerprint(editor.score()), before);
+
+        // An empty string has nothing to mark, and that is not a refusal.
+        editor.setCursor(at(0, 2, 3));
+        QCOMPARE(editor.toggleMark(Editor::Mark::Dead), Editor::Edit::Nothing);
+    }
+
+    /**
+     * A half-marked phrase gets finished rather than turned inside out, and
+     * undoing it leaves alone the notes that were already marked.
+     */
+    void marksAWholeSelectionAndUndoesOnlyWhatItChanged()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(0, 0, 0));
+        editor.typeDigit(5);
+        editor.setCursor(at(0, 1, 0));
+        editor.typeDigit(7);
+        editor.setCursor(at(0, 2, 0));
+        editor.typeDigit(3);
+
+        // The first of them is let ring already.
+        editor.setCursor(at(0, 0, 0));
+        editor.toggleMark(Editor::Mark::LetRing);
+
+        editor.setCursor(at(0, 0, 0));
+        editor.setCursor(at(0, 2, 0), true);
+        editor.toggleMark(Editor::Mark::LetRing);
+        for (int beat = 0; beat < 3; ++beat) {
+            QVERIFY(editor.score().notes.value(
+                        Editing::noteIdAt(editor.score(), at(0, beat, 0))).letRing);
+        }
+        // The selection stays: marking a phrase and marking it differently is
+        // two edits to the same phrase.
+        QVERIFY(editor.hasSelection());
+
+        editor.undo();
+        QVERIFY(editor.score().notes.value(Editing::noteIdAt(editor.score(), at(0, 0, 0))).letRing);
+        QVERIFY(!editor.score().notes.value(Editing::noteIdAt(editor.score(), at(0, 1, 0))).letRing);
+        QVERIFY(!editor.score().notes.value(Editing::noteIdAt(editor.score(), at(0, 2, 0))).letRing);
+
+        // And now every one of them is marked, so the next press takes it off
+        // all three.
+        editor.redo();
+        editor.toggleMark(Editor::Mark::LetRing);
+        for (int beat = 0; beat < 3; ++beat) {
+            QVERIFY(!editor.score().notes.value(
+                        Editing::noteIdAt(editor.score(), at(0, beat, 0))).letRing);
+        }
+    }
+
+    /** A number typed over a dead note means a note again. */
+    void typingOverADeadNoteBringsItBack()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(0, 0, 0));
+        editor.typeDigit(5);
+        editor.toggleMark(Editor::Mark::Dead);
+        QVERIFY(editor.score().notes.value(Editing::noteIdAt(editor.score(), at(0, 0, 0))).muted);
+
+        editor.typeDigit(7);
+        const Note note = editor.score().notes.value(Editing::noteIdAt(editor.score(), at(0, 0, 0)));
+        QVERIFY(!note.muted);
+        QCOMPARE(note.fret, 7);
     }
 };
 
