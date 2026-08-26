@@ -310,6 +310,79 @@ QList<Timeline::NoteEvent> Timeline::notesFor(const Score &score, int trackIndex
     return sorted;
 }
 
+namespace
+{
+/**
+ * One sound at two levels, which is what a metronome is.
+ *
+ * General MIDI 75, the claves: a bright, short crack that carries over a band
+ * where a wood block does not. Measured against a rendered mix, a plain click
+ * on claves sits about six decibels under the music and one on a wood block
+ * disappeared into it, which is the difference between a metronome and a
+ * decoration.
+ *
+ * The same pitch for both beats and not a high and a low block, because an
+ * accent is emphasis and not a different instrument -- a hardware metronome
+ * leans on the first beat, it does not change what it is hitting. The lean is
+ * about three decibels, which reads as a downbeat without turning the other
+ * three into afterthoughts.
+ */
+constexpr int ClickPitch = 75;
+constexpr int AccentVelocity = 127;
+constexpr int PlainVelocity = 105;
+
+/** Short: a wood block has decayed long before this matters, and it is tidy. */
+const Rational ClickLength(1, 8);
+}
+
+Rational Timeline::beatOf(const MasterBar &bar)
+{
+    const Rational written(4, std::max(1, bar.denominator));
+    // Compound time is counted in dotted beats: 6/8 is two, not six. Not 3/8,
+    // which has a numerator equal to three rather than a multiple of it, and
+    // which everybody counts in quavers.
+    if (bar.denominator >= 8 && bar.numerator > 3 && bar.numerator % 3 == 0) {
+        return written * Rational(3);
+    }
+    return written;
+}
+
+Track Timeline::clickTrack()
+{
+    Track click;
+    click.name = QStringLiteral("Click");
+    click.instrumentType = QStringLiteral("drumKit");
+    return click;
+}
+
+QList<Timeline::Message> Timeline::clickFor(const Score &score, const QList<int> &order)
+{
+    QList<Message> messages;
+    Rational position;
+    for (const int barIndex : order) {
+        if (barIndex < 0 || barIndex >= score.masterBars.size()) {
+            continue;
+        }
+        const MasterBar &master = score.masterBars.at(barIndex);
+        const Rational length = master.length();
+        const Rational beat = beatOf(master);
+
+        // Counted from the bar line rather than accumulated across the piece,
+        // so a bar that does not divide evenly by its own beat -- which is
+        // what a pickup bar is -- does not push every beat after it sideways.
+        bool first = true;
+        for (Rational at; at < length; at += beat) {
+            const int velocity = first ? AccentVelocity : PlainVelocity;
+            messages.append({position + at, MessageKind::NoteOn, 0, ClickPitch, velocity});
+            messages.append(
+                {position + at + ClickLength, MessageKind::NoteOff, 0, ClickPitch, 0});
+            first = false;
+        }
+        position += length;
+    }
+    return messages;
+}
+
 QList<Timeline::TempoEvent> Timeline::tempoMap(const Score &score, const QList<int> &order)
 {
     if (score.tempos.isEmpty()) {

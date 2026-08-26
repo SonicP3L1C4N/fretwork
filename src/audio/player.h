@@ -83,6 +83,25 @@ public:
     bool isSolo(int track) const;
     float gain(int track) const;
 
+    // ---- the click ----
+
+    /**
+     * A metronome on every beat, which no file contains.
+     *
+     * Not one of the tracks and deliberately outside the solo rule: soloing
+     * the guitar to hear what it is doing is not a reason to lose the beat you
+     * are hearing it against. It has a level of its own and nothing else.
+     *
+     * The synth behind it is built with the others whether it is switched on
+     * or not, because building one costs a soundfont load and the only thread
+     * that could ask for it later is the one that must never allocate.
+     */
+    void setClickEnabled(bool enabled);
+    bool isClickEnabled() const;
+
+    void setClickGain(float gain);
+    float clickGain() const;
+
     /**
      * Whether a track is being heard right now, soloing taken into account.
      *
@@ -108,6 +127,8 @@ private:
     QString m_driverName;
 
     std::vector<std::unique_ptr<Channel>> m_channels;
+    std::unique_ptr<Channel> m_click;
+    std::atomic<bool> m_clickEnabled{false};
     std::vector<float> m_scratchLeft;
     std::vector<float> m_scratchRight;
 

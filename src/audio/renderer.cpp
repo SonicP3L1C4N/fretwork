@@ -110,6 +110,39 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
         writers.push_back(std::move(writer));
     }
 
+    // The metronome, if it was asked for: a part like any other to everything
+    // below, and the one whose index the mix has to skip.
+    int clickVoice = -1;
+    if (options.click) {
+        TrackSynth::Options synthOptions;
+        synthOptions.soundFont = options.soundFont;
+        synthOptions.sampleRate = options.sampleRate;
+        synthOptions.gain = options.gain;
+        auto voice = std::make_unique<TrackSynth>(Timeline::clickTrack(),
+                                                  Timeline::clickFor(score, order), clock,
+                                                  synthOptions);
+        if (!voice->isValid()) {
+            if (error) {
+                *error = QStringLiteral("could not load %1").arg(options.soundFont);
+            }
+            return false;
+        }
+        // Deliberately not counted into `lastEvent`: a beat clicking over the
+        // last bar of a decay is not a reason for every file to be longer.
+        const QString path = folder.filePath(QStringLiteral("click.wav"));
+        auto writer = std::make_unique<WavWriter>(path, options.sampleRate);
+        if (!writer->isOpen()) {
+            if (error) {
+                *error = QStringLiteral("%1: %2").arg(path, writer->error());
+            }
+            return false;
+        }
+        clickVoice = int(voices.size());
+        paths.append(path);
+        voices.push_back(std::move(voice));
+        writers.push_back(std::move(writer));
+    }
+
     const QString mixPath = folder.filePath(QStringLiteral("mix.wav"));
     WavWriter mix(mixPath, options.sampleRate);
     if (!mix.isOpen()) {
@@ -144,6 +177,9 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
                     *error = writers[index]->error();
                 }
                 return false;
+            }
+            if (int(index) == clickVoice) {
+                continue;
             }
             for (int frame = 0; frame < frames; ++frame) {
                 mixLeft[size_t(frame)] += left[size_t(frame)];

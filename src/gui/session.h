@@ -53,6 +53,15 @@ class Session : public QObject
     Q_PROPERTY(int trackCount READ trackCount NOTIFY scoreChanged)
     Q_PROPERTY(int currentTrack READ currentTrack WRITE setCurrentTrack NOTIFY currentTrackChanged)
 
+    /**
+     * A metronome on every beat, which is not a track and not in the file.
+     *
+     * Kept on across a rebuild of the player: somebody practising a bar has
+     * asked for a click, not for a click until the next time they edit a note.
+     */
+    Q_PROPERTY(bool click READ isClickOn WRITE setClickOn NOTIFY clickChanged)
+    Q_PROPERTY(double clickGain READ clickGain WRITE setClickGain NOTIFY clickChanged)
+
     Q_PROPERTY(bool playing READ isPlaying NOTIFY playingChanged)
     Q_PROPERTY(bool canPlay READ canPlay NOTIFY scoreChanged)
     Q_PROPERTY(double position READ position NOTIFY positionChanged)
@@ -105,6 +114,11 @@ public:
     int caretBar() const;
     int currentTrack() const;
     void setCurrentTrack(int track);
+
+    bool isClickOn() const;
+    void setClickOn(bool on);
+    double clickGain() const;
+    void setClickGain(double gain);
 
     bool isPlaying() const;
     bool canPlay() const;
@@ -221,6 +235,7 @@ Q_SIGNALS:
     void statusChanged();
     void currentTrackChanged();
     void playingChanged();
+    void clickChanged();
     void positionChanged();
     void layoutChanged();
     void mixerChanged();
@@ -241,6 +256,8 @@ private:
     Tab::Layout m_layout;
     qreal m_width = 900;
     int m_currentTrack = 0;
+    bool m_click = false;
+    double m_clickGain = 1.0;
     int m_currentBar = -1;
     bool m_wasPlaying = false;
 

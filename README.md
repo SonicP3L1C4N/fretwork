@@ -122,6 +122,7 @@ Beautiful Losers — Coheed And Cambria
 fretwork FILE.gp --play                 # everything
 fretwork FILE.gp --play --solo 1        # just that track
 fretwork FILE.gp --play --mute 3        # everything but that one
+fretwork FILE.gp --play --click         # with a metronome
 ```
 
 ```
@@ -132,6 +133,30 @@ $ fretwork "The Dogs Of War.gp" --play --solo 0
 
 Soloing is what a synth per track buys: no re-render, no bounce, just that
 track's own audio and nothing else.
+
+**It counts.** `--click`, or the button beside the transport, puts a metronome
+on every beat — the beat a musician counts rather than the one the denominator
+names, so 6/8 is two beats of three quavers and not six of one, and 3/8 is
+three, because that is how everybody who plays it counts it. The first beat of
+every bar leans, including the first beat after a short pickup bar: a bar line
+you cannot hear is no use to count by.
+
+It is claves, at two levels — the same sound leaning about three decibels on
+the first beat, because an accent is emphasis and not a different instrument.
+The sound was chosen by measuring rather than by taste: against a rendered
+mix, a wood block sat far enough under the music to vanish and only the
+downbeat came through, which is a metronome that appears to be counting bars.
+
+The click is not a fixture. It is a part — a list of messages and an instrument
+to play them on — handed to the same synth as every track, which is why it has
+a strip of its own at the foot of the mixer with a level and no solo button:
+soloing the guitar to hear what it is doing is not a reason to lose the beat
+you are hearing it against. Nothing in the engine had to learn a new idea to
+have a metronome, which is the useful thing about it.
+
+`--render --click` writes `click.wav` beside the stems and deliberately leaves
+it out of the mix: stems exist to be put back together somewhere else, and a
+click baked into a mix is one nobody can take out again.
 
 **It listens**, which is new: the first thing in the program that wants a
 guitar lead rather than a speaker.

@@ -99,9 +99,11 @@ open it on a Tuesday evening.
   Tempo scaling is one multiplier in the scheduler, so the feature is mostly
   interface.
 
-- **Count-in, metronome, and a click stem.** A click is a track that is not in
-  the file, which makes it the neatest test of whether the mixer's idea of a
-  track is general enough.
+- **A count-in.** The metronome exists; being counted in to the start of a
+  loop does not, and it is the half of it somebody practising actually wants.
+  The awkward part is not the clicks -- it is that the transport has to be
+  somewhere before the beginning while they play, and every position the
+  window reports is measured from the beginning.
 
 - **Backing track minus one.** `--render --mute 0` almost does this already;
   what is missing is saying so, and a name for it.

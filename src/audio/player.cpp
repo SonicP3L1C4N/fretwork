@@ -104,6 +104,19 @@ Player::Player(const Score &score, const QList<int> &order, const Options &optio
     }
     m_length = lastEvent + qint64(TailSeconds * m_options.sampleRate);
 
+    // The click is a track like any other as far as the engine is concerned:
+    // a part, a list of messages, and a synth. Nothing here had to learn a new
+    // idea to have a metronome, which is the useful thing about building it
+    // this way. Its own events do not lengthen the piece -- a beat clicking
+    // over the last bar of silence is not a reason for the file to be longer.
+    m_click = std::make_unique<Channel>();
+    m_click->gain.store(1.0f);
+    m_click->synth = std::make_unique<TrackSynth>(
+        Timeline::clickTrack(), Timeline::clickFor(score, order), clock, synthOptions);
+    if (!m_click->synth->isValid()) {
+        m_click.reset();
+    }
+
     m_scratchLeft.assign(size_t(MaximumBlock), 0.0f);
     m_scratchRight.assign(size_t(MaximumBlock), 0.0f);
 
@@ -261,6 +274,28 @@ float Player::gain(int track) const
     return m_channels[size_t(track)]->gain.load(std::memory_order_relaxed);
 }
 
+void Player::setClickEnabled(bool enabled)
+{
+    m_clickEnabled.store(enabled, std::memory_order_release);
+}
+
+bool Player::isClickEnabled() const
+{
+    return m_clickEnabled.load(std::memory_order_acquire);
+}
+
+void Player::setClickGain(float gain)
+{
+    if (m_click) {
+        m_click->gain.store(std::clamp(gain, 0.0f, 2.0f), std::memory_order_release);
+    }
+}
+
+float Player::clickGain() const
+{
+    return m_click ? m_click->gain.load(std::memory_order_acquire) : 0.0f;
+}
+
 bool Player::isAudible(int track) const
 {
     if (track < 0 || track >= trackCount()) {
@@ -292,6 +327,9 @@ void Player::mix(int frames, float *left, float *right)
         for (auto &channel : m_channels) {
             channel->synth->seek(seek);
         }
+        if (m_click) {
+            m_click->synth->seek(seek);
+        }
         m_position.store(seek, std::memory_order_release);
     }
 
@@ -322,6 +360,22 @@ void Player::mix(int frames, float *left, float *right)
             for (int frame = 0; frame < block; ++frame) {
                 left[done + frame] += m_scratchLeft[size_t(frame)] * gain;
                 right[done + frame] += m_scratchRight[size_t(frame)] * gain;
+            }
+        }
+
+        if (m_click) {
+            // Filled even when it is off, for the same reason the tracks are:
+            // a synth that slept through a hundred beats would play all of
+            // them into the block where somebody switched it back on.
+            m_click->synth->fill(m_scratchLeft.data(), m_scratchRight.data(), block, at);
+            // No solo test. A click is not one of the parts and is not
+            // silenced by hearing one of them on its own.
+            if (m_clickEnabled.load(std::memory_order_relaxed)) {
+                const float gain = m_click->gain.load(std::memory_order_relaxed);
+                for (int frame = 0; frame < block; ++frame) {
+                    left[done + frame] += m_scratchLeft[size_t(frame)] * gain;
+                    right[done + frame] += m_scratchRight[size_t(frame)] * gain;
+                }
             }
         }
         at += block;

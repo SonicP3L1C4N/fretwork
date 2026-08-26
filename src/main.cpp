@@ -203,10 +203,11 @@ bool writeMidi(QTextStream &out, QTextStream &error, const Score &score,
  */
 bool renderAudio(QTextStream &out, QTextStream &error, const Score &score,
                  const QList<int> &order, const QString &directory,
-                 const QString &soundFont)
+                 const QString &soundFont, bool click)
 {
     Render::Options options;
     options.soundFont = soundFont;
+    options.click = click;
 
     QString why;
     QList<Render::Written> written;
@@ -285,7 +286,7 @@ bool drawTab(QTextStream &out, QTextStream &error, const Score &score, int track
  */
 bool playScore(QTextStream &out, QTextStream &error, const Score &score,
                const QList<int> &order, const QString &soundFont, const QString &driver,
-               const QStringList &solo, const QStringList &mute)
+               const QStringList &solo, const QStringList &mute, bool click)
 {
     Player::Options options;
     options.soundFont = soundFont;
@@ -303,6 +304,7 @@ bool playScore(QTextStream &out, QTextStream &error, const Score &score,
     for (const QString &track : mute) {
         player.setMuted(track.toInt(), true);
     }
+    player.setClickEnabled(click);
 
     QStringList heard;
     for (int index = 0; index < player.trackCount(); ++index) {
@@ -310,11 +312,12 @@ bool playScore(QTextStream &out, QTextStream &error, const Score &score,
             heard.append(score.tracks.at(index).name);
         }
     }
-    out << QStringLiteral("  playing %1 through %2 — %3\n")
+    out << QStringLiteral("  playing %1 through %2 — %3%4\n")
                .arg(clock(player.lengthSeconds()), player.driverName(),
                     heard.size() == player.trackCount()
                         ? i18n("all tracks")
-                        : heard.join(QStringLiteral(", ")));
+                        : heard.join(QStringLiteral(", ")),
+                    click ? i18n(", with a click") : QString());
     out.flush();
 
     player.play();
@@ -606,6 +609,10 @@ int main(int argc, char *argv[])
                                               "through; \"file\" writes to disk instead"),
                                          i18n("name"));
     parser.addOption(audioDriver);
+    const QCommandLineOption clicking(QStringLiteral("click"),
+                                     i18n("Count it out: a metronome on every beat, "
+                                          "played live or written as a stem of its own"));
+    parser.addOption(clicking);
     const QCommandLineOption soloed(QStringLiteral("solo"),
                                     i18n("Hear only these tracks; repeatable"),
                                     i18n("track"));
@@ -707,7 +714,7 @@ int main(int argc, char *argv[])
         if (parser.isSet(playing)) {
             if (!playScore(out, error, score, order, parser.value(soundFont),
                            parser.value(audioDriver), parser.values(soloed),
-                           parser.values(muted))) {
+                           parser.values(muted), parser.isSet(clicking))) {
                 ++failures;
             }
         }
@@ -737,7 +744,7 @@ int main(int argc, char *argv[])
         }
         if (parser.isSet(render)) {
             if (!renderAudio(out, error, score, order, parser.value(render),
-                             parser.value(soundFont))) {
+                             parser.value(soundFont), parser.isSet(clicking))) {
                 ++failures;
             }
         }

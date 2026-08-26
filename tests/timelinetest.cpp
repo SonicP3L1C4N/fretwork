@@ -287,6 +287,103 @@ private Q_SLOTS:
         QCOMPARE(Timeline::secondsAtPass(score, order, clock, 1), 2.0);
         QCOMPARE(Timeline::secondsAtPass(score, order, clock, 3), 6.0);
     }
+
+    // ---- the click ----
+
+    /** Where the clicks fall, and how hard each is struck. */
+    static QList<QPair<Rational, int>> clicksOf(const Score &score, const QList<int> &order)
+    {
+        QList<QPair<Rational, int>> out;
+        for (const Timeline::Message &message : Timeline::clickFor(score, order)) {
+            if (message.kind == Timeline::MessageKind::NoteOn) {
+                // The velocity, not the pitch: the accent is a lean on one
+                // sound rather than a second sound.
+                out.append({message.at, message.data2});
+            }
+        }
+        return out;
+    }
+
+    void clicksOnEveryBeatAndLeansOnTheFirst()
+    {
+        const Score score = blank(2);
+        const QList<QPair<Rational, int>> clicks = clicksOf(score, {0, 1});
+        QCOMPARE(clicks.size(), 8);
+        for (int index = 0; index < clicks.size(); ++index) {
+            QCOMPARE(clicks.at(index).first, Rational(index));
+        }
+        // The accent is the first beat of every bar and not only of the piece:
+        // a bar line you cannot hear is a bar line that is no use to count by.
+        QCOMPARE(clicks.at(0).second, clicks.at(4).second);
+        QVERIFY(clicks.at(0).second != clicks.at(1).second);
+    }
+
+    void countsCompoundTimeInDottedBeats()
+    {
+        // 6/8 is two beats of three quavers, not six of one. Everybody who
+        // plays a jig knows this and no denominator says it.
+        Score score = blank(1);
+        score.masterBars[0].numerator = 6;
+        score.masterBars[0].denominator = 8;
+        QCOMPARE(Timeline::beatOf(score.masterBars.at(0)), Rational(3, 2));
+        QCOMPARE(clicksOf(score, {0}).size(), 2);
+
+        score.masterBars[0].numerator = 12;
+        QCOMPARE(clicksOf(score, {0}).size(), 4);
+
+        score.masterBars[0].numerator = 9;
+        QCOMPARE(clicksOf(score, {0}).size(), 3);
+    }
+
+    void countsEverythingElseByItsDenominator()
+    {
+        Score score = blank(1);
+        // 3/8 has a numerator of three rather than a multiple of it, and is
+        // counted in quavers by everybody who plays it.
+        score.masterBars[0].numerator = 3;
+        score.masterBars[0].denominator = 8;
+        QCOMPARE(Timeline::beatOf(score.masterBars.at(0)), Rational(1, 2));
+        QCOMPARE(clicksOf(score, {0}).size(), 3);
+
+        // 7/8 does not divide into threes at all.
+        score.masterBars[0].numerator = 7;
+        QCOMPARE(clicksOf(score, {0}).size(), 7);
+
+        score.masterBars[0].numerator = 3;
+        score.masterBars[0].denominator = 4;
+        QCOMPARE(clicksOf(score, {0}).size(), 3);
+    }
+
+    void clicksThroughARepeatAsManyTimesAsItIsPlayed()
+    {
+        Score score = blank(2);
+        score.masterBars[0].repeatStart = true;
+        score.masterBars[1].repeatEnd = true;
+        score.masterBars[1].repeatCount = 2;
+
+        const QList<int> order = Timeline::playedOrder(score);
+        QCOMPARE(order.size(), 4);
+        // Four bars heard is four bars counted, however many are written.
+        QCOMPARE(clicksOf(score, order).size(), 16);
+        QCOMPARE(clicksOf(score, order).last().first, Rational(15));
+    }
+
+    void countsABarByItsOwnLengthAndNotByTheOneBefore()
+    {
+        // A pickup bar is shorter than the bars after it, and a click that
+        // carried its beat across the bar line would put every beat in the
+        // piece a quaver out from there on.
+        Score score = blank(2);
+        score.masterBars[0].numerator = 1;
+        score.masterBars[0].denominator = 4;
+
+        const QList<QPair<Rational, int>> clicks = clicksOf(score, {0, 1});
+        QCOMPARE(clicks.size(), 5);
+        QCOMPARE(clicks.at(1).first, Rational(1));
+        QCOMPARE(clicks.at(1).second, clicks.at(0).second);   // both are first beats
+        QCOMPARE(clicks.at(2).first, Rational(2));
+        QVERIFY(clicks.at(2).second != clicks.at(1).second);
+    }
 };
 
 QTEST_GUILESS_MAIN(TimelineTest)

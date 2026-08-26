@@ -167,6 +167,11 @@ void Session::rebuildPlayer()
         return;
     }
     m_player = std::move(player);
+    // Whatever the mixer said before the player was rebuilt, it still says: a
+    // new Player is an implementation detail of editing a note, and nothing a
+    // person did to the click should be undone by one.
+    m_player->setClickEnabled(m_click);
+    m_player->setClickGain(float(m_clickGain));
     m_ticker.start();
 }
 
@@ -268,6 +273,40 @@ void Session::setCurrentTrack(int track)
     m_currentTrack = track;
     rebuildLayout();
     Q_EMIT currentTrackChanged();
+}
+
+bool Session::isClickOn() const
+{
+    return m_click;
+}
+
+void Session::setClickOn(bool on)
+{
+    if (m_click == on) {
+        return;
+    }
+    m_click = on;
+    if (m_player) {
+        m_player->setClickEnabled(on);
+    }
+    Q_EMIT clickChanged();
+}
+
+double Session::clickGain() const
+{
+    return m_clickGain;
+}
+
+void Session::setClickGain(double gain)
+{
+    if (qFuzzyCompare(m_clickGain, gain)) {
+        return;
+    }
+    m_clickGain = gain;
+    if (m_player) {
+        m_player->setClickGain(float(gain));
+    }
+    Q_EMIT clickChanged();
 }
 
 bool Session::isPlaying() const

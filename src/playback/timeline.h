@@ -131,6 +131,35 @@ QList<NoteEvent> notesFor(const Score &score, int trackIndex, const QList<int> &
  */
 QList<Message> messagesFor(const Score &score, int trackIndex, const QList<int> &order);
 
+/**
+ * A click on every beat of the performance, which is a part no file contains.
+ *
+ * The metronome is built as a track rather than as a fixture, because that is
+ * what it is: a list of messages and an instrument to play them on, handed to
+ * the same `TrackSynth` as everything else. Nothing in the engine had to learn
+ * a new idea to get one, which is the useful thing this proves about the
+ * design rather than about the feature.
+ *
+ * The beat is the one a musician counts, which is not always the one the
+ * denominator names. 6/8 is two beats of three quavers and not six of one, so
+ * the rule is compound time where the numerator is a multiple of three and
+ * larger than it -- 6/8, 9/8 and 12/8 -- and simple time everywhere else,
+ * 3/8 included, which is counted in quavers by everybody who plays it.
+ */
+QList<Message> clickFor(const Score &score, const QList<int> &order);
+
+/** How long one beat of `bar` lasts, in quarters. */
+Rational beatOf(const MasterBar &bar);
+
+/**
+ * The part the click is played by: percussion, and not in the score.
+ *
+ * Percussion because a wood block is one, and because a percussion channel
+ * cannot be given the wrong programme by a track that happens to share a
+ * number with it.
+ */
+Track clickTrack();
+
 /** The tempo changes, placed on the played timeline rather than the notated one. */
 QList<TempoEvent> tempoMap(const Score &score, const QList<int> &order);
 

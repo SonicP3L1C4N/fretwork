@@ -44,6 +44,16 @@ struct Options {
      * way a rendered file ends with an audible click.
      */
     double tailSeconds = 3.0;
+
+    /**
+     * Write a click as a stem of its own.
+     *
+     * Its own stem and not in the mix. Stems exist to be put back together
+     * somewhere else, and a click baked into the mix is one nobody can take
+     * out again -- whereas one sitting beside it as a file is a click anybody
+     * can drag in.
+     */
+    bool click = false;
 };
 
 /** A General MIDI SoundFont on this machine, or empty if there is none. */

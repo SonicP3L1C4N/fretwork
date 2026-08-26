@@ -447,6 +447,19 @@ Kirigami.ApplicationWindow {
                 onClicked: session.stop()
             }
 
+            // With the transport rather than with the panel toggles at the
+            // other end: a click is a thing the playback does, not a thing the
+            // window shows. Its level is in the mixer, where levels live.
+            ChromeToggle {
+                text: i18n("Click")
+                enabled: session.hasScore
+                checked: session.click
+                onToggled: session.click = checked
+                QQC2.ToolTip.text: i18n("A metronome on every beat")
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+            }
+
             QQC2.Label {
                 text: session.clock(session.position)
                 color: Ink.paper
@@ -830,6 +843,49 @@ Kirigami.ApplicationWindow {
                                     value: session.gain(index)
                                     onMoved: session.setGain(index, value)
                                 }
+                            }
+                        }
+
+                        // Below a rule, because it is not one of the parts:
+                        // no S, because soloing a track is not a reason to
+                        // lose the beat you are hearing it against.
+                        Kirigami.Separator {
+                            Layout.fillWidth: true
+                            Layout.topMargin: Kirigami.Units.smallSpacing
+                            color: Ink.rule
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: Kirigami.Units.smallSpacing
+                            opacity: session.click ? 1.0 : 0.5
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: Kirigami.Units.smallSpacing
+
+                                QQC2.Label {
+                                    Layout.fillWidth: true
+                                    text: i18n("Click")
+                                    color: session.click ? Ink.accentDeep : Ink.ink
+                                    font.weight: session.click ? Font.DemiBold : Font.Normal
+                                }
+
+                                MixerButton {
+                                    text: i18n("On")
+                                    checked: session.click
+                                    QQC2.ToolTip.text: i18n("A metronome on every beat")
+                                    onToggled: session.click = checked
+                                }
+                            }
+
+                            InkSlider {
+                                Layout.fillWidth: true
+                                groove: Ink.rule
+                                from: 0
+                                to: 2
+                                value: session.clickGain
+                                onMoved: session.clickGain = value
                             }
                         }
 
