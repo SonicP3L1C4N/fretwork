@@ -8,6 +8,25 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## Unreleased — P3
 
+- **It adds and removes beats.** `Insert` puts an empty one at the caret and
+  pushes the rest of the bar along; `Ctrl+Delete` takes the one under the caret
+  out, notes and all. A new beat lasts as long as the one it displaced, or as
+  long as the one before it where there is nothing to displace — a bar of
+  quavers wants another quaver, not a crotchet and a warning.
+- **Typing a number past the end of a bar writes the beat as well as the note.**
+  That is how music gets added to the end of a piece, and it is why the caret
+  was allowed to sit one past the end in the first place. A bar with no voice at
+  all gets one, so an empty bar can be written into — until now it was the one
+  place in the score that could not be.
+- **All of that is one undo.** Typing `12` where there was no beat makes a
+  voice, a beat and a note, and one press of undo leaves the bar exactly as
+  empty as it was. A command that makes three things and reverses one of them
+  is worse than no undo at all, because people stop checking.
+- Deleting a beat takes its notes out of the note table rather than leaving them
+  behind, and putting it back restores them under the ids they had — a chord
+  restored under different numbers is a different chord to anything still
+  holding one.
+
 - **It edits durations.** `Ctrl` and a digit sets the beat under the caret to a
   note value — 1 a semibreve, 2 a minim, and on down by halves — `.` adds a dot
   or takes it away, and `Ctrl` with an arrow doubles or halves what is there,

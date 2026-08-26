@@ -306,6 +306,11 @@ private Q_SLOTS:
         editor.toggleDot();
         editor.setCursor(at(1, 3, 0));
         editor.scaleDuration(-1);
+        editor.setCursor(at(0, 2, 2));
+        editor.insertBeat();
+        editor.typeDigit(8);
+        editor.setCursor(at(1, 0, 0));
+        editor.deleteBeat();
         editor.setCursor(at(0, 0, 5));
         editor.clearNote();
 
@@ -466,17 +471,178 @@ private Q_SLOTS:
         QVERIFY(!editor.isModified());
     }
 
-    void doesNothingWhereThereIsNoBeatToPutANoteOn()
+    // ---- beats ----
+
+    /**
+     * Typing one past the end of a voice writes a beat as well as a note.
+     *
+     * This is how music gets added to the end of a piece, and the caret is
+     * allowed to sit there precisely so that it can be. One undo takes both
+     * away, because typing a number was one act however many things it had to
+     * make happen.
+     */
+    void typingPastTheLastBeatWritesOneAndUndoesInOneStep()
     {
         Editor editor;
         editor.setScore(twoBars());
-        // One past the last beat: a real place for the caret, and no beat.
-        editor.setCursor(at(1, 4, 0));
-
         const QString before = fingerprint(editor.score());
+
+        editor.setCursor(at(1, 4, 0));
+        QCOMPARE(Editing::beatCount(editor.score(), editor.cursor()), 4);
+
         editor.typeDigit(5);
+        QCOMPARE(Editing::beatCount(editor.score(), editor.cursor()), 5);
+        QCOMPARE(editor.score().notes.value(Editing::noteIdAt(editor.score(),
+                                                              editor.cursor())).fret, 5);
+
+        editor.undo();
+        QCOMPARE(Editing::beatCount(editor.score(), editor.cursor()), 4);
         QCOMPARE(fingerprint(editor.score()), before);
         QVERIFY(!editor.canUndo());
+    }
+
+    /** Two digits are one number there too, and still one undo. */
+    void twoDigitsPastTheEndAreStillOneBeatAndOneUndo()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(1, 4, 0));
+
+        editor.typeDigit(1);
+        editor.typeDigit(2);
+        QCOMPARE(Editing::beatCount(editor.score(), editor.cursor()), 5);
+        QCOMPARE(editor.score().notes.value(Editing::noteIdAt(editor.score(),
+                                                              editor.cursor())).fret, 12);
+
+        editor.undo();
+        QCOMPARE(Editing::beatCount(editor.score(), editor.cursor()), 4);
+        QVERIFY(!editor.canUndo());
+    }
+
+    /** A bar with no voice at all gets one, and undo leaves it empty again. */
+    void writesIntoAnEmptyBar()
+    {
+        Score score = twoBars();
+        score.bars[1] = Bar{{-1, -1, -1, -1}};
+
+        Editor editor;
+        editor.setScore(score);
+        editor.setCursor(at(1, 0, 2));
+        QCOMPARE(Editing::voiceIdAt(editor.score(), editor.cursor()), -1);
+
+        editor.typeDigit(7);
+        QVERIFY(Editing::voiceIdAt(editor.score(), editor.cursor()) >= 0);
+        QCOMPARE(Editing::beatCount(editor.score(), editor.cursor()), 1);
+
+        editor.undo();
+        QCOMPARE(Editing::voiceIdAt(editor.score(), editor.cursor()), -1);
+        QCOMPARE(int(editor.score().voices.size()), 2);
+    }
+
+    void insertsAnEmptyBeatAndPushesTheRestAlong()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(0, 0, 0));
+        editor.typeDigit(3);
+        editor.setCursor(at(0, 1, 0));
+        editor.typeDigit(5);
+
+        editor.setCursor(at(0, 1, 0));
+        editor.insertBeat();
+        QCOMPARE(Editing::beatCount(editor.score(), editor.cursor()), 5);
+
+        // The caret is on the new beat, which has nothing on it; the 5 has
+        // moved along and is where the caret was going to be.
+        QCOMPARE(Editing::noteIdAt(editor.score(), editor.cursor()), -1);
+        QCOMPARE(editor.score().notes.value(
+                     Editing::noteIdAt(editor.score(), at(0, 2, 0))).fret, 5);
+        QCOMPARE(editor.score().notes.value(
+                     Editing::noteIdAt(editor.score(), at(0, 0, 0))).fret, 3);
+
+        editor.undo();
+        QCOMPARE(Editing::beatCount(editor.score(), editor.cursor()), 4);
+        QCOMPARE(editor.score().notes.value(
+                     Editing::noteIdAt(editor.score(), at(0, 1, 0))).fret, 5);
+    }
+
+    /** A bar of quavers wants another quaver, not a crotchet and a warning. */
+    void aNewBeatLastsAsLongAsTheOneItPushesAlong()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(0, 2, 0));
+        editor.setDuration(8);
+
+        editor.insertBeat();
+        QCOMPARE(Editing::durationAt(editor.score(), editor.cursor()), Rational(1, 2));
+
+        // At the end of a voice there is nothing to displace, so it takes the
+        // length of the beat before it.
+        editor.setCursor(at(0, 5, 0));
+        editor.insertBeat();
+        QCOMPARE(Editing::durationAt(editor.score(), at(0, 5, 0)), Rational(1));
+    }
+
+    void deletesABeatAndPutsItBackWithItsNotes()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(0, 1, 0));
+        editor.typeDigit(7);
+        editor.setCursor(at(0, 1, 3));
+        editor.typeDigit(9);
+        editor.setCursor(at(0, 2, 0));
+        editor.typeDigit(4);
+        const QString before = fingerprint(editor.score());
+
+        editor.setCursor(at(0, 1, 0));
+        editor.deleteBeat();
+        QCOMPARE(Editing::beatCount(editor.score(), editor.cursor()), 3);
+        // The chord is gone rather than orphaned in the note table.
+        QCOMPARE(int(editor.score().notes.size()), 1);
+        QCOMPARE(editor.score().notes.value(
+                     Editing::noteIdAt(editor.score(), at(0, 1, 0))).fret, 4);
+
+        editor.undo();
+        QCOMPARE(fingerprint(editor.score()), before);
+    }
+
+    void deletingTheLastBeatLeavesTheCaretSomewhereReal()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(0, 3, 0));
+        editor.deleteBeat();
+
+        QCOMPARE(Editing::beatCount(editor.score(), editor.cursor()), 3);
+        QVERIFY(editor.cursor().beat <= 3);
+        QVERIFY(Editing::clamped(editor.score(), editor.cursor()) == editor.cursor());
+    }
+
+    void doesNothingWhereThereIsNowhereToPutABeat()
+    {
+        Editor editor;
+        editor.setScore(Score());
+
+        editor.typeDigit(5);
+        editor.insertBeat();
+        editor.deleteBeat();
+        QVERIFY(!editor.canUndo());
+
+        // A master bar that names no bar for this track. The caret cannot be
+        // put anywhere invalid -- it clamps -- so this is the only way to be
+        // pointing at a place a beat cannot go, and it comes from a file
+        // rather than from anything a user did.
+        Score hollow = twoBars();
+        hollow.masterBars[0].bars = {};
+
+        Editor second;
+        second.setScore(hollow);
+        second.setCursor(at(0, 0, 0));
+        second.typeDigit(5);
+        second.insertBeat();
+        QVERIFY(!second.canUndo());
     }
 };
 

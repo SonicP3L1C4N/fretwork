@@ -58,11 +58,33 @@ public:
     /** Ends a run of digits, so the next one starts a new number. */
     void endDigitEntry();
 
-    /** Sets the fret under the caret outright, creating the note if need be. */
+    /**
+     * Sets the fret under the caret outright, making whatever has to exist.
+     *
+     * The note, if the string is empty; the beat too, where the caret is one
+     * past the end of a voice or in a bar that has none at all -- which is how
+     * music gets written into an empty bar, and how it gets added to the end of
+     * a piece. All of it comes back off in one undo, because it was one act.
+     */
     void setFret(int fret);
 
     /** Removes the note under the caret, if there is one. */
     void clearNote();
+
+    // ---- beats ----
+
+    /**
+     * Puts an empty beat at the caret, pushing what was there along.
+     *
+     * It lasts as long as the beat it displaced, or the one before it: a bar
+     * of quavers wants another quaver, not a crotchet and a warning. The caret
+     * does not move, so it is now sitting on the new beat with nothing on it,
+     * which is where a number wants typing next.
+     */
+    void insertBeat();
+
+    /** Removes the beat under the caret, notes and all. */
+    void deleteBeat();
 
     /** Moves the note under the caret by a number of frets, staying on its string. */
     void transposeNote(int frets);
@@ -106,6 +128,19 @@ public:
     Score &mutableScore();
     void noteEdited(int bar);
     static int freshNoteId(const Score &score);
+    static int freshBeatId(const Score &score);
+
+    /**
+     * The voice at the cursor, put into the bar if it is not there yet.
+     *
+     * Returns -1 where there is no bar to put one in, which is the only case
+     * an editor cannot talk its way out of. `created` says whether one was
+     * made, so undo can take it away again.
+     */
+    static int voiceForEditing(Score &score, const Cursor &cursor, bool *created);
+
+    /** Takes back exactly what `voiceForEditing` added. */
+    static void dropVoice(Score &score, const Cursor &cursor);
 
     /**
      * The id of a duration in the score's rhythm table, adding it if it is not

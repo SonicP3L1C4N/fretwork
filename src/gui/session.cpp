@@ -378,6 +378,16 @@ void Session::scaleDuration(int steps)
     m_editor.scaleDuration(steps);
 }
 
+void Session::insertBeat()
+{
+    m_editor.insertBeat();
+}
+
+void Session::deleteBeat()
+{
+    m_editor.deleteBeat();
+}
+
 void Session::undo()
 {
     m_editor.undo();

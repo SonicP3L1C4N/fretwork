@@ -8,6 +8,8 @@
 #include <QUndoCommand>
 #include <QUndoStack>
 
+#include <QHash>
+
 #include <algorithm>
 
 namespace
@@ -20,6 +22,37 @@ constexpr int HighestFret = 36;
 
 /** Commands of the same kind may merge; different kinds never do. */
 constexpr int SetFretId = 1;
+
+/** Whether the score has a bar at the cursor for a beat to go into. */
+bool hasBarAt(const Score &score, const Cursor &cursor)
+{
+    if (cursor.bar < 0 || cursor.bar >= score.masterBars.size() || cursor.voice < 0
+        || cursor.voice > 3) {
+        return false;
+    }
+    const MasterBar &master = score.masterBars.at(cursor.bar);
+    if (cursor.track < 0 || cursor.track >= master.bars.size()) {
+        return false;
+    }
+    return score.bars.contains(master.bars.at(cursor.track));
+}
+
+/**
+ * How long a beat put in at the caret should last.
+ *
+ * As long as the one it displaces, or as long as the one before it where there
+ * is nothing to displace. A bar of quavers wants another quaver; handing it a
+ * crotchet and a bar that no longer adds up would be answering a question
+ * nobody asked.
+ */
+Rational durationForNewBeat(const Score &score, const Cursor &cursor)
+{
+    Cursor probe = cursor;
+    if (Editing::beatIdAt(score, probe) < 0 && probe.beat > 0) {
+        --probe.beat;
+    }
+    return Editing::durationAt(score, probe);
+}
 
 /**
  * Putting a fret on a string, where there may or may not already be one.
@@ -43,6 +76,12 @@ public:
         if (!m_created) {
             m_previous = score.notes.value(m_noteId);
         }
+        // A caret one past the end of a voice, or in a bar with no voice at
+        // all, is pointing at a beat that has to be made before a fret can go
+        // on it. Made here rather than by a second command, so that one undo
+        // takes away one act.
+        m_madeBeat = Editing::beatIdAt(score, cursor) < 0;
+        m_duration = durationForNewBeat(score, cursor);
         setText(i18n("Type fret %1", fret));
     }
 
@@ -67,7 +106,7 @@ public:
     void redo() override
     {
         Score &score = m_editor->mutableScore();
-        const int beatId = Editing::beatIdAt(score, m_cursor);
+        const int beatId = m_madeBeat ? makeBeat(score) : Editing::beatIdAt(score, m_cursor);
         if (beatId < 0) {
             return;
         }
@@ -107,10 +146,43 @@ public:
         } else {
             score.notes.insert(m_noteId, m_previous);
         }
+        if (m_madeBeat) {
+            unmakeBeat(score);
+        }
         m_editor->noteEdited(m_cursor.bar);
     }
 
 private:
+    /** The beat this note needs, appended where the caret is sitting. */
+    int makeBeat(Score &score)
+    {
+        const int voiceId = Editor::voiceForEditing(score, m_cursor, &m_madeVoice);
+        if (voiceId < 0) {
+            return -1;
+        }
+        if (m_beatId < 0) {
+            m_beatId = Editor::freshBeatId(score);
+        }
+        Beat beat;
+        beat.rhythm = Editor::rhythmIdFor(score, m_duration);
+        score.beats.insert(m_beatId, beat);
+        QList<int> &beats = score.voices[voiceId].beats;
+        beats.insert(std::clamp(m_cursor.beat, 0, int(beats.size())), m_beatId);
+        return m_beatId;
+    }
+
+    void unmakeBeat(Score &score)
+    {
+        const int voiceId = Editing::voiceIdAt(score, m_cursor);
+        if (voiceId >= 0) {
+            score.voices[voiceId].beats.removeAll(m_beatId);
+        }
+        score.beats.remove(m_beatId);
+        if (m_madeVoice) {
+            Editor::dropVoice(score, m_cursor);
+        }
+    }
+
     Editor *m_editor;
     Cursor m_cursor;
     int m_fret;
@@ -118,6 +190,11 @@ private:
     int m_noteId = -1;
     bool m_created = false;
     Note m_previous;
+
+    bool m_madeBeat = false;
+    bool m_madeVoice = false;
+    int m_beatId = -1;
+    Rational m_duration;
 };
 
 /** Taking a note off a string, and putting it back exactly as it was. */
@@ -173,6 +250,136 @@ private:
     int m_noteId = -1;
     int m_position = 0;
     Note m_previous;
+};
+
+/**
+ * Making room: an empty beat at the caret, and everything after it later.
+ *
+ * A rest rather than a note, because there is no way to know what is going on
+ * it yet, and because a beat with nothing on it is a real thing to want -- it
+ * is how a rest gets written.
+ */
+class InsertBeatCommand : public QUndoCommand
+{
+public:
+    InsertBeatCommand(Editor *editor, const Cursor &cursor)
+        : m_editor(editor)
+        , m_cursor(cursor)
+        , m_duration(durationForNewBeat(editor->score(), cursor))
+    {
+        setText(i18n("Insert beat"));
+    }
+
+    void redo() override
+    {
+        Score &score = m_editor->mutableScore();
+        const int voiceId = Editor::voiceForEditing(score, m_cursor, &m_madeVoice);
+        if (voiceId < 0) {
+            return;
+        }
+        if (m_beatId < 0) {
+            m_beatId = Editor::freshBeatId(score);
+        }
+        Beat beat;
+        beat.rhythm = Editor::rhythmIdFor(score, m_duration);
+        score.beats.insert(m_beatId, beat);
+        QList<int> &beats = score.voices[voiceId].beats;
+        beats.insert(std::clamp(m_cursor.beat, 0, int(beats.size())), m_beatId);
+        m_editor->noteEdited(m_cursor.bar);
+    }
+
+    void undo() override
+    {
+        Score &score = m_editor->mutableScore();
+        const int voiceId = Editing::voiceIdAt(score, m_cursor);
+        if (voiceId >= 0) {
+            score.voices[voiceId].beats.removeAll(m_beatId);
+        }
+        score.beats.remove(m_beatId);
+        if (m_madeVoice) {
+            Editor::dropVoice(score, m_cursor);
+        }
+        m_editor->noteEdited(m_cursor.bar);
+    }
+
+private:
+    Editor *m_editor;
+    Cursor m_cursor;
+    Rational m_duration;
+    int m_beatId = -1;
+    bool m_madeVoice = false;
+};
+
+/**
+ * Taking a beat out, and putting it back with its notes and their ids.
+ *
+ * The ids matter: a note is referred to by one, and restoring a chord under
+ * different numbers would be a different chord as far as anything holding on
+ * to them is concerned.
+ */
+class DeleteBeatCommand : public QUndoCommand
+{
+public:
+    DeleteBeatCommand(Editor *editor, const Cursor &cursor)
+        : m_editor(editor)
+        , m_cursor(cursor)
+    {
+        const Score &score = editor->score();
+        m_beatId = Editing::beatIdAt(score, cursor);
+        if (m_beatId >= 0) {
+            m_beat = score.beats.value(m_beatId);
+            for (const int noteId : m_beat.notes) {
+                m_notes.insert(noteId, score.notes.value(noteId));
+            }
+            const int voiceId = Editing::voiceIdAt(score, cursor);
+            m_position = int(score.voices.value(voiceId).beats.indexOf(m_beatId));
+        }
+        setText(i18n("Delete beat"));
+    }
+
+    bool isValid() const
+    {
+        return m_beatId >= 0;
+    }
+
+    void redo() override
+    {
+        Score &score = m_editor->mutableScore();
+        const int voiceId = Editing::voiceIdAt(score, m_cursor);
+        if (voiceId < 0) {
+            return;
+        }
+        score.voices[voiceId].beats.removeAll(m_beatId);
+        score.beats.remove(m_beatId);
+        for (auto note = m_notes.constBegin(); note != m_notes.constEnd(); ++note) {
+            score.notes.remove(note.key());
+        }
+        m_editor->noteEdited(m_cursor.bar);
+    }
+
+    void undo() override
+    {
+        Score &score = m_editor->mutableScore();
+        const int voiceId = Editing::voiceIdAt(score, m_cursor);
+        if (voiceId < 0) {
+            return;
+        }
+        for (auto note = m_notes.constBegin(); note != m_notes.constEnd(); ++note) {
+            score.notes.insert(note.key(), note.value());
+        }
+        score.beats.insert(m_beatId, m_beat);
+        QList<int> &beats = score.voices[voiceId].beats;
+        beats.insert(std::clamp(m_position, 0, int(beats.size())), m_beatId);
+        m_editor->noteEdited(m_cursor.bar);
+    }
+
+private:
+    Editor *m_editor;
+    Cursor m_cursor;
+    int m_beatId = -1;
+    int m_position = 0;
+    Beat m_beat;
+    QHash<int, Note> m_notes;
 };
 
 /**
@@ -351,9 +558,9 @@ void Editor::setFret(int fret)
     if (fret < 0 || fret > HighestFret) {
         return;
     }
-    if (Editing::beatIdAt(m_score, m_cursor) < 0) {
-        // Nothing to put a note on: adding beats is a separate command, and
-        // not one this understands yet.
+    // Where there is no beat under the caret the command makes one, so the only
+    // thing that stops it here is a score with no bar to put it in.
+    if (Editing::beatIdAt(m_score, m_cursor) < 0 && !hasBarAt(m_score, m_cursor)) {
         return;
     }
     m_undo->push(new SetFretCommand(this, m_cursor, fret, m_digitRun));
@@ -386,6 +593,81 @@ void Editor::transposeNote(int frets)
     endDigitEntry();
     m_undo->push(new SetFretCommand(this, m_cursor, fret, m_digitRun));
     endDigitEntry();
+}
+
+int Editor::freshBeatId(const Score &score)
+{
+    int highest = -1;
+    for (auto beat = score.beats.constBegin(); beat != score.beats.constEnd(); ++beat) {
+        highest = std::max(highest, beat.key());
+    }
+    return highest + 1;
+}
+
+int Editor::voiceForEditing(Score &score, const Cursor &cursor, bool *created)
+{
+    if (created) {
+        *created = false;
+    }
+    if (!hasBarAt(score, cursor)) {
+        return -1;
+    }
+
+    Bar &bar = score.bars[score.masterBars.at(cursor.bar).bars.at(cursor.track)];
+    // Four slots, whatever the file happened to write: a voice is addressed by
+    // its position and an absent one is a -1 rather than a missing entry.
+    while (bar.voices.size() <= cursor.voice) {
+        bar.voices.append(-1);
+    }
+    if (bar.voices.at(cursor.voice) >= 0) {
+        return bar.voices.at(cursor.voice);
+    }
+
+    int highest = -1;
+    for (auto voice = score.voices.constBegin(); voice != score.voices.constEnd(); ++voice) {
+        highest = std::max(highest, voice.key());
+    }
+    const int voiceId = highest + 1;
+    score.voices.insert(voiceId, Voice());
+    bar.voices[cursor.voice] = voiceId;
+    if (created) {
+        *created = true;
+    }
+    return voiceId;
+}
+
+void Editor::dropVoice(Score &score, const Cursor &cursor)
+{
+    const int voiceId = Editing::voiceIdAt(score, cursor);
+    if (voiceId < 0) {
+        return;
+    }
+    score.voices.remove(voiceId);
+    const int barId = score.masterBars.at(cursor.bar).bars.at(cursor.track);
+    score.bars[barId].voices[cursor.voice] = -1;
+}
+
+void Editor::insertBeat()
+{
+    endDigitEntry();
+    if (!hasBarAt(m_score, m_cursor)) {
+        return;
+    }
+    m_undo->push(new InsertBeatCommand(this, m_cursor));
+}
+
+void Editor::deleteBeat()
+{
+    endDigitEntry();
+    auto *command = new DeleteBeatCommand(this, m_cursor);
+    if (!command->isValid()) {
+        delete command;
+        return;
+    }
+    m_undo->push(command);
+    // The beat the caret was on is gone; it now points at whatever moved up,
+    // or at the end of the voice if nothing did.
+    setCursor(m_cursor);
 }
 
 int Editor::rhythmIdFor(Score &score, const Rational &duration)

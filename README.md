@@ -49,9 +49,13 @@ and one press of undo, not two.
 
 Rhythm is editable too: `Ctrl` and a digit sets how long a beat lasts — 1 a
 semibreve, 2 a minim, and on down by halves — `.` dots it, and `Ctrl` with an
-arrow doubles or halves it. A bar that no longer adds up to its time signature
-is marked rather than corrected: taking the difference out of the next note
-along would be rewriting music nobody asked it to touch.
+arrow doubles or halves it. `Insert` makes room for a beat and `Ctrl+Delete`
+takes one out, and typing a number past the end of a bar writes the beat as
+well as the note, which is how music reaches the end of a piece.
+
+A bar that no longer adds up to its time signature is marked rather than
+corrected: taking the difference out of the next note along would be rewriting
+music nobody asked it to touch.
 
 **It saves.** `Ctrl+S` writes a `.fw` — a ZIP holding readable JSON, so a file
 attached to a bug report can be understood by looking at it. Every score in the
@@ -188,7 +192,7 @@ GPL — the reasoning for every line of that is in
 | **P0** | Spike — parse, play, render stems | **done**, and it plays |
 | **P1** | Headless converter: importers, model, technique translation, stem export. No window | **done** — the program is useful with no window |
 | **P2** | The player: tab rendering, transport, mixer, live playback | **done** |
-| **P3** | The editor: fret entry, undo, copy and paste | **in progress** — caret, fret entry, durations, undo and saving; beats and copy/paste to come |
+| **P3** | The editor: fret entry, undo, copy and paste | **in progress** — caret, fret entry, beats, durations, undo and saving; copy and paste to come |
 | P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | |
 | P5 | Standard notation, PDF, MusicXML, GP6 | |
 

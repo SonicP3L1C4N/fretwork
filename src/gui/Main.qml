@@ -276,8 +276,12 @@ Kirigami.ApplicationWindow {
                             control ? session.scaleDuration(-1) : session.moveCursor("down"); break
                         case Qt.Key_Home:  session.moveCursor("start"); break
                         case Qt.Key_End:   session.moveCursor("end"); break
+                        case Qt.Key_Insert: session.insertBeat(); break
                         case Qt.Key_Delete:
-                        case Qt.Key_Backspace: session.clearNote(); break
+                        case Qt.Key_Backspace:
+                            // Delete takes the note off the string; Ctrl and
+                            // Delete takes the whole beat out of the bar.
+                            control ? session.deleteBeat() : session.clearNote(); break
                         case Qt.Key_Period: session.toggleDot(); break
                         case Qt.Key_Plus:
                         case Qt.Key_Equal: session.transposeNote(1); break

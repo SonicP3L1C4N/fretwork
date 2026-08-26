@@ -125,6 +125,9 @@ public:
     Q_INVOKABLE void setDuration(int denominator);
     Q_INVOKABLE void toggleDot();
     Q_INVOKABLE void scaleDuration(int steps);
+
+    Q_INVOKABLE void insertBeat();
+    Q_INVOKABLE void deleteBeat();
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
     /** Puts the caret where the score was clicked, in the view's own coordinates. */
