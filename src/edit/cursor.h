@@ -56,6 +56,9 @@ int beatIdAt(const Score &score, const Cursor &cursor);
 /** The note under the cursor -- its string as well as its beat -- or -1. */
 int noteIdAt(const Score &score, const Cursor &cursor);
 
+/** How long the beat under the cursor lasts, or a crotchet where there is none. */
+Rational durationAt(const Score &score, const Cursor &cursor);
+
 /** How many beats the cursor's voice holds. */
 int beatCount(const Score &score, const Cursor &cursor);
 

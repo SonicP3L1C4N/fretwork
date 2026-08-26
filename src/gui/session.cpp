@@ -229,6 +229,9 @@ void Session::play()
         // paid, once, rather than on every keystroke.
         rebuildPlayer();
         m_playerStale = false;
+        // Changing a duration changes how long the piece is, and the transport
+        // has been showing the length of the score as it was opened.
+        Q_EMIT scoreChanged();
     }
     if (m_player) {
         m_player->play();
@@ -358,6 +361,21 @@ void Session::clearNote()
 void Session::transposeNote(int frets)
 {
     m_editor.transposeNote(frets);
+}
+
+void Session::setDuration(int denominator)
+{
+    m_editor.setDuration(denominator);
+}
+
+void Session::toggleDot()
+{
+    m_editor.toggleDot();
+}
+
+void Session::scaleDuration(int steps)
+{
+    m_editor.scaleDuration(steps);
 }
 
 void Session::undo()

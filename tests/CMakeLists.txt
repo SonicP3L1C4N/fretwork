@@ -28,6 +28,11 @@ ecm_add_test(gpiftest.cpp
     LINK_LIBRARIES Qt6::Test fretworkcore KF6::Archive
 )
 
+ecm_add_test(notevaluetest.cpp
+    TEST_NAME notevaluetest
+    LINK_LIBRARIES Qt6::Test fretworkcore
+)
+
 ecm_add_test(midtest.cpp
     TEST_NAME midtest
     LINK_LIBRARIES Qt6::Test fretworkcore

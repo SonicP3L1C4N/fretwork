@@ -253,19 +253,32 @@ Kirigami.ApplicationWindow {
                         if (!session.hasScore) {
                             return
                         }
+                        const control = event.modifiers & Qt.ControlModifier
+
+                        // Ctrl and a digit is a note value rather than a fret:
+                        // 1 is a semibreve, 2 a minim, and on down by halves,
+                        // which is the arithmetic musicians already have in
+                        // their heads.
+                        if (control && event.key >= Qt.Key_1 && event.key <= Qt.Key_7) {
+                            session.setDuration(1 << (event.key - Qt.Key_1))
+                            event.accepted = true
+                            return
+                        }
+
                         switch (event.key) {
                         case Qt.Key_Left:
-                            session.moveCursor(event.modifiers & Qt.ControlModifier
-                                               ? "barBack" : "left"); break
+                            session.moveCursor(control ? "barBack" : "left"); break
                         case Qt.Key_Right:
-                            session.moveCursor(event.modifiers & Qt.ControlModifier
-                                               ? "barForward" : "right"); break
-                        case Qt.Key_Up:    session.moveCursor("up"); break
-                        case Qt.Key_Down:  session.moveCursor("down"); break
+                            session.moveCursor(control ? "barForward" : "right"); break
+                        case Qt.Key_Up:
+                            control ? session.scaleDuration(1) : session.moveCursor("up"); break
+                        case Qt.Key_Down:
+                            control ? session.scaleDuration(-1) : session.moveCursor("down"); break
                         case Qt.Key_Home:  session.moveCursor("start"); break
                         case Qt.Key_End:   session.moveCursor("end"); break
                         case Qt.Key_Delete:
                         case Qt.Key_Backspace: session.clearNote(); break
+                        case Qt.Key_Period: session.toggleDot(); break
                         case Qt.Key_Plus:
                         case Qt.Key_Equal: session.transposeNote(1); break
                         case Qt.Key_Minus: session.transposeNote(-1); break

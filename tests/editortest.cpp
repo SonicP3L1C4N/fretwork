@@ -68,7 +68,16 @@ private:
                                          .arg(note.fret)
                                          .arg(note.midi));
                     }
-                    out.append(QStringLiteral("b%1:%2").arg(beatId).arg(notes.join(QLatin1Char(','))));
+                    // The duration too: an edit that changed how long a beat
+                    // lasts and nothing else has to show up here, or the
+                    // reversal tests are agreeing with a bug.
+                    const Rational duration =
+                        score.rhythms.value(score.beats.value(beatId).rhythm, Rational(1));
+                    out.append(QStringLiteral("b%1:%2:%3/%4")
+                                   .arg(beatId)
+                                   .arg(notes.join(QLatin1Char(',')))
+                                   .arg(duration.numerator)
+                                   .arg(duration.denominator));
                 }
             }
         }
@@ -293,6 +302,10 @@ private Q_SLOTS:
         editor.setCursor(at(1, 2, 0));
         editor.typeDigit(3);
         editor.transposeNote(2);
+        editor.setDuration(8);
+        editor.toggleDot();
+        editor.setCursor(at(1, 3, 0));
+        editor.scaleDuration(-1);
         editor.setCursor(at(0, 0, 5));
         editor.clearNote();
 
@@ -310,6 +323,97 @@ private Q_SLOTS:
             editor.redo();
         }
         QCOMPARE(fingerprint(editor.score()), edited);
+    }
+
+    // ---- how long a beat lasts ----
+
+    void setsHowLongABeatLastsAndPutsItBack()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(0, 1, 0));
+        QCOMPARE(Editing::durationAt(editor.score(), editor.cursor()), Rational(1));
+
+        editor.setDuration(8);
+        QCOMPARE(Editing::durationAt(editor.score(), editor.cursor()), Rational(1, 2));
+
+        // The beat keeps everything else: a quaver where a crotchet was is the
+        // same fingering held for less time.
+        editor.undo();
+        QCOMPARE(Editing::durationAt(editor.score(), editor.cursor()), Rational(1));
+    }
+
+    void addsADotAndTakesItAway()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(0, 0, 0));
+
+        editor.toggleDot();
+        QCOMPARE(Editing::durationAt(editor.score(), editor.cursor()), Rational(3, 2));
+        editor.toggleDot();
+        QCOMPARE(Editing::durationAt(editor.score(), editor.cursor()), Rational(1));
+
+        // Two commands, two undos: dotting and undotting are separate acts.
+        editor.undo();
+        QCOMPARE(Editing::durationAt(editor.score(), editor.cursor()), Rational(3, 2));
+        editor.undo();
+        QCOMPARE(Editing::durationAt(editor.score(), editor.cursor()), Rational(1));
+    }
+
+    /** Halving keeps the dots: a dotted crotchet halves to a dotted quaver. */
+    void halvesAndDoublesAndStopsAtTheEnds()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(0, 0, 0));
+
+        editor.toggleDot();
+        editor.scaleDuration(-1);
+        QCOMPARE(Editing::durationAt(editor.score(), editor.cursor()), Rational(3, 4));
+        editor.scaleDuration(1);
+        QCOMPARE(Editing::durationAt(editor.score(), editor.cursor()), Rational(3, 2));
+
+        // Off the end in either direction stops rather than wrapping or
+        // pushing on into durations nobody writes.
+        editor.setCursor(at(0, 1, 0));
+        editor.scaleDuration(-20);
+        QCOMPARE(Editing::durationAt(editor.score(), editor.cursor()), NoteValue::Shortest);
+        editor.scaleDuration(20);
+        QCOMPARE(Editing::durationAt(editor.score(), editor.cursor()), NoteValue::Longest);
+    }
+
+    /** Durations are deduplicated, the way gpif stores them in the first place. */
+    void reusesADurationRatherThanAddingItAgain()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        const int before = int(editor.score().rhythms.size());
+
+        editor.setCursor(at(0, 0, 0));
+        editor.setDuration(8);
+        editor.setCursor(at(0, 1, 0));
+        editor.setDuration(8);
+
+        QCOMPARE(int(editor.score().rhythms.size()), before + 1);
+        QCOMPARE(editor.score().beats.value(0).rhythm, editor.score().beats.value(1).rhythm);
+    }
+
+    void asksForNothingThatIsNotANoteValue()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+        editor.setCursor(at(0, 0, 0));
+
+        editor.setDuration(6);
+        editor.setDuration(128);
+        QVERIFY(!editor.canUndo());
+        QCOMPARE(Editing::durationAt(editor.score(), editor.cursor()), Rational(1));
+
+        // Setting the duration it already has is not a change, and does not
+        // put a step in the history that appears to do nothing.
+        editor.setDuration(4);
+        QVERIFY(!editor.canUndo());
     }
 
     void transposingMovesTheFretAndThePitchTogether()

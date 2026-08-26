@@ -174,6 +174,57 @@ private:
     int m_position = 0;
     Note m_previous;
 };
+
+/**
+ * Changing how long a beat lasts, which is the one thing a fret cannot say.
+ *
+ * The beat keeps its notes: a quaver that becomes a crotchet is the same
+ * fingering held longer, and anybody who wanted a different note would have
+ * typed one. What changes is which duration the beat points at, so this is a
+ * command about an id and nothing else -- which is also why undoing it is
+ * exact rather than approximately exact.
+ */
+class SetDurationCommand : public QUndoCommand
+{
+public:
+    SetDurationCommand(Editor *editor, const Cursor &cursor, const Rational &duration)
+        : m_editor(editor)
+        , m_cursor(cursor)
+        , m_duration(duration)
+    {
+        const Score &score = editor->score();
+        m_previous = score.beats.value(Editing::beatIdAt(score, cursor)).rhythm;
+        setText(i18n("Set duration"));
+    }
+
+    void redo() override
+    {
+        Score &score = m_editor->mutableScore();
+        const int beatId = Editing::beatIdAt(score, m_cursor);
+        if (beatId < 0) {
+            return;
+        }
+        score.beats[beatId].rhythm = Editor::rhythmIdFor(score, m_duration);
+        m_editor->noteEdited(m_cursor.bar);
+    }
+
+    void undo() override
+    {
+        Score &score = m_editor->mutableScore();
+        const int beatId = Editing::beatIdAt(score, m_cursor);
+        if (beatId < 0) {
+            return;
+        }
+        score.beats[beatId].rhythm = m_previous;
+        m_editor->noteEdited(m_cursor.bar);
+    }
+
+private:
+    Editor *m_editor;
+    Cursor m_cursor;
+    Rational m_duration;
+    int m_previous = -1;
+};
 }
 
 Editor::Editor(QObject *parent)
@@ -335,6 +386,61 @@ void Editor::transposeNote(int frets)
     endDigitEntry();
     m_undo->push(new SetFretCommand(this, m_cursor, fret, m_digitRun));
     endDigitEntry();
+}
+
+int Editor::rhythmIdFor(Score &score, const Rational &duration)
+{
+    int highest = -1;
+    for (auto rhythm = score.rhythms.constBegin(); rhythm != score.rhythms.constEnd();
+         ++rhythm) {
+        if (rhythm.value() == duration) {
+            return rhythm.key();
+        }
+        highest = std::max(highest, rhythm.key());
+    }
+    score.rhythms.insert(highest + 1, duration);
+    return highest + 1;
+}
+
+void Editor::applyDuration(const Rational &duration)
+{
+    endDigitEntry();
+    if (duration.isZero() || Editing::beatIdAt(m_score, m_cursor) < 0) {
+        return;
+    }
+    if (duration == Editing::durationAt(m_score, m_cursor)) {
+        return;
+    }
+    m_undo->push(new SetDurationCommand(this, m_cursor, duration));
+}
+
+void Editor::setDuration(int denominator)
+{
+    applyDuration(NoteValue::valueOf(denominator));
+}
+
+void Editor::toggleDot()
+{
+    NoteValue::Written written = NoteValue::of(Editing::durationAt(m_score, m_cursor));
+    // One dot or none. Two is a thing that exists and not a thing a keystroke
+    // should cycle through on the way back to none.
+    written.dots = written.dots > 0 ? 0 : 1;
+    applyDuration(NoteValue::durationOf(written));
+}
+
+void Editor::scaleDuration(int steps)
+{
+    NoteValue::Written written = NoteValue::of(Editing::durationAt(m_score, m_cursor));
+    for (int step = 0; step < qAbs(steps); ++step) {
+        const Rational next = steps > 0 ? written.value * Rational(2)
+                                        : Rational(written.value.numerator,
+                                                   written.value.denominator * 2);
+        if (next < NoteValue::Shortest || NoteValue::Longest < next) {
+            break;
+        }
+        written.value = next;
+    }
+    applyDuration(NoteValue::durationOf(written));
 }
 
 QUndoStack *Editor::undoStack() const

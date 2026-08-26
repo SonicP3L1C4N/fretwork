@@ -138,6 +138,17 @@ struct LaidBar {
     bool repeatEnd = false;
     int repeatCount = 0;
     QList<LaidBeat> beats;
+
+    /**
+     * True where the beats do not add up to the time signature.
+     *
+     * Marked rather than corrected. Editing a duration is the quickest way in
+     * the world to make a bar that does not add up, and a program that
+     * silently took the difference out of the neighbouring note would be
+     * rewriting music nobody asked it to touch. A bar with nothing in it is
+     * not marked: an empty bar is empty, not wrong.
+     */
+    bool incomplete = false;
 };
 
 /** One line of music across the page. */

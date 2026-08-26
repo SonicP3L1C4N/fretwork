@@ -8,6 +8,32 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## Unreleased — P3
 
+- **It edits durations.** `Ctrl` and a digit sets the beat under the caret to a
+  note value — 1 a semibreve, 2 a minim, and on down by halves — `.` adds a dot
+  or takes it away, and `Ctrl` with an arrow doubles or halves what is there,
+  keeping the dots. Undoable like everything else.
+- **A bar that no longer adds up says so, and is left alone.** Its number is
+  drawn in a colour that means the music itself is wrong rather than the
+  program. Taking the difference out of the next note along would be rewriting
+  music nobody asked it to touch, and picking which note to shorten is a guess
+  the person editing has already made. An empty bar is not marked: an empty bar
+  is empty, not wrong.
+- **Reading a written symbol out of a duration now lives in one place.** The
+  page needed it to draw a dotted crotchet and the editor needs it to know how
+  many dots are there before adding one, and two implementations of "what was
+  this written as" would eventually disagree — with the wrong one being
+  whichever nobody was looking at. `NoteValue` is that one place, and its test
+  is that the two directions are exact inverses for every value and every
+  number of dots.
+- Durations are deduplicated as they are added, the way gpif stores them in the
+  first place: a score has hundreds of beats and about twenty distinct
+  durations. An id left unreferenced by an undo stays in the table rather than
+  being collected — there are only so many durations in music, and the next
+  edit is likely to want it back.
+- The score's own description in the tests carries durations now, so an edit
+  that changes only how long a beat lasts cannot pass a reversal test by being
+  invisible to it.
+
 - **The tablature says how long a note lasts.** A row of stems under the
   strings: beams in the groups the time signature makes, flags where there is
   nothing to beam to, an open head for a minim, dots, and a mark in the staff

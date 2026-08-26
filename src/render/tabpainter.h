@@ -25,6 +25,7 @@ struct Palette {
     QColor staff = QColor(0x88, 0x88, 0x88);
     QColor faint = QColor(0xAA, 0xAA, 0xAA);    //< bar numbers, tuning, section names
     QColor accent = QColor(0x2E, 0x6D, 0xB4);   //< where a technique is marked
+    QColor warning = QColor(0xB5, 0x4B, 0x2E);  //< where the music itself does not add up
 };
 
 /** Paints one page onto whatever the painter is pointed at. */

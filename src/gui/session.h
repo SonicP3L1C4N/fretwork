@@ -120,6 +120,11 @@ public:
     Q_INVOKABLE void typeDigit(int digit);
     Q_INVOKABLE void clearNote();
     Q_INVOKABLE void transposeNote(int frets);
+
+    /** 4 is a crotchet, 8 a quaver: the name musicians already use. */
+    Q_INVOKABLE void setDuration(int denominator);
+    Q_INVOKABLE void toggleDot();
+    Q_INVOKABLE void scaleDuration(int steps);
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
     /** Puts the caret where the score was clicked, in the view's own coordinates. */

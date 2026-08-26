@@ -3,6 +3,8 @@
 
 #include "tablayout.h"
 
+#include "notevalue.h"
+
 #include <QHash>
 #include <QMap>
 
@@ -35,76 +37,20 @@ QString textFor(const Note &note)
     return QString::number(note.fret);
 }
 
-/** Every note value is a power of two quarters, up or down. */
-bool isPowerOfTwo(qint64 value)
-{
-    return value > 0 && (value & (value - 1)) == 0;
-}
-
-bool isNoteValue(const Rational &duration)
-{
-    if (duration.numerator <= 0) {
-        return false;
-    }
-    return (duration.denominator == 1 && isPowerOfTwo(duration.numerator))
-        || (duration.numerator == 1 && isPowerOfTwo(duration.denominator));
-}
-
-/** An undotted note value, in quarters, and the dots written after it. */
-struct Written {
-    Rational value = Rational(1);
-    int dots = 0;
-};
-
 /**
- * The symbol a duration was written as, which the document no longer knows.
+ * How a note value is drawn: its beams, its head, and whether it has a stem.
  *
- * `Score::rhythms` holds durations with their dots and tuplets already
- * multiplied in -- exactly right for playback, which wants to know how long a
- * note lasts and not how somebody wrote it down. A page needs the other one
- * back, and there is only one way a duration of three-quarters of a quarter
- * can have been written.
- *
- * A tuplet cannot be recovered this way, because two-thirds of a quarter is
- * not any note value dotted any number of times. Those are drawn as the next
- * value up, which is how a triplet is written: three quavers in the time of
- * two, each still a quaver on the page.
+ * Which symbol a duration was written as is `NoteValue`'s business, because
+ * the editor has to ask the same question -- told to add a dot, it needs to
+ * know how many are there now.
  */
-Written writtenFor(const Rational &duration)
-{
-    // A dot adds half of what came before it; a second adds half of that.
-    static const Rational dotted[] = {Rational(1), Rational(3, 2), Rational(7, 4)};
-    for (int dots = 0; dots < 3; ++dots) {
-        const Rational &multiplier = dotted[dots];
-        const Rational value(duration.numerator * multiplier.denominator,
-                             duration.denominator * multiplier.numerator);
-        if (isNoteValue(value) && !(value < Rational(1, 64)) && !(Rational(8) < value)) {
-            return {value, dots};
-        }
-    }
-
-    Rational value(1, 64);
-    while (value < duration && value < Rational(8)) {
-        value = value * Rational(2);
-    }
-    return {value, 0};
-}
-
-/** How a note value is drawn: its beams, its head, and whether it has a stem. */
 Tab::LaidRhythm symbolFor(const Rational &duration)
 {
-    const Written written = writtenFor(duration);
+    const NoteValue::Written written = NoteValue::of(duration);
 
     Tab::LaidRhythm rhythm;
     rhythm.dots = written.dots;
-
-    // A quaver is half a quarter and carries one beam; every halving adds one.
-    Rational value = written.value;
-    while (value < Rational(1) && rhythm.beams < 6) {
-        value = value * Rational(2);
-        ++rhythm.beams;
-    }
-
+    rhythm.beams = NoteValue::beamsOf(written.value);
     rhythm.hollow = !(written.value < Rational(2));
     rhythm.stem = written.value < Rational(4);
     return rhythm;
@@ -206,6 +152,7 @@ Tab::LaidBar measure(const Score &score, int trackIndex, int barIndex,
         int index = 0;
     };
     QMap<Rational, Column> columns;
+    Rational longestVoice;
 
     const Bar source = score.bars.value(master.bars.at(trackIndex));
     for (int voiceSlot = 0; voiceSlot < source.voices.size(); ++voiceSlot) {
@@ -229,7 +176,14 @@ Tab::LaidBar measure(const Score &score, int trackIndex, int barIndex,
             offset += score.rhythms.value(beat->rhythm, Rational(1));
             ++index;
         }
+        if (longestVoice < offset) {
+            longestVoice = offset;
+        }
     }
+
+    // An empty bar is empty rather than wrong; one with music in it that does
+    // not come to the time signature is worth saying so about.
+    bar.incomplete = !columns.isEmpty() && !(longestVoice == master.length());
 
     // A column is drawn with the rhythm of the beat that claimed it -- the same
     // one a caret addresses -- while its width still comes from the shortest

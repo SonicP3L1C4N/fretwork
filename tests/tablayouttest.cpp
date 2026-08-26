@@ -408,6 +408,32 @@ private Q_SLOTS:
         QCOMPARE(row.at(2).beamRight, 1);
     }
 
+    /**
+     * A bar that does not come to its time signature says so.
+     *
+     * Marked, not corrected: taking the difference out of the neighbouring
+     * note would be rewriting music nobody asked it to touch. An empty bar is
+     * empty rather than wrong, and is left alone.
+     */
+    void marksABarThatDoesNotAddUp()
+    {
+        const auto complete = Tab::layOut(oneBar(QList<Rational>(4, Rational(1))), 0);
+        QVERIFY(!complete.pages.constFirst().systems.constFirst().bars.constFirst().incomplete);
+
+        const auto missing = Tab::layOut(oneBar(QList<Rational>(3, Rational(1))), 0);
+        QVERIFY(missing.pages.constFirst().systems.constFirst().bars.constFirst().incomplete);
+
+        const auto over = Tab::layOut(oneBar(QList<Rational>(5, Rational(1))), 0);
+        QVERIFY(over.pages.constFirst().systems.constFirst().bars.constFirst().incomplete);
+
+        // Six quavers is a whole bar of 6/8 and three quarters of one in 3/4.
+        const auto compound = Tab::layOut(oneBar(QList<Rational>(6, Rational(1, 2)), 6, 8), 0);
+        QVERIFY(!compound.pages.constFirst().systems.constFirst().bars.constFirst().incomplete);
+
+        const auto empty = Tab::layOut(oneBar({}), 0);
+        QVERIFY(!empty.pages.constFirst().systems.constFirst().bars.constFirst().incomplete);
+    }
+
     /** The stems need room, and the line below must not be drawn through them. */
     void leavesRoomBelowTheStringsForTheRhythm()
     {

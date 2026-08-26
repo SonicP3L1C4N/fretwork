@@ -54,6 +54,15 @@ int Editing::noteIdAt(const Score &score, const Cursor &cursor)
     return -1;
 }
 
+Rational Editing::durationAt(const Score &score, const Cursor &cursor)
+{
+    const int beat = beatIdAt(score, cursor);
+    if (beat < 0) {
+        return Rational(1);
+    }
+    return score.rhythms.value(score.beats.value(beat).rhythm, Rational(1));
+}
+
 int Editing::stringCount(const Score &score, const Cursor &cursor)
 {
     if (cursor.track < 0 || cursor.track >= score.tracks.size()) {

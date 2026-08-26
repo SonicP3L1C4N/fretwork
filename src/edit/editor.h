@@ -4,6 +4,7 @@
 #pragma once
 
 #include "cursor.h"
+#include "notevalue.h"
 #include "score.h"
 
 #include <QElapsedTimer>
@@ -66,6 +67,26 @@ public:
     /** Moves the note under the caret by a number of frets, staying on its string. */
     void transposeNote(int frets);
 
+    // ---- how long a beat lasts ----
+
+    /**
+     * Sets the beat under the caret to a note value, named the way musicians
+     * name it: 4 is a crotchet, 8 a quaver, 1 a semibreve. Any dots it had are
+     * dropped, because asking for a quaver asks for a quaver.
+     *
+     * The bar is left to add up to whatever it now adds up to. A program that
+     * quietly took the difference out of the next note along would be
+     * rewriting music nobody asked it to touch; the page marks the bar
+     * instead.
+     */
+    void setDuration(int denominator);
+
+    /** Adds an augmentation dot to the beat under the caret, or takes it away. */
+    void toggleDot();
+
+    /** Doubles or halves the value under the caret, keeping its dots. */
+    void scaleDuration(int steps);
+
     // ---- history ----
 
     QUndoStack *undoStack() const;
@@ -85,6 +106,17 @@ public:
     Score &mutableScore();
     void noteEdited(int bar);
     static int freshNoteId(const Score &score);
+
+    /**
+     * The id of a duration in the score's rhythm table, adding it if it is not
+     * there yet.
+     *
+     * Deduplicated, the way gpif itself stores them: a score has hundreds of
+     * beats and about twenty distinct durations. An id left unreferenced by an
+     * undo stays in the table rather than being collected -- there are only so
+     * many durations in music, and the next edit is likely to want it back.
+     */
+    static int rhythmIdFor(Score &score, const Rational &duration);
     static int midiFor(const Score &score, const Cursor &cursor, int fret);
 
 Q_SIGNALS:
@@ -94,6 +126,9 @@ Q_SIGNALS:
     void historyChanged();
 
 private:
+    /** Pushes a duration change, if it is a change and there is a beat to change. */
+    void applyDuration(const Rational &duration);
+
     Score m_score;
     Cursor m_cursor;
     QUndoStack *m_undo;

@@ -139,8 +139,10 @@ void paintSystem(QPainter &painter, const Tab::Layout &layout, const Tab::System
         }
 
         // Clear of the top string: a fret number there is centred on the line
-        // itself, so anything sitting a line-height above it collides.
-        painter.setPen(palette.faint);
+        // itself, so anything sitting a line-height above it collides. A bar
+        // whose beats do not come to its time signature says so on its number,
+        // which is the only label every bar already has.
+        painter.setPen(bar.incomplete ? palette.warning : palette.faint);
         painter.setFont(sansOf(style.labelSize * 0.8));
         painter.drawText(QRectF(x + 1, top - style.labelSize * 2.4, 40, style.labelSize * 1.4),
                          Qt::AlignLeft | Qt::AlignBottom, QString::number(bar.index + 1));

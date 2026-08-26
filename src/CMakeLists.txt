@@ -4,6 +4,7 @@
 # The program without its command line: everything the tests exercise, and
 # everything a future window would link against.
 add_library(fretworkcore STATIC
+    model/notevalue.cpp
     import/gpif.cpp
     import/zipreader.cpp
     export/midi.cpp
