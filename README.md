@@ -6,8 +6,8 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 <h1>
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="icons/64-apps-io.github.sonicp3l1c4n.fretwork.png">
-    <img src="icons/64-apps-io.github.sonicp3l1c4n.fretwork.png" alt="" width="32">
+    <source media="(prefers-color-scheme: dark)" srcset="icons/128-apps-io.github.sonicp3l1c4n.fretwork.png">
+    <img src="icons/128-apps-io.github.sonicp3l1c4n.fretwork.png" alt="" width="32">
   </picture>
   Fretwork
 </h1>
