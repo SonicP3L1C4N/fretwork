@@ -133,6 +133,48 @@ $ fretwork "The Dogs Of War.gp" --play --solo 0
 Soloing is what a synth per track buys: no re-render, no bounce, just that
 track's own audio and nothing else.
 
+**It listens**, which is new: the first thing in the program that wants a
+guitar lead rather than a speaker.
+
+![The tuner across the bottom of the window: the score's tuning as six strings with the one being played lit, a needle eleven cents flat of it, and the frequency](docs/window-tuner.png)
+
+A band across the bottom rather than a panel beside the score, because tuning
+is a thing done to the instrument and not to the document: it wants to be wide,
+read from across the room, and gone again when it is finished with. The input is
+open only while the panel is, because nothing about reading a tab justifies
+holding a microphone open behind a closed one — and it is the one panel that
+starts closed, for the same reason.
+
+It is on the command line too, and needs no window there either:
+
+```
+fretwork FILE.gp --tune                  # tune to that score's own tuning
+fretwork --tune                          # no score: standard tuning
+fretwork FILE.gp --tune --input NAME     # listen on a particular input
+```
+
+```
+$ fretwork "Slomosa-Horses.gp" --tune
+  Guitar I: C2 F2 A#2 D#3 G3 C4
+  listening on the default input at 48000 Hz — Ctrl-C to stop
+
+  string 2  F2   ............|.o..........   +8 ¢    sharp    87.7 Hz
+```
+
+The tuning comes out of the file, and that is the whole difference between this
+and every other tuner: a chromatic tuner hears an F and says so, leaving the
+player to know whether an F is what this piece wants of that string. A capo is
+in the target, because the target is what the string will sound when it is
+plucked. Where what was played is too far from any string to be one of them it
+names the note and leaves the choice alone, rather than guessing between two
+pegs.
+
+The pitch is found with YIN rather than a Fourier transform: a plucked low
+string's second harmonic is routinely louder than its fundamental, and a
+spectrum peak-picker reports the octave above and is confidently wrong. One
+note at a time, and a strummed chord gets "hearing something, but no note in
+it", which is true.
+
 **It draws the tablature**:
 
 ```

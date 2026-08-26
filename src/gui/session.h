@@ -12,6 +12,7 @@
 #include <QObject>
 #include <QQmlEngine>
 #include <QStringList>
+#include <QVariantList>
 #include <QTimer>
 
 #include <memory>
@@ -131,6 +132,15 @@ public:
     Q_INVOKABLE QString sectionAt(int bar) const;
 
     // ---- the mixer ----
+
+    /**
+     * The open pitches of a track's strings, with any capo already in them.
+     *
+     * For the tuner, which wants what the string will sound when it is
+     * plucked. Empty for a drum kit, which has none, and for a track the
+     * importer found no tuning for.
+     */
+    Q_INVOKABLE QVariantList stringPitches(int track) const;
 
     Q_INVOKABLE bool isMuted(int track) const;
     Q_INVOKABLE bool isSolo(int track) const;

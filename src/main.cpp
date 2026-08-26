@@ -1,15 +1,18 @@
 // SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
+#include "audioinput.h"
 #include "fwformat.h"
 #include "gpif.h"
 #include "session.h"
 #include "midi.h"
+#include "pitchdetector.h"
 #include "player.h"
 #include "renderer.h"
 #include "tablayout.h"
 #include "tabpainter.h"
 #include "timeline.h"
+#include "tuner.h"
 
 #include <KAboutData>
 #include <KLocalizedContext>
@@ -26,11 +29,16 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QRegularExpression>
+#include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QEventLoop>
 #include <QTextStream>
 #include <QTimer>
 
 #include <algorithm>
+#include <csignal>
+
+#include <unistd.h>
 
 namespace
 {
@@ -308,6 +316,185 @@ bool playScore(QTextStream &out, QTextStream &error, const Score &score,
     return true;
 }
 
+namespace
+{
+/**
+ * Ctrl-C, caught rather than obeyed.
+ *
+ * The tuner is the first thing in the program that runs until it is stopped,
+ * and a terminal left holding a half-written line with no newline on it is a
+ * terminal somebody has to press return in. One flag, checked on the same
+ * timer as everything else.
+ */
+volatile std::sig_atomic_t interrupted = 0;
+
+void onInterrupt(int)
+{
+    interrupted = 1;
+}
+
+/**
+ * The needle: fifty cents either side of the mark.
+ *
+ * Fifty because that is the point at which the answer stops being "this string
+ * is out" and starts being "this is the wrong string" -- the scale a person
+ * reads while turning a peg wants to be over the range they are turning it
+ * through, not over the whole octave.
+ */
+QString meter(double cents, bool inTune)
+{
+    constexpr int arm = 12;         // characters either side of the centre
+    QString dial(arm * 2 + 1, QLatin1Char('.'));
+    dial[arm] = QLatin1Char('|');
+
+    const int at = std::clamp(int(std::lround(cents / 50.0 * arm)), -arm, arm);
+    dial[arm + at] = inTune ? QLatin1Char('#') : QLatin1Char('o');
+    return dial;
+}
+
+/** One line of tuner, whatever it currently has to say. */
+QString readout(const Pitch::Detection &detection, const Tuner::Reading &reading,
+                const QList<Tuner::StringTarget> &targets, const Pitch::Settings &settings)
+{
+    if (!reading.heard) {
+        // Silence and noise are different answers and a tuner that gave the
+        // same one for both would have somebody checking their cable when the
+        // real trouble is that they strummed a chord at it.
+        return detection.level < settings.minimumLevel
+            ? i18n("listening — play a string")
+            : i18n("hearing something, but no note in it");
+    }
+    if (reading.string < 0) {
+        // Something was played and it is not one of these strings. Saying what
+        // it was is more use than saying nothing, and much more use than
+        // picking the nearest string anyway.
+        return QStringLiteral("%1 %2   %3   %4 Hz")
+            .arg(reading.noteName, -4)
+            .arg(meter(reading.nearestCents, false), Tuner::describe(reading))
+            .arg(reading.hertz, 0, 'f', 1);
+    }
+
+    const Tuner::StringTarget &target = targets.at(reading.string);
+    const bool inTune = std::abs(reading.cents) <= Tuner::InTuneCents;
+    return QStringLiteral("%1 %2 %3   %4   %5   %6 Hz")
+        .arg(i18n("string %1", reading.string + 1), -9)
+        .arg(target.name, -4)
+        .arg(meter(reading.cents, inTune))
+        .arg(inTune ? i18n("in tune")
+                    : i18n("%1%2 ¢", reading.cents > 0 ? QStringLiteral("+") : QString(),
+                           QString::number(std::lround(reading.cents))),
+             -10)
+        .arg(Tuner::describe(reading), -10)
+        .arg(reading.hertz, 0, 'f', 1);
+}
+}
+
+/**
+ * Tuning to the score in front of you.
+ *
+ * The whole of the difference between this and any other tuner is the
+ * `targets` argument: they came out of the file, so a piece in drop C asks for
+ * a C and says which string it is, rather than reporting a C and leaving the
+ * player to know whether that was the right answer.
+ */
+bool runTuner(QTextStream &out, QTextStream &error, const QList<Tuner::StringTarget> &targets,
+              const QString &what, const QString &device)
+{
+    if (targets.isEmpty()) {
+        error << i18n("fretwork: that track has no strings to tune\n");
+        return false;
+    }
+
+    QStringList names;
+    for (const Tuner::StringTarget &target : targets) {
+        names.append(target.name);
+    }
+    out << QStringLiteral("  %1: %2\n").arg(what, names.join(QLatin1Char(' ')));
+
+    AudioInput::Options options;
+    options.device = device;
+    AudioInput input(options);
+    if (!input.isValid()) {
+        error << QStringLiteral("fretwork: %1\n").arg(input.error());
+        return false;
+    }
+
+    // The stream is connected when the graph says so and not when it is asked,
+    // and the sample rate it settled on is not known until then -- which the
+    // detector needs before it can be built at all.
+    QElapsedTimer waiting;
+    waiting.start();
+    while (!input.isRunning() && waiting.elapsed() < 3000) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+    }
+    if (!input.isRunning()) {
+        error << i18n("fretwork: nothing is sending any audio in\n");
+        return false;
+    }
+
+    // Connected is not the same as delivering. An input that is streaming and
+    // sending nothing would otherwise sit there asking to be played to for as
+    // long as anybody was willing to keep playing to it.
+    while (input.framesCaptured() == 0 && waiting.elapsed() < 3000) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+    }
+    if (input.framesCaptured() == 0) {
+        error << i18n("fretwork: that input is connected but no audio is arriving on it\n");
+        return false;
+    }
+
+    Pitch::Settings settings;
+    settings.sampleRate = input.sampleRate();
+    Pitch::Detector detector(settings);
+    const int window = Pitch::windowFor(settings);
+    std::vector<float> heard(size_t(window), 0.0f);
+
+    out << i18n("  listening on %1 at %2 Hz — Ctrl-C to stop\n\n",
+                device.isEmpty() ? i18n("the default input") : device,
+                QString::number(int(input.sampleRate())));
+    out.flush();
+
+    const bool terminal = isatty(fileno(stdout)) != 0;
+    std::signal(SIGINT, onInterrupt);
+
+    QEventLoop loop;
+    QTimer ticker;
+    QString last;
+    QObject::connect(&ticker, &QTimer::timeout, [&] {
+        if (interrupted) {
+            loop.quit();
+            return;
+        }
+        Pitch::Detection detection;
+        Tuner::Reading reading;
+        if (input.latest(heard.data(), window) == window) {
+            detection = detector.detect(heard.data(), window);
+            if (detection.voiced) {
+                reading = Tuner::read(detection.hertz, detection.clarity, targets);
+            }
+        }
+
+        const QString line = readout(detection, reading, targets, settings);
+        if (terminal) {
+            // Padded to the longest line it has drawn, so a short one does not
+            // leave the tail of a long one behind it.
+            out << QStringLiteral("\r  %1").arg(line, -64);
+        } else if (line != last) {
+            out << QStringLiteral("  %1\n").arg(line);
+        }
+        last = line;
+        out.flush();
+    });
+    // Fifteen times a second: faster than the ear settles and slower than the
+    // detection window slides, so every tick is looking at new audio.
+    ticker.start(66);
+    loop.exec();
+
+    std::signal(SIGINT, SIG_DFL);
+    out << "\n";
+    return true;
+}
+
 int main(int argc, char *argv[])
 {
     // Drawing needs a font database, and a font database needs a GUI
@@ -406,6 +593,14 @@ int main(int argc, char *argv[])
     const QCommandLineOption muted(QStringLiteral("mute"),
                                    i18n("Silence these tracks; repeatable"), i18n("track"));
     parser.addOption(muted);
+    const QCommandLineOption tune(QStringLiteral("tune"),
+                                 i18n("Tune to this score, listening on an audio input"));
+    parser.addOption(tune);
+    const QCommandLineOption audioInput(QStringLiteral("input"),
+                                        i18n("Which audio input to listen on; the "
+                                             "desktop's own by default"),
+                                        i18n("name"));
+    parser.addOption(audioInput);
     const QCommandLineOption whichPage(QStringLiteral("page"),
                                        i18n("Which page to draw as an image"),
                                        i18n("number"), QStringLiteral("1"));
@@ -422,7 +617,7 @@ int main(int argc, char *argv[])
     // nothing in particular, it is an application and opens a window.
     const bool asked = parser.isSet(info) || parser.isSet(midi) || parser.isSet(stems)
         || parser.isSet(render) || parser.isSet(pdf) || parser.isSet(png)
-        || parser.isSet(playing);
+        || parser.isSet(playing) || parser.isSet(tune);
     if (!asked) {
         QQuickStyle::setStyle(QStringLiteral("org.kde.desktop"));
         QQmlApplicationEngine engine;
@@ -437,6 +632,18 @@ int main(int argc, char *argv[])
             return 1;
         }
         return app.exec();
+    }
+
+    // The one thing here that is useful with no file at all: a guitar is in
+    // standard tuning until a score says otherwise, and somebody who wants to
+    // check the low E before opening anything should not have to open
+    // something.
+    if (parser.isSet(tune) && files.isEmpty()) {
+        out << i18n("no score — standard tuning\n");
+        return runTuner(out, error, Tuner::standardGuitar(), i18n("guitar"),
+                        parser.value(audioInput))
+            ? 0
+            : 1;
     }
 
     if (files.isEmpty()) {
@@ -481,6 +688,30 @@ int main(int argc, char *argv[])
             if (!playScore(out, error, score, order, parser.value(soundFont),
                            parser.value(audioDriver), parser.values(soloed),
                            parser.values(muted))) {
+                ++failures;
+            }
+        }
+        if (parser.isSet(tune)) {
+            // Whichever track was asked for, unless it has no strings: a
+            // request to tune to the drums is a request that cannot be
+            // honoured, and the first track that can be is a better answer
+            // than an error.
+            int chosen = std::clamp(parser.value(whichTrack).toInt(), 0,
+                                    int(score.tracks.size()) - 1);
+            if (Tuner::targetsFor(score.tracks.at(chosen)).isEmpty()) {
+                for (int index = 0; index < score.tracks.size(); ++index) {
+                    if (!Tuner::targetsFor(score.tracks.at(index)).isEmpty()) {
+                        chosen = index;
+                        break;
+                    }
+                }
+            }
+            const Track &track = score.tracks.at(chosen);
+            const QString what = track.capo > 0
+                ? i18n("%1, capo %2", track.name, QString::number(track.capo))
+                : track.name;
+            if (!runTuner(out, error, Tuner::targetsFor(track), what,
+                          parser.value(audioInput))) {
                 ++failures;
             }
         }

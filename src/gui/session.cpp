@@ -229,6 +229,22 @@ QStringList Session::trackNames() const
     return names;
 }
 
+QVariantList Session::stringPitches(int track) const
+{
+    QVariantList pitches;
+    if (track < 0 || track >= m_editor.score().tracks.size()) {
+        return pitches;
+    }
+    const Track &part = m_editor.score().tracks.at(track);
+    if (part.isPercussion()) {
+        return pitches;
+    }
+    for (const int pitch : part.tuning) {
+        pitches.append(pitch + part.capo);
+    }
+    return pitches;
+}
+
 int Session::trackCount() const
 {
     return int(m_editor.score().tracks.size());

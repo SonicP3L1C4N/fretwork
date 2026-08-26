@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
 #include "tabpainter.h"
+#include "notename.h"
 
 #include <QFont>
 #include <QPainter>
@@ -303,13 +304,7 @@ void Tab::paintPage(QPainter &painter, const Layout &layout, int pageIndex,
         painter.setPen(palette.faint);
         QStringList tuning;
         for (auto pitch = layout.tuning.crbegin(); pitch != layout.tuning.crend(); ++pitch) {
-            static const QStringList names = {
-                QStringLiteral("C"),  QStringLiteral("C#"), QStringLiteral("D"),
-                QStringLiteral("D#"), QStringLiteral("E"),  QStringLiteral("F"),
-                QStringLiteral("F#"), QStringLiteral("G"),  QStringLiteral("G#"),
-                QStringLiteral("A"),  QStringLiteral("A#"), QStringLiteral("B"),
-            };
-            tuning.append(names.at(((*pitch % 12) + 12) % 12));
+            tuning.append(NoteName::pitchClass(*pitch));
         }
         const QString subtitle =
             tuning.isEmpty()

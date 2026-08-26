@@ -5,12 +5,16 @@
 # everything a future window would link against.
 add_library(fretworkcore STATIC
     model/notevalue.cpp
+    model/notename.cpp
     import/gpif.cpp
     import/zipreader.cpp
     export/midi.cpp
     audio/renderer.cpp
     audio/tracksynth.cpp
     audio/player.cpp
+    audio/audioinput.cpp
+    audio/pitchdetector.cpp
+    audio/tuner.cpp
     audio/wav.cpp
     format/fwformat.cpp
     edit/cursor.cpp
@@ -50,6 +54,7 @@ add_executable(fretwork
     main.cpp
     gui/session.cpp
     gui/scoreview.cpp
+    gui/tuning.cpp
 )
 
 # The generated type registrations include these headers by their own names.

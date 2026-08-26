@@ -62,10 +62,29 @@ Kirigami.ApplicationWindow {
         property bool mixer: true
         property bool status: true
         property bool bars: true
+        // Off by default, and not out of tidiness: this is the one panel that
+        // opens an audio input, and a program that started listening to the
+        // room because it was last left listening to the room would be a
+        // program nobody trusts twice.
+        property bool tuner: false
     }
 
     Session {
         id: session
+    }
+
+    /**
+     * The tuner, listening only while its panel is open.
+     *
+     * The strings come from the track on the page, which is the whole point of
+     * a tuner living in here rather than on a phone: a score in drop C asks
+     * for a C and says which peg. With nothing open it is a guitar in standard
+     * tuning, which is what somebody holding one has until told otherwise.
+     */
+    Tuning {
+        id: tuner
+        listening: panels.tuner
+        strings: session.hasScore ? session.stringPitches(session.currentTrack) : []
     }
 
     Connections {
@@ -477,6 +496,14 @@ Kirigami.ApplicationWindow {
             }
 
             ChromeToggle {
+                text: i18n("Tuner")
+                // The only panel toggle that does not want a score: a guitar
+                // is in standard tuning until a file says otherwise.
+                checked: panels.tuner
+                onToggled: panels.tuner = checked
+            }
+
+            ChromeToggle {
                 text: i18n("Status")
                 checked: panels.status
                 onToggled: panels.status = checked
@@ -828,6 +855,249 @@ Kirigami.ApplicationWindow {
 
     footer: ColumnLayout {
         spacing: 0
+
+        /**
+         * The tuner: what the strings should be, and where one of them is.
+         *
+         * The whole of what makes this different from a tuner on a phone is on
+         * the left of it -- the names came out of the score, so a piece in drop
+         * C asks for a C and says which peg to turn. A chromatic tuner would
+         * hear the same note and leave the player to know whether it was the
+         * right one.
+         *
+         * A band across the bottom rather than a panel beside the score,
+         * because tuning is a thing done to the instrument and not to the
+         * document: it wants to be wide, read from across the room, and gone
+         * again when it is finished with.
+         */
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: Kirigami.Units.gridUnit * 6
+            visible: panels.tuner
+            color: Ink.panelDeep
+
+            Kirigami.Separator {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                color: Ink.rule
+            }
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: Kirigami.Units.largeSpacing * 2
+                anchors.rightMargin: Kirigami.Units.largeSpacing * 2
+                anchors.topMargin: Kirigami.Units.largeSpacing
+                anchors.bottomMargin: Kirigami.Units.largeSpacing
+                spacing: Kirigami.Units.largeSpacing * 2
+
+                ColumnLayout {
+                    Layout.alignment: Qt.AlignVCenter
+                    spacing: 0
+
+                    Kirigami.Heading {
+                        level: 2
+                        text: i18n("Tuner")
+                        color: Ink.ink
+                    }
+
+                    QQC2.Label {
+                        Layout.maximumWidth: Kirigami.Units.gridUnit * 9
+                        text: session.hasScore ? session.trackNames[session.currentTrack]
+                                               : i18n("standard tuning")
+                        color: Ink.quiet
+                        elide: Text.ElideRight
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    }
+                }
+
+                // Every string of the part on the page, and which one is
+                // sounding. Lowest first, the way the score writes them down.
+                RowLayout {
+                    Layout.alignment: Qt.AlignVCenter
+                    spacing: Kirigami.Units.smallSpacing
+
+                    Repeater {
+                        model: tuner.stringNames
+
+                        delegate: Rectangle {
+                            id: pill
+
+                            required property int index
+                            required property string modelData
+
+                            readonly property bool lit: tuner.heard && tuner.string === index
+
+                            implicitWidth: Kirigami.Units.gridUnit * 2.4
+                            implicitHeight: Kirigami.Units.gridUnit * 2
+                            radius: Ink.radius
+                            color: pill.lit ? (tuner.inTune ? Ink.accent : Ink.accentTint)
+                                            : "transparent"
+                            border.width: pill.lit ? 0 : 1
+                            border.color: Ink.staff
+                            // A held reading fades rather than vanishing: the
+                            // person reading this is looking at a machine head.
+                            opacity: !pill.lit || tuner.fresh ? 1 : 0.55
+
+                            QQC2.Label {
+                                anchors.centerIn: parent
+                                text: pill.modelData
+                                color: pill.lit ? (tuner.inTune ? Ink.paper : Ink.accentDeep)
+                                                : Ink.ink
+                                font.weight: pill.lit ? Font.DemiBold : Font.Normal
+                            }
+                        }
+                    }
+                }
+
+                /**
+                 * The needle, fifty cents either side of the mark.
+                 *
+                 * Fifty because that is where the answer stops being "this
+                 * string is out" and starts being "that is a different note":
+                 * a scale somebody reads while turning a peg wants to be over
+                 * the range they are turning it through.
+                 */
+                Item {
+                    id: needle
+
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Layout.minimumWidth: Kirigami.Units.gridUnit * 10
+
+                    readonly property real span: width / 2 - Kirigami.Units.gridUnit
+                    readonly property real offset:
+                        Math.max(-1, Math.min(1, tuner.cents / 50)) * needle.span
+
+                    QQC2.Label {
+                        id: heardNote
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.top: parent.top
+                        text: tuner.heard ? tuner.noteName : ""
+                        color: tuner.inTune ? Ink.accentDeep : Ink.ink
+                        font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.6
+                        font.weight: Font.DemiBold
+                        opacity: tuner.fresh ? 1 : 0.55
+                    }
+
+                    QQC2.Label {
+                        anchors.verticalCenter: heardNote.verticalCenter
+                        anchors.left: heardNote.right
+                        anchors.leftMargin: Kirigami.Units.largeSpacing
+                        visible: tuner.heard
+                        text: tuner.inTune
+                            ? i18n("in tune")
+                            : i18nc("how far out of tune, in cents", "%1%2 ¢",
+                                    tuner.cents > 0 ? "+" : "", Math.round(tuner.cents))
+                        color: Ink.quiet
+                        // Tabular figures: a needle whose label shuffled
+                        // sideways as it settled would be its own distraction.
+                        font.features: ({ "tnum": 1 })
+                    }
+
+                    // Not "scale": every Item has a property of that name, and
+                    // an id that collides with one is an id the bindings inside
+                    // a delegate quietly resolve the wrong way.
+                    Rectangle {
+                        id: dial
+
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        // Room for the marker, which stands half its height
+                        // above and below the groove and would otherwise be
+                        // painted over by the panel underneath.
+                        anchors.bottomMargin: Kirigami.Units.gridUnit
+                        height: Ink.groove
+                        radius: height / 2
+                        color: Ink.rule
+
+                        Repeater {
+                            model: [-50, -25, 0, 25, 50]
+
+                            delegate: Rectangle {
+                                required property int modelData
+
+                                readonly property bool centre: modelData === 0
+
+                                width: centre ? 3 : 2
+                                height: centre ? Kirigami.Units.gridUnit * 1.3
+                                               : Kirigami.Units.gridUnit * 0.7
+                                radius: width / 2
+                                // The mark itself is darker than the rest, and
+                                // goes magenta when the string is on it: the
+                                // scale should say where in tune is even while
+                                // nothing is being played at it.
+                                color: centre ? (tuner.inTune ? Ink.accent : Ink.quiet)
+                                              : Ink.staff
+                                x: dial.width / 2 + modelData / 50 * needle.span - width / 2
+                                y: dial.height / 2 - height / 2
+                            }
+                        }
+
+                        Rectangle {
+                            width: 5
+                            height: Kirigami.Units.gridUnit * 1.6
+                            radius: width / 2
+                            color: tuner.inTune ? Ink.accent : Ink.accentDeep
+                            x: dial.width / 2 + needle.offset - width / 2
+                            y: dial.height / 2 - height / 2
+                            opacity: tuner.heard ? (tuner.fresh ? 1 : 0.45) : 0
+
+                            Behavior on x {
+                                NumberAnimation { duration: 90; easing.type: Easing.OutQuad }
+                            }
+                            Behavior on opacity {
+                                NumberAnimation { duration: 160 }
+                            }
+                        }
+                    }
+                }
+
+                ColumnLayout {
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.maximumWidth: Kirigami.Units.gridUnit * 12
+                    spacing: Kirigami.Units.smallSpacing
+
+                    // The frequency while something is sounding, and what the
+                    // input is doing while nothing is. Not "flat" and "sharp":
+                    // the needle points and the number is signed, and a third
+                    // way of saying the same thing is one too many.
+                    QQC2.Label {
+                        Layout.fillWidth: true
+                        text: tuner.heard
+                            ? i18nc("a frequency in hertz", "%1 Hz", tuner.hertz.toFixed(1))
+                            : tuner.message
+                        color: tuner.error.length > 0 ? Ink.accentDeep : Ink.quiet
+                        wrapMode: Text.WordWrap
+                        horizontalAlignment: Text.AlignRight
+                        font.features: ({ "tnum": 1 })
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    }
+
+                    // How loud the input is, so that a dead cable and a quiet
+                    // room do not look the same as each other.
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: Ink.groove
+                        radius: height / 2
+                        color: Ink.rule
+                        visible: tuner.running
+
+                        Rectangle {
+                            width: parent.width * tuner.level
+                            height: parent.height
+                            radius: parent.radius
+                            color: Ink.staff
+
+                            Behavior on width {
+                                NumberAnimation { duration: 80 }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         /**
          * Every bar of the piece, in a row.
