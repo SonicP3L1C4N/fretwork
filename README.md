@@ -214,6 +214,9 @@ separate stems.
 - **[docs/gpif-format.md](docs/gpif-format.md)** — how a `.gp` file is actually
   put together, measured against a real corpus rather than assumed. There is no
   vendor specification for any of this.
+- **[docs/wishlist.md](docs/wishlist.md)** — everything that has been thought of
+  and not promised, with the price of each next to it, and the things that are
+  refused on principle at the bottom.
 
 ## The stack, briefly
 
