@@ -86,6 +86,21 @@ private Q_SLOTS:
         QVERIFY(!NoteValue::isValue(Rational(0)));
         QVERIFY(!NoteValue::isValue(Rational(-1)));
     }
+
+    /** For saying out loud, which is a different job from drawing it. */
+    void namesAValueTheWayAMusicianWould()
+    {
+        QCOMPARE(NoteValue::nameOf(Rational(1)), QStringLiteral("crotchet"));
+        QCOMPARE(NoteValue::nameOf(Rational(4)), QStringLiteral("semibreve"));
+        QCOMPARE(NoteValue::nameOf(Rational(1, 4)), QStringLiteral("semiquaver"));
+        QCOMPARE(NoteValue::nameOf(Rational(3, 2)), QStringLiteral("dotted crotchet"));
+        QCOMPARE(NoteValue::nameOf(Rational(7, 4)), QStringLiteral("crotchet with 2 dots"));
+
+        // A triplet quaver is written as a quaver and does not last as long as
+        // one, and saying only "quaver" would be wrong about the second half
+        // of that.
+        QCOMPARE(NoteValue::nameOf(Rational(1, 3)), QStringLiteral("quaver (tuplet)"));
+    }
 };
 
 QTEST_GUILESS_MAIN(NoteValueTest)

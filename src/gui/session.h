@@ -42,7 +42,13 @@ class Session : public QObject
     Q_PROPERTY(bool hasScore READ hasScore NOTIFY scoreChanged)
     Q_PROPERTY(QString status READ status NOTIFY statusChanged)
 
+    /** Where the caret is, for the status bar: "Bar 4 · string 3 · quaver". */
+    Q_PROPERTY(QString caretText READ caretText NOTIFY cursorMoved)
+
     Q_PROPERTY(QStringList trackNames READ trackNames NOTIFY scoreChanged)
+
+    /** One icon name per track, by what the instrument is. */
+    Q_PROPERTY(QStringList trackIcons READ trackIcons NOTIFY scoreChanged)
     Q_PROPERTY(int trackCount READ trackCount NOTIFY scoreChanged)
     Q_PROPERTY(int currentTrack READ currentTrack WRITE setCurrentTrack NOTIFY currentTrackChanged)
 
@@ -51,6 +57,10 @@ class Session : public QObject
     Q_PROPERTY(double position READ position NOTIFY positionChanged)
     Q_PROPERTY(double length READ length NOTIFY scoreChanged)
     Q_PROPERTY(int currentBar READ currentBar NOTIFY positionChanged)
+
+    /** How many bars the score has, and which one the caret is in. */
+    Q_PROPERTY(int barCount READ barCount NOTIFY scoreChanged)
+    Q_PROPERTY(int caretBar READ caretBar NOTIFY cursorMoved)
 
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY historyChanged)
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY historyChanged)
@@ -85,9 +95,13 @@ public:
     QString fileName() const;
     bool hasScore() const;
     QString status() const;
+    QString caretText() const;
 
     QStringList trackNames() const;
+    QStringList trackIcons() const;
     int trackCount() const;
+    int barCount() const;
+    int caretBar() const;
     int currentTrack() const;
     void setCurrentTrack(int track);
 
@@ -103,6 +117,18 @@ public:
     Q_INVOKABLE void pause();
     Q_INVOKABLE void stop();
     Q_INVOKABLE void seek(double seconds);
+
+    /**
+     * Puts the caret at the start of a bar and the playhead with it.
+     *
+     * The first time through, where the bar is inside a repeat: a click on bar
+     * 12 means the twelfth bar of the score, and which pass through it was
+     * meant is not a question a bar number can answer.
+     */
+    Q_INVOKABLE void goToBar(int bar);
+
+    /** The name the score gives a bar, where it names one: "Intro", "Chorus". */
+    Q_INVOKABLE QString sectionAt(int bar) const;
 
     // ---- the mixer ----
 

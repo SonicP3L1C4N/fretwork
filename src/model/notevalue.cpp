@@ -3,6 +3,10 @@
 
 #include "notevalue.h"
 
+#include <KLocalizedString>
+
+#include <QList>
+
 namespace
 {
 /** Every note value is a power of two quarters, up or down. */
@@ -81,4 +85,45 @@ int NoteValue::beamsOf(const Rational &value)
         ++beams;
     }
     return beams;
+}
+
+QString NoteValue::nameOf(const Rational &duration)
+{
+    const Written written = of(duration);
+    // Named from the crotchet outwards, which is how the names themselves are
+    // built: a quaver is half a crotchet and a semiquaver half of that.
+    static const QList<QPair<Rational, const char *>> names = {
+        {Rational(8), QT_TRANSLATE_NOOP("NoteValue", "breve")},
+        {Rational(4), QT_TRANSLATE_NOOP("NoteValue", "semibreve")},
+        {Rational(2), QT_TRANSLATE_NOOP("NoteValue", "minim")},
+        {Rational(1), QT_TRANSLATE_NOOP("NoteValue", "crotchet")},
+        {Rational(1, 2), QT_TRANSLATE_NOOP("NoteValue", "quaver")},
+        {Rational(1, 4), QT_TRANSLATE_NOOP("NoteValue", "semiquaver")},
+        {Rational(1, 8), QT_TRANSLATE_NOOP("NoteValue", "demisemiquaver")},
+        {Rational(1, 16), QT_TRANSLATE_NOOP("NoteValue", "hemidemisemiquaver")},
+    };
+
+    QString name;
+    for (const auto &known : names) {
+        if (known.first == written.value) {
+            name = i18nc("a note value", known.second);
+            break;
+        }
+    }
+    if (name.isEmpty()) {
+        return i18n("odd value");
+    }
+
+    if (written.dots == 1) {
+        name = i18n("dotted %1", name);
+    } else if (written.dots > 1) {
+        name = i18n("%1 with %2 dots", name, written.dots);
+    }
+    // What it was written as does not add up to what it lasts: something has
+    // been divided into a tuplet, and saying only "quaver" would be wrong
+    // about how long it is.
+    if (!(durationOf(written) == duration)) {
+        name = i18nc("a note value inside a tuplet", "%1 (tuplet)", name);
+    }
+    return name;
 }

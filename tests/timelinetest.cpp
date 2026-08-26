@@ -246,6 +246,47 @@ private Q_SLOTS:
         QCOMPARE(Timeline::tempoMap(score, order).size(), 1);
         QCOMPARE(Timeline::seconds(score, order), 4.0);
     }
+
+    /** Where a bar starts and which bar is sounding are the same question. */
+    void whereABarStartsIsWhereTheBarBeforeItEnded()
+    {
+        Score score = blank(4);
+        score.tempos.append({0, 0, 120});
+        score.tempos.append({2, 0, 60});     // half speed from the third bar
+
+        const QList<int> order = Timeline::playedOrder(score);
+        const Timeline::Clock clock(score, order);
+
+        QCOMPARE(Timeline::secondsAtPass(score, order, clock, 0), 0.0);
+        QCOMPARE(Timeline::secondsAtPass(score, order, clock, 1), 2.0);
+        QCOMPARE(Timeline::secondsAtPass(score, order, clock, 2), 4.0);
+        // Four quarters at sixty rather than at a hundred and twenty.
+        QCOMPARE(Timeline::secondsAtPass(score, order, clock, 3), 8.0);
+
+        // And the two directions agree: asking which bar is sounding at the
+        // moment a bar starts gives that bar back.
+        for (int pass = 0; pass < order.size(); ++pass) {
+            const double at = Timeline::secondsAtPass(score, order, clock, pass);
+            QCOMPARE(Timeline::barAt(score, order, clock, at), pass);
+        }
+    }
+
+    /** A bar inside a repeat starts more than once, and this is asked by pass. */
+    void aRepeatedBarStartsOncePerPass()
+    {
+        Score score = blank(2);
+        score.masterBars[1].repeatEnd = true;
+        score.masterBars[1].repeatCount = 2;
+
+        const QList<int> order = Timeline::playedOrder(score);
+        QCOMPARE(order.size(), 4);
+        const Timeline::Clock clock(score, order);
+
+        // The same notated bar, two different moments.
+        QCOMPARE(order.at(1), order.at(3));
+        QCOMPARE(Timeline::secondsAtPass(score, order, clock, 1), 2.0);
+        QCOMPARE(Timeline::secondsAtPass(score, order, clock, 3), 6.0);
+    }
 };
 
 QTEST_GUILESS_MAIN(TimelineTest)

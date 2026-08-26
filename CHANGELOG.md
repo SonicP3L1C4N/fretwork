@@ -8,6 +8,73 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## Unreleased — P3
 
+- **Every track is a row down the left, with a drawing of what it is.** A
+  guitar, a bass, a drum kit, a keyboard, or a note for anything else, and the
+  one on the page is filled in. Switching between the guitar, the bass and the
+  drums is the thing a person reading a tab does most often, and it had been a
+  dropdown: a menu makes somebody look for it every time. A list rather than a
+  row of tabs because a score has as many parts as it has — twelve of them run
+  a row out of window, and Virtual Insanity has twelve. The instrument is
+  decided by what the track is rather than by its General MIDI programme,
+  because the programme of a drum kit is an acoustic piano.
+- **The parts are on the far side of the score from the mixer**, because the
+  two panels answer different questions: which part you are looking at, and
+  what it sounds like. A track that cannot be heard is dimmed in both, so they
+  cannot disagree about it.
+- **Every bar of the piece is a box along the bottom.** Click one and the caret
+  and the playhead both go there — playing or stopped, because jumping to a bar
+  is usually the first half of writing something in it. The bar being played is
+  lit in the same magenta the page lights it with, so the strip says where the
+  music is as well as where you are, and it follows along on its own: the music
+  while it plays, the caret while it does not.
+- **The section names are in the strip with the numbers.** "Intro", "Verse",
+  "Chorus" — a row of numbers with no words in it is a ruler rather than a map,
+  and the reason anybody looks for bar 96 is that it is where the second chorus
+  starts.
+- **Where a bar starts and which bar is sounding are the same question asked in
+  two directions**, so `Timeline` answers both — by pass through the played
+  order rather than by bar number, because a bar inside a repeat starts more
+  than once and "when does bar 12 begin" has as many answers as there are times
+  through it. The test asserts the two directions agree.
+- Nothing in the chrome takes the keyboard away from the score any more. A
+  toolbar button that took focus when it was clicked would stop the next number
+  reaching the page, which is the whole point of the program.
+
+- **The window has a look of its own.** Near-black chrome, the score on paper,
+  and one magenta taken from the fret marker on the app icon — a treatment
+  drawn up as a design and then built, rather than arrived at by adjusting
+  things until they stopped annoying anybody.
+- **The colours are the application's own rather than the desktop's.** That is
+  a departure from a KDE application's usual manners and it is the one a PDF
+  reader and an image editor make too: the thing in the middle is a document,
+  and a document that changed colour with the desktop theme would be a
+  different document. The chrome is dark so that the paper is the brightest
+  thing in the window.
+- **The page is drawn in four weights of grey instead of one.** String lines
+  sit behind the music, bar lines divide it, stems and beams are read without
+  being counted, and fret numbers are the blackest thing on the paper. One
+  colour for all of them is what made it look like a spreadsheet.
+- **The bar being played is lit by the painting rather than by the window**, so
+  the fret numbers inside it are drawn in a colour of their own instead of a
+  wash being laid over the top of them. Nothing is lit while the transport is
+  stopped at the beginning: there is no playhead yet, and a lit bar would have
+  the page claim the program is doing something it is not.
+- **The status bar says where the caret is** — "Bar 4 · string 3 · quaver" —
+  next to whatever the program last had to say, and what one press of undo
+  would take back. Naming a duration out loud is `NoteValue`'s job now, which
+  is where the same question was already being answered for the page and the
+  editor.
+- **The mixer and the status bar can be put away** from the toolbar, and stay
+  put away between runs.
+- The track chooser is a button and a menu rather than a combo box: the desktop
+  style draws that one out of the desktop's own colours and keeps a text field
+  underneath its label, so it can be neither recoloured nor taken apart. The
+  menu it opens is left to the desktop, because a popup is chrome the desktop
+  owns and it looks wrong when it is not.
+- The first line of a page had been printing its section name over the title,
+  which the new spacing made obvious. The room a system's labels need is
+  reserved by the layout now rather than assumed to be inside `titleHeight`.
+
 - **It marks notes.** `x` makes a dead note, `g` a ghost note, `p` palm mutes
   and `l` lets ring — the note under the caret, or every note in the selection.
   Only these four, because they are the ones the program can both draw and

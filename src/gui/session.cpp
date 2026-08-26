@@ -5,6 +5,7 @@
 
 #include "fwformat.h"
 #include "gpif.h"
+#include "notevalue.h"
 
 #include <KLocalizedString>
 
@@ -28,6 +29,9 @@ Session::Session(QObject *parent)
         m_playerStale = true;
         rebuildLayout();
         Q_EMIT historyChanged();
+        // What the caret is sitting on may have changed under it, and the
+        // status bar is reading that out.
+        Q_EMIT cursorMoved();
     });
     connect(&m_editor, &Editor::cursorChanged, this, &Session::cursorMoved);
     connect(&m_editor, &Editor::historyChanged, this, &Session::historyChanged);
@@ -48,6 +52,38 @@ Session::Session(QObject *parent)
 }
 
 Session::~Session() = default;
+
+namespace
+{
+/**
+ * Which drawing stands for an instrument.
+ *
+ * By what it is rather than by its General MIDI programme: the programme of a
+ * drum kit is an acoustic piano, and a track called "Guitar II" that somebody
+ * has pointed at a string patch is still a guitar to the person reading the
+ * tab. Anything unrecognised gets a note, which says "a part" and does not
+ * claim to know which.
+ */
+QString iconFor(const Track &track)
+{
+    if (track.isPercussion()) {
+        return QStringLiteral("qrc:/instrument-drums.svg");
+    }
+    const QString kind = track.instrumentType.toLower();
+    if (kind.contains(QLatin1String("bass"))) {
+        return QStringLiteral("qrc:/instrument-bass.svg");
+    }
+    if (kind.contains(QLatin1String("guitar")) || kind.contains(QLatin1String("ukulele"))
+        || kind.contains(QLatin1String("banjo")) || kind.contains(QLatin1String("mandolin"))) {
+        return QStringLiteral("qrc:/instrument-guitar.svg");
+    }
+    if (kind.contains(QLatin1String("piano")) || kind.contains(QLatin1String("synth"))
+        || kind.contains(QLatin1String("organ")) || kind.contains(QLatin1String("keyboard"))) {
+        return QStringLiteral("qrc:/instrument-keys.svg");
+    }
+    return QStringLiteral("qrc:/instrument-note.svg");
+}
+}
 
 bool Session::open(const QString &path)
 {
@@ -127,6 +163,27 @@ void Session::rebuildPlayer()
     }
     m_player = std::move(player);
     m_ticker.start();
+}
+
+QString Session::caretText() const
+{
+    if (!hasScore()) {
+        return QString();
+    }
+    const Cursor cursor = m_editor.cursor();
+    const int strings = Editing::stringCount(m_editor.score(), cursor);
+    // Strings are counted from the thin one down, the way a guitarist names
+    // them: the top string is the first, whatever the model calls it.
+    const int named = strings - cursor.string;
+
+    if (Editing::beatIdAt(m_editor.score(), cursor) < 0) {
+        // One past the end of a bar is a real place to be, and it has no note
+        // value to report because there is nothing there yet.
+        return i18nc("where the caret is", "Bar %1 · string %2 · end of the bar",
+                     cursor.bar + 1, named);
+    }
+    return i18nc("where the caret is", "Bar %1 · string %2 · %3", cursor.bar + 1, named,
+                 NoteValue::nameOf(Editing::durationAt(m_editor.score(), cursor)));
 }
 
 void Session::setStatus(const QString &status)
@@ -212,9 +269,66 @@ double Session::length() const
     return m_player ? m_player->lengthSeconds() : 0;
 }
 
+QStringList Session::trackIcons() const
+{
+    QStringList icons;
+    for (const Track &track : m_editor.score().tracks) {
+        icons.append(iconFor(track));
+    }
+    return icons;
+}
+
+int Session::barCount() const
+{
+    return int(m_editor.score().masterBars.size());
+}
+
+int Session::caretBar() const
+{
+    return hasScore() ? m_editor.cursor().bar : -1;
+}
+
+QString Session::sectionAt(int bar) const
+{
+    const Score &score = m_editor.score();
+    if (bar < 0 || bar >= score.masterBars.size()) {
+        return QString();
+    }
+    return score.masterBars.at(bar).section;
+}
+
+void Session::goToBar(int bar)
+{
+    if (!hasScore()) {
+        return;
+    }
+    const int wanted = std::clamp(bar, 0, int(m_editor.score().masterBars.size()) - 1);
+
+    Cursor at = m_editor.cursor();
+    at.bar = wanted;
+    at.beat = 0;
+    m_editor.setCursor(at);
+
+    // And the playhead with it, playing or not: stopped, this is where the
+    // next press of play starts from, which is what somebody clicking a bar
+    // number almost always wants next.
+    if (m_player && m_clock) {
+        const int pass = int(m_order.indexOf(wanted));
+        if (pass >= 0) {
+            seek(Timeline::secondsAtPass(m_editor.score(), m_order, *m_clock, pass));
+        }
+    }
+}
+
 int Session::currentBar() const
 {
     if (!m_player || !m_clock) {
+        return -1;
+    }
+    // Stopped at the beginning is not "playing bar 1". There is no playhead
+    // yet, and lighting a bar up would have the page say the program is doing
+    // something it is not.
+    if (!m_player->isPlaying() && m_player->positionSeconds() <= 0.0) {
         return -1;
     }
     const int pass = Timeline::barAt(m_editor.score(), m_order, *m_clock, m_player->positionSeconds());

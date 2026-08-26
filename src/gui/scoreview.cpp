@@ -12,17 +12,19 @@
 
 namespace
 {
-/** The colours of the page, taken from the desktop rather than assumed. */
-Tab::Palette paletteFor(const QPalette &desktop)
+/**
+ * The colours of the page on screen.
+ *
+ * The application's own rather than the desktop's, and deliberately: a page is
+ * paper, and it does not become dark because the desktop is. What the window
+ * changes is the paper itself, to the off-white the rest of the window is
+ * built around -- a sheet of pure white inside ink-coloured chrome reads as a
+ * hole rather than as a page.
+ */
+Tab::Palette paletteOfThePage()
 {
     Tab::Palette palette;
-    palette.paper = desktop.color(QPalette::Base);
-    palette.ink = desktop.color(QPalette::Text);
-    palette.staff = desktop.color(QPalette::Text);
-    palette.staff.setAlphaF(0.45);
-    palette.faint = desktop.color(QPalette::Text);
-    palette.faint.setAlphaF(0.5);
-    palette.accent = desktop.color(QPalette::Link);
+    palette.paper = QColor(0xF3, 0xF2, 0xF2);
     return palette;
 }
 }
@@ -214,7 +216,7 @@ void ScoreView::geometryChange(const QRectF &newGeometry, const QRectF &oldGeome
 
 void ScoreView::paint(QPainter *painter)
 {
-    const Tab::Palette palette = paletteFor(QGuiApplication::palette());
+    const Tab::Palette palette = paletteOfThePage();
     painter->fillRect(QRectF(0, 0, width(), height()), palette.paper);
 
     if (!m_session || m_session->layout().isEmpty()) {
@@ -224,24 +226,6 @@ void ScoreView::paint(QPainter *painter)
 
     painter->save();
     painter->translate(0, -m_scrollY);
-
-    if (m_highlighted >= 0) {
-        // The bar being played, marked behind the music rather than over it.
-        QColor wash = palette.accent;
-        wash.setAlphaF(0.13);
-        for (const Tab::System &system : layout.pages.constFirst().systems) {
-            for (const Tab::LaidBar &bar : system.bars) {
-                if (bar.index != m_highlighted) {
-                    continue;
-                }
-                painter->fillRect(QRectF(layout.style.margin + bar.x,
-                                         system.y - layout.style.stringSpacing,
-                                         bar.width,
-                                         layout.systemHeight() + layout.style.stringSpacing),
-                                  wash);
-            }
-        }
-    }
 
     if (m_session->hasSelection()) {
         // Behind the music, like the played bar, and in the same colour the
@@ -286,7 +270,10 @@ void ScoreView::paint(QPainter *painter)
         }
     }
 
-    Tab::paintPage(*painter, layout, 0, palette);
+    // The bar being played is lit by the painting rather than here: it is the
+    // page that knows where a bar is, and the numbers inside it are drawn in a
+    // colour of their own.
+    Tab::paintPage(*painter, layout, 0, palette, m_highlighted);
 
     // The caret, drawn last so it is never behind a fret number.
     const Cursor cursor = m_session->cursor();

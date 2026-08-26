@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
+import QtCore
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC2
@@ -9,6 +10,16 @@ import QtQuick.Dialogs as Dialogs
 import org.kde.kirigami as Kirigami
 import org.kde.fretwork
 
+/**
+ * The window: ink chrome around a page of paper.
+ *
+ * The colours are the application's own rather than the desktop's, and every
+ * one of them is in `Ink.qml`. That is a deliberate departure from a KDE
+ * application's usual manners, and it is the one a PDF reader and an image
+ * editor make too: the thing in the middle is a document, and a document that
+ * changed colour with the desktop theme would be a different document. The
+ * chrome is dark so that the paper is the brightest thing in the window.
+ */
 Kirigami.ApplicationWindow {
     id: root
 
@@ -41,6 +52,17 @@ Kirigami.ApplicationWindow {
     height: Kirigami.Units.gridUnit * 40
     minimumWidth: Kirigami.Units.gridUnit * 30
     minimumHeight: Kirigami.Units.gridUnit * 20
+
+    // Which panels are open, remembered between runs: somebody who works with
+    // the mixer closed should not have to close it every morning.
+    Settings {
+        id: panels
+        category: "Panels"
+        property bool tracks: true
+        property bool mixer: true
+        property bool status: true
+        property bool bars: true
+    }
 
     Session {
         id: session
@@ -143,92 +165,280 @@ Kirigami.ApplicationWindow {
         onActivated: session.deleteBar()
     }
 
+    // ---- the controls the chrome is made of ----
+
+    /**
+     * A square button on ink: an outline, or a filled magenta one.
+     *
+     * Its own component rather than a styled ToolButton, because the desktop
+     * style draws a button the way the desktop wants one -- which is the one
+     * thing this window is deliberately not doing.
+     */
+    component ChromeButton: QQC2.AbstractButton {
+        id: chromeButton
+
+        property bool filled: false
+        property bool outlined: true
+
+        implicitWidth: Ink.control
+        implicitHeight: Ink.control
+        hoverEnabled: true
+        opacity: enabled ? 1 : 0.45
+        // Typing belongs to the score. A toolbar button that took the keyboard
+        // when it was clicked would stop the next number reaching the page.
+        focusPolicy: Qt.NoFocus
+
+        QQC2.ToolTip.text: text
+        QQC2.ToolTip.visible: hovered && text.length > 0
+        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+
+        background: Rectangle {
+            radius: Ink.radius
+            color: chromeButton.filled
+                ? (chromeButton.down || chromeButton.hovered ? Ink.accentHover : Ink.accent)
+                : (chromeButton.down || chromeButton.hovered
+                    ? Qt.rgba(0.95, 0.95, 0.95, 0.12) : "transparent")
+            border.width: chromeButton.outlined && !chromeButton.filled ? 1 : 0
+            border.color: Ink.edge
+        }
+
+        contentItem: Kirigami.Icon {
+            source: chromeButton.icon.name
+            isMask: true
+            color: Ink.paper
+            implicitWidth: Kirigami.Units.iconSizes.small
+            implicitHeight: Kirigami.Units.iconSizes.small
+        }
+    }
+
+    /** A word on the toolbar that turns a panel on and off. */
+    component ChromeToggle: QQC2.AbstractButton {
+        id: chromeToggle
+
+        checkable: true
+        hoverEnabled: true
+        focusPolicy: Qt.NoFocus
+        implicitHeight: Ink.control
+        implicitWidth: toggleLabel.implicitWidth + Kirigami.Units.largeSpacing * 2
+
+        background: Rectangle {
+            radius: Ink.radius
+            color: chromeToggle.checked
+                ? (chromeToggle.hovered ? Ink.accentHover : Ink.accent)
+                : (chromeToggle.hovered ? Qt.rgba(0.95, 0.95, 0.95, 0.12) : "transparent")
+            border.width: chromeToggle.checked ? 0 : 1
+            border.color: Ink.edge
+        }
+
+        contentItem: QQC2.Label {
+            id: toggleLabel
+            text: chromeToggle.text
+            color: Ink.paper
+            opacity: chromeToggle.enabled ? 1 : 0.45
+            font.weight: Font.DemiBold
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+    }
+
+    /** Every slider in the window: a thin track with the accent filling it. */
+    component InkSlider: QQC2.Slider {
+        id: inkSlider
+
+        property color groove: Ink.line
+
+        implicitHeight: Ink.grip + 4
+
+        background: Rectangle {
+            x: inkSlider.leftPadding
+            y: inkSlider.topPadding + inkSlider.availableHeight / 2 - height / 2
+            width: inkSlider.availableWidth
+            height: Ink.groove
+            radius: height / 2
+            color: inkSlider.groove
+
+            Rectangle {
+                width: inkSlider.visualPosition * parent.width
+                height: parent.height
+                radius: parent.radius
+                color: inkSlider.enabled ? Ink.accent : Ink.quiet
+            }
+        }
+
+        handle: Rectangle {
+            x: inkSlider.leftPadding
+               + inkSlider.visualPosition * (inkSlider.availableWidth - width)
+            y: inkSlider.topPadding + inkSlider.availableHeight / 2 - height / 2
+            width: Ink.grip
+            height: Ink.grip
+            radius: width / 2
+            color: inkSlider.pressed ? Ink.accentHover
+                                     : (inkSlider.enabled ? Ink.accent : Ink.quiet)
+        }
+    }
+
+    /**
+     * One track, as a row: what it is, what it is called, and whether it is
+     * the one on the page.
+     *
+     * A list of these down the side rather than a dropdown, because switching
+     * between the guitar, the bass and the drums is the thing a person reading
+     * a tab does most often, and a menu makes them look for it every time. The
+     * drawing is what makes it a glance rather than a read. Down the side and
+     * not across the top because a score has as many parts as it has, and a row
+     * of them runs out of window while a list does not.
+     */
+    component TrackRow: QQC2.AbstractButton {
+        id: trackRow
+
+        property bool current: false
+        property string glyph: ""
+
+        implicitHeight: Kirigami.Units.gridUnit * 2.4
+        hoverEnabled: true
+        focusPolicy: Qt.NoFocus
+
+        background: Rectangle {
+            radius: Ink.radius
+            color: trackRow.current
+                ? (trackRow.hovered ? Ink.accentHover : Ink.accent)
+                : (trackRow.hovered ? Ink.rule : "transparent")
+        }
+
+        contentItem: RowLayout {
+            spacing: Kirigami.Units.largeSpacing
+
+            Kirigami.Icon {
+                Layout.leftMargin: Kirigami.Units.smallSpacing
+                source: trackRow.glyph
+                isMask: true
+                color: trackRow.current ? Ink.paper : Ink.ink
+                implicitWidth: Kirigami.Units.iconSizes.smallMedium
+                implicitHeight: Kirigami.Units.iconSizes.smallMedium
+            }
+
+            QQC2.Label {
+                Layout.fillWidth: true
+                text: trackRow.text
+                color: trackRow.current ? Ink.paper : Ink.ink
+                elide: Text.ElideRight
+                font.weight: trackRow.current ? Font.DemiBold : Font.Normal
+                verticalAlignment: Text.AlignVCenter
+            }
+        }
+    }
+
+    /** S and M: small, square, and lit when they are doing something. */
+    component MixerButton: QQC2.AbstractButton {
+        id: mixerButton
+
+        property color litFill: Ink.accent
+
+        checkable: true
+        hoverEnabled: true
+        focusPolicy: Qt.NoFocus
+        implicitWidth: Ink.smallControl
+        implicitHeight: Ink.smallControl
+
+        QQC2.ToolTip.visible: hovered
+        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+
+        background: Rectangle {
+            radius: Ink.radius
+            color: mixerButton.checked
+                ? mixerButton.litFill
+                : (mixerButton.hovered ? Qt.rgba(0.13, 0.12, 0.11, 0.08) : "transparent")
+            border.width: mixerButton.checked ? 0 : 1
+            border.color: Qt.rgba(0.13, 0.12, 0.11, 0.16)
+        }
+
+        contentItem: QQC2.Label {
+            text: mixerButton.text
+            color: mixerButton.checked ? Ink.paper : Ink.ink
+            font.pointSize: Kirigami.Theme.smallFont.pointSize
+            font.weight: Font.DemiBold
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+    }
+
     // ---- the transport ----
 
-    header: QQC2.ToolBar {
+    header: Rectangle {
+        implicitHeight: Ink.control + Kirigami.Units.largeSpacing * 2
+        color: Ink.ink
+
+        Kirigami.Theme.inherit: false
+        Kirigami.Theme.colorSet: Kirigami.Theme.Complementary
+        Kirigami.Theme.backgroundColor: Ink.ink
+        Kirigami.Theme.textColor: Ink.paper
+        Kirigami.Theme.highlightColor: Ink.accent
+
         RowLayout {
             anchors.fill: parent
-            spacing: Kirigami.Units.smallSpacing
+            anchors.leftMargin: Kirigami.Units.largeSpacing * 2
+            anchors.rightMargin: Kirigami.Units.largeSpacing * 2
+            spacing: Kirigami.Units.smallSpacing * 2
 
-            QQC2.ToolButton {
+            ChromeButton {
                 icon.name: "document-open"
-                text: i18n("Open")
-                display: QQC2.AbstractButton.IconOnly
-                QQC2.ToolTip.text: i18n("Open a Guitar Pro file")
-                QQC2.ToolTip.visible: hovered
+                text: i18n("Open a Guitar Pro file")
                 onClicked: fileDialog.open()
             }
 
-            QQC2.ToolButton {
+            ChromeButton {
                 icon.name: "document-save"
                 enabled: session.hasScore && (session.modified || !session.savesInPlace)
-                display: QQC2.AbstractButton.IconOnly
                 text: session.savesInPlace ? i18n("Save") : i18n("Save as…")
-                QQC2.ToolTip.text: text
-                QQC2.ToolTip.visible: hovered
                 onClicked: root.saveScore()
             }
 
-            Kirigami.Separator {
-                Layout.fillHeight: true
-                Layout.topMargin: Kirigami.Units.smallSpacing
-                Layout.bottomMargin: Kirigami.Units.smallSpacing
-            }
+            Item { implicitWidth: Kirigami.Units.smallSpacing }
 
-            QQC2.ToolButton {
+            ChromeButton {
                 icon.name: "edit-undo"
+                outlined: false
                 enabled: session.canUndo
-                display: QQC2.AbstractButton.IconOnly
                 text: session.canUndo ? i18n("Undo %1", session.undoText) : i18n("Undo")
-                QQC2.ToolTip.text: text
-                QQC2.ToolTip.visible: hovered
                 onClicked: session.undo()
             }
 
-            QQC2.ToolButton {
+            ChromeButton {
                 icon.name: "edit-redo"
+                outlined: false
                 enabled: session.canRedo
-                display: QQC2.AbstractButton.IconOnly
                 text: session.canRedo ? i18n("Redo %1", session.redoText) : i18n("Redo")
-                QQC2.ToolTip.text: text
-                QQC2.ToolTip.visible: hovered
                 onClicked: session.redo()
             }
 
-            Kirigami.Separator {
-                Layout.fillHeight: true
-                Layout.topMargin: Kirigami.Units.smallSpacing
-                Layout.bottomMargin: Kirigami.Units.smallSpacing
-            }
+            Item { implicitWidth: Kirigami.Units.smallSpacing }
 
-            QQC2.ToolButton {
+            ChromeButton {
                 icon.name: session.playing ? "media-playback-pause" : "media-playback-start"
+                filled: true
                 enabled: session.canPlay
-                display: QQC2.AbstractButton.IconOnly
                 text: session.playing ? i18n("Pause") : i18n("Play")
-                QQC2.ToolTip.text: text
-                QQC2.ToolTip.visible: hovered
                 onClicked: session.playing ? session.pause() : session.play()
             }
 
-            QQC2.ToolButton {
+            ChromeButton {
                 icon.name: "media-playback-stop"
                 enabled: session.canPlay
-                display: QQC2.AbstractButton.IconOnly
                 text: i18n("Stop")
-                QQC2.ToolTip.text: text
-                QQC2.ToolTip.visible: hovered
                 onClicked: session.stop()
             }
 
             QQC2.Label {
                 text: session.clock(session.position)
-                font.family: "monospace"
-                opacity: 0.8
+                color: Ink.paper
+                // Tabular figures, so a running clock does not shuffle sideways
+                // as the digits change under it.
+                font.features: ({ "tnum": 1 })
             }
 
-            QQC2.Slider {
+            InkSlider {
                 Layout.fillWidth: true
+                Layout.minimumWidth: Kirigami.Units.gridUnit * 6
                 enabled: session.canPlay && session.length > 0
                 from: 0
                 to: Math.max(1, session.length)
@@ -239,24 +449,37 @@ Kirigami.ApplicationWindow {
 
             QQC2.Label {
                 text: session.clock(session.length)
-                font.family: "monospace"
-                opacity: 0.8
+                color: Ink.faint
+                font.features: ({ "tnum": 1 })
             }
 
-            Kirigami.Separator {
-                Layout.fillHeight: true
-                Layout.topMargin: Kirigami.Units.smallSpacing
-                Layout.bottomMargin: Kirigami.Units.smallSpacing
+            Item { implicitWidth: Kirigami.Units.smallSpacing }
+
+            ChromeToggle {
+                text: i18n("Tracks")
+                enabled: session.hasScore
+                checked: panels.tracks
+                onToggled: panels.tracks = checked
             }
 
-            QQC2.ComboBox {
-                Layout.preferredWidth: Kirigami.Units.gridUnit * 12
-                model: session.trackNames
-                enabled: session.trackCount > 0
-                currentIndex: session.currentTrack
-                onActivated: session.currentTrack = currentIndex
-                QQC2.ToolTip.text: i18n("Which track is shown")
-                QQC2.ToolTip.visible: hovered
+            ChromeToggle {
+                text: i18n("Bars")
+                enabled: session.hasScore
+                checked: panels.bars
+                onToggled: panels.bars = checked
+            }
+
+            ChromeToggle {
+                text: i18n("Mixer")
+                enabled: session.hasScore
+                checked: panels.mixer
+                onToggled: panels.mixer = checked
+            }
+
+            ChromeToggle {
+                text: i18n("Status")
+                checked: panels.status
+                onToggled: panels.status = checked
             }
         }
     }
@@ -266,9 +489,70 @@ Kirigami.ApplicationWindow {
     pageStack.initialPage: Kirigami.Page {
         padding: 0
 
+        Kirigami.Theme.inherit: false
+        Kirigami.Theme.colorSet: Kirigami.Theme.View
+        Kirigami.Theme.backgroundColor: Ink.paper
+        Kirigami.Theme.textColor: Ink.ink
+        Kirigami.Theme.highlightColor: Ink.accent
+
         RowLayout {
             anchors.fill: parent
             spacing: 0
+
+            // The parts, on the far side of the score from the mixer: one of
+            // these panels says which part you are looking at and the other
+            // says what it sounds like, and they are different questions.
+            Rectangle {
+                Layout.preferredWidth: Ink.tracksWidth
+                Layout.fillHeight: true
+                visible: session.hasScore && panels.tracks
+                color: Ink.panel
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: Kirigami.Units.largeSpacing * 2
+                    spacing: Kirigami.Units.largeSpacing
+
+                    Kirigami.Heading {
+                        level: 2
+                        text: i18n("Tracks")
+                        color: Ink.ink
+                    }
+
+                    ListView {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+                        spacing: Kirigami.Units.smallSpacing
+                        boundsBehavior: Flickable.StopAtBounds
+                        model: session.trackCount
+
+                        delegate: TrackRow {
+                            required property int index
+
+                            width: ListView.view.width
+                            glyph: session.trackIcons[index]
+                            text: session.trackNames[index]
+                            current: index === session.currentTrack
+                            // Dimmed where it cannot be heard, the same as the
+                            // mixer dims it: two panels disagreeing about
+                            // whether a track is on would be worse than either.
+                            opacity: (root.mixerRevision, session.isAudible(index)) ? 1.0 : 0.5
+                            onClicked: {
+                                session.currentTrack = index
+                                view.forceActiveFocus()
+                            }
+                        }
+                    }
+                }
+
+                Kirigami.Separator {
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    color: Ink.rule
+                }
+            }
 
             Item {
                 Layout.fillWidth: true
@@ -384,19 +668,36 @@ Kirigami.ApplicationWindow {
                     }
                 }
 
-                QQC2.ToolButton {
+                // On the paper rather than on the ink, so this one is drawn
+                // the other way round: ink on paper until it is doing
+                // something, and then paper on magenta.
+                ChromeButton {
+                    id: followButton
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
                     anchors.margins: Kirigami.Units.largeSpacing
                     icon.name: "followmouse"
-                    checkable: true
-                    checked: view.followPlayhead
+                    filled: view.followPlayhead
                     visible: session.hasScore
                     text: i18n("Follow the playhead")
-                    display: QQC2.AbstractButton.IconOnly
-                    QQC2.ToolTip.text: text
-                    QQC2.ToolTip.visible: hovered
-                    onToggled: view.followPlayhead = checked
+                    onClicked: view.followPlayhead = !view.followPlayhead
+
+                    background: Rectangle {
+                        radius: Ink.radius
+                        color: view.followPlayhead
+                            ? (followButton.hovered ? Ink.accentHover : Ink.accent)
+                            : (followButton.hovered ? Ink.rule : Ink.panel)
+                        border.width: view.followPlayhead ? 0 : 1
+                        border.color: Ink.staff
+                    }
+
+                    contentItem: Kirigami.Icon {
+                        source: "followmouse"
+                        isMask: true
+                        color: view.followPlayhead ? Ink.paper : Ink.ink
+                        implicitWidth: Kirigami.Units.iconSizes.small
+                        implicitHeight: Kirigami.Units.iconSizes.small
+                    }
                 }
 
                 Kirigami.PlaceholderMessage {
@@ -414,110 +715,278 @@ Kirigami.ApplicationWindow {
                 }
             }
 
-            Kirigami.Separator {
-                Layout.fillHeight: true
-                visible: session.hasScore
-            }
-
             // The mixer. Every track has a synth of its own, so soloing is not
             // a re-render -- it is one atomic store away from being heard.
-            QQC2.ScrollView {
-                Layout.preferredWidth: Kirigami.Units.gridUnit * 15
+            Rectangle {
+                Layout.preferredWidth: Ink.mixerWidth
                 Layout.fillHeight: true
-                visible: session.hasScore
-                clip: true
+                visible: session.hasScore && panels.mixer
+                color: Ink.panel
 
-                ColumnLayout {
-                    width: Kirigami.Units.gridUnit * 14
-                    spacing: Kirigami.Units.smallSpacing
+                Kirigami.Separator {
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    color: Ink.rule
+                }
 
-                    Kirigami.Heading {
-                        level: 4
-                        text: i18n("Mixer")
-                        Layout.margins: Kirigami.Units.largeSpacing
-                        Layout.bottomMargin: 0
-                    }
+                QQC2.ScrollView {
+                    id: mixerScroll
+                    anchors.fill: parent
+                    anchors.margins: Kirigami.Units.largeSpacing * 2
+                    clip: true
+                    // Nothing in a mixer strip wants to scroll sideways, and a
+                    // horizontal bar that appears because a slider is a pixel
+                    // too wide is worse than no bar at all.
+                    contentWidth: availableWidth
 
-                    Repeater {
-                        model: session.trackCount
+                    ColumnLayout {
+                        width: mixerScroll.availableWidth
+                        spacing: Kirigami.Units.largeSpacing * 2
 
-                        delegate: ColumnLayout {
-                            required property int index
+                        Kirigami.Heading {
+                            level: 2
+                            text: i18n("Mixer")
+                            color: Ink.ink
+                        }
 
-                            Layout.fillWidth: true
-                            Layout.leftMargin: Kirigami.Units.largeSpacing
-                            Layout.rightMargin: Kirigami.Units.largeSpacing
-                            Layout.topMargin: Kirigami.Units.smallSpacing
-                            spacing: 0
+                        Repeater {
+                            model: session.trackCount
 
-                            // The comma is not a mistake: it makes this binding
-                            // depend on mixerRevision, which is the only thing
-                            // that changes when another track is soloed.
-                            opacity: (root.mixerRevision, session.isAudible(index)) ? 1.0 : 0.4
+                            delegate: ColumnLayout {
+                                required property int index
 
-                            RowLayout {
                                 Layout.fillWidth: true
+                                spacing: Kirigami.Units.smallSpacing
 
-                                QQC2.Label {
+                                // The comma is not a mistake: it makes this
+                                // binding depend on mixerRevision, which is the
+                                // only thing that changes when another track is
+                                // soloed.
+                                opacity: (root.mixerRevision, session.isAudible(index)) ? 1.0 : 0.5
+
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    text: session.trackNames[index]
-                                    elide: Text.ElideRight
-                                    font.bold: index === session.currentTrack
+                                    spacing: Kirigami.Units.smallSpacing
+
+                                    QQC2.Label {
+                                        Layout.fillWidth: true
+                                        text: session.trackNames[index]
+                                        elide: Text.ElideRight
+                                        color: (root.mixerRevision, session.isSolo(index))
+                                            ? Ink.accentDeep : Ink.ink
+                                        font.weight: (root.mixerRevision, session.isSolo(index))
+                                            ? Font.DemiBold : Font.Normal
+                                    }
+
+                                    MixerButton {
+                                        text: i18n("S")
+                                        checked: (root.mixerRevision, session.isSolo(index))
+                                        QQC2.ToolTip.text: i18n("Hear only this")
+                                        onToggled: session.setSolo(index, checked)
+                                    }
+
+                                    MixerButton {
+                                        text: i18n("M")
+                                        litFill: Ink.ink
+                                        checked: (root.mixerRevision, session.isMuted(index))
+                                        QQC2.ToolTip.text: i18n("Silence this")
+                                        onToggled: session.setMuted(index, checked)
+                                    }
                                 }
 
-                                QQC2.ToolButton {
-                                    text: i18n("S")
-                                    checkable: true
-                                    checked: (root.mixerRevision, session.isSolo(index))
-                                    implicitWidth: Kirigami.Units.gridUnit * 1.8
-                                    QQC2.ToolTip.text: i18n("Hear only this")
-                                    QQC2.ToolTip.visible: hovered
-                                    onToggled: session.setSolo(index, checked)
+                                InkSlider {
+                                    Layout.fillWidth: true
+                                    groove: Ink.rule
+                                    from: 0
+                                    to: 2
+                                    value: session.gain(index)
+                                    onMoved: session.setGain(index, value)
                                 }
-
-                                QQC2.ToolButton {
-                                    text: i18n("M")
-                                    checkable: true
-                                    checked: (root.mixerRevision, session.isMuted(index))
-                                    implicitWidth: Kirigami.Units.gridUnit * 1.8
-                                    QQC2.ToolTip.text: i18n("Silence this")
-                                    QQC2.ToolTip.visible: hovered
-                                    onToggled: session.setMuted(index, checked)
-                                }
-                            }
-
-                            QQC2.Slider {
-                                Layout.fillWidth: true
-                                from: 0
-                                to: 2
-                                value: session.gain(index)
-                                onMoved: session.setGain(index, value)
                             }
                         }
-                    }
 
-                    Item {
-                        Layout.fillHeight: true
+                        QQC2.Label {
+                            Layout.fillWidth: true
+                            Layout.topMargin: Kirigami.Units.largeSpacing
+                            text: i18n("One synth per track. Solo and mute take effect live.")
+                            color: Ink.quiet
+                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                            wrapMode: Text.WordWrap
+                        }
+
+                        Item {
+                            Layout.fillHeight: true
+                        }
                     }
                 }
             }
         }
     }
 
-    footer: QQC2.ToolBar {
-        visible: session.status.length > 0
-        contentItem: RowLayout {
-            Kirigami.Icon {
-                source: "dialog-information"
-                implicitWidth: Kirigami.Units.iconSizes.small
-                implicitHeight: Kirigami.Units.iconSizes.small
+    // ---- the bars, and the status bar ----
+
+    footer: ColumnLayout {
+        spacing: 0
+
+        /**
+         * Every bar of the piece, in a row.
+         *
+         * A score is read a line at a time and navigated a bar at a time, and
+         * until now the only way to reach bar 96 was to scroll to it. The bar
+         * being played is lit in the same colour the page lights it, so this
+         * says where the music is as well as where you are.
+         */
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: Ink.barBoxHeight + Kirigami.Units.largeSpacing * 2
+            visible: panels.bars && session.hasScore
+            color: Ink.panelDeep
+
+            Kirigami.Separator {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                color: Ink.rule
             }
+
+            ListView {
+                id: barStrip
+
+                property int lit: -1
+
+                anchors.fill: parent
+                anchors.leftMargin: Kirigami.Units.largeSpacing * 2
+                anchors.rightMargin: Kirigami.Units.largeSpacing * 2
+                orientation: ListView.Horizontal
+                spacing: Kirigami.Units.smallSpacing
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                model: session.barCount
+
+                delegate: RowLayout {
+                    id: barCell
+                    required property int index
+
+                    property string section: session.sectionAt(index)
+                    property bool playing: index === session.currentBar
+                    property bool atCaret: index === session.caretBar
+
+                    height: barStrip.height
+                    spacing: Kirigami.Units.smallSpacing
+
+                    // Where the score names a section, its name goes in front
+                    // of the bar it starts: a strip of numbers with no words in
+                    // it is a ruler rather than a map.
+                    QQC2.Label {
+                        Layout.leftMargin: Kirigami.Units.smallSpacing
+                        visible: barCell.section.length > 0
+                        text: barCell.section
+                        color: Ink.quiet
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                        font.weight: Font.DemiBold
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    Rectangle {
+                        Layout.preferredWidth: Ink.barBoxWidth
+                        Layout.preferredHeight: Ink.barBoxHeight
+                        Layout.alignment: Qt.AlignVCenter
+                        radius: Ink.radius
+                        color: barCell.playing ? Ink.accent
+                             : (barCell.atCaret ? Ink.accentTint
+                             : (barMouse.containsMouse ? Ink.rule : Ink.paper))
+                        border.width: 1
+                        border.color: barCell.atCaret && !barCell.playing ? Ink.accent : Ink.rule
+
+                        QQC2.Label {
+                            anchors.centerIn: parent
+                            text: barCell.index + 1
+                            color: barCell.playing ? Ink.paper
+                                 : (barCell.atCaret ? Ink.accentDeep : Ink.ink)
+                            font.weight: barCell.playing || barCell.atCaret
+                                ? Font.DemiBold : Font.Normal
+                            font.features: ({ "tnum": 1 })
+                        }
+
+                        MouseArea {
+                            id: barMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                session.goToBar(barCell.index)
+                                // Jumping to a bar is usually the first half of
+                                // writing something in it.
+                                view.forceActiveFocus()
+                            }
+                        }
+                    }
+                }
+
+                // Following the music, and following the caret: both put a bar
+                // in view, and neither drags the strip about while the other is
+                // what somebody is watching.
+                Connections {
+                    target: session
+
+                    function onPositionChanged() {
+                        if (session.playing && session.currentBar !== barStrip.lit) {
+                            barStrip.lit = session.currentBar
+                            if (barStrip.lit >= 0) {
+                                barStrip.positionViewAtIndex(barStrip.lit, ListView.Contain)
+                            }
+                        }
+                    }
+
+                    function onCursorMoved() {
+                        if (!session.playing && session.caretBar >= 0) {
+                            barStrip.positionViewAtIndex(session.caretBar, ListView.Contain)
+                        }
+                    }
+                }
+            }
+        }
+
+    Rectangle {
+        Layout.fillWidth: true
+        implicitHeight: Kirigami.Units.gridUnit * 1.9
+        visible: panels.status
+        color: Ink.ink
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: Kirigami.Units.largeSpacing * 2
+            anchors.rightMargin: Kirigami.Units.largeSpacing * 2
+            spacing: Kirigami.Units.largeSpacing * 2
+
+            // Where the caret is. First, because it is the one thing on this
+            // bar that is true at every moment.
+            QQC2.Label {
+                text: session.caretText
+                color: Ink.paper
+                font.pointSize: Kirigami.Theme.smallFont.pointSize
+                font.weight: Font.DemiBold
+                visible: session.hasScore
+            }
+
             QQC2.Label {
                 Layout.fillWidth: true
                 text: session.status
+                color: Ink.faint
                 elide: Text.ElideRight
-                opacity: 0.8
+                font.pointSize: Kirigami.Theme.smallFont.pointSize
+            }
+
+            // What one press of undo would take back, in the colour the accent
+            // becomes on ink.
+            QQC2.Label {
+                text: i18n("Undo: %1", session.undoText)
+                color: Ink.accentOnInk
+                visible: session.canUndo
+                font.pointSize: Kirigami.Theme.smallFont.pointSize
             }
         }
+    }
     }
 }

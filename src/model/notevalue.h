@@ -5,6 +5,8 @@
 
 #include "rational.h"
 
+#include <QString>
+
 /**
  * What a duration was written as.
  *
@@ -56,4 +58,14 @@ Rational valueOf(int denominator);
 
 /** How many beams a value carries: none for a crotchet, one for a quaver. */
 int beamsOf(const Rational &value);
+
+/**
+ * What to call it: "quaver", "dotted crotchet", "triplet quaver".
+ *
+ * For saying out loud -- a status bar, a tooltip -- rather than for drawing.
+ * Anything that is not a written value is named by the value it is written as
+ * and marked as a tuplet, because "five sixths of a crotchet" is not a thing
+ * anybody has ever said about a piece of music.
+ */
+QString nameOf(const Rational &duration);
 }

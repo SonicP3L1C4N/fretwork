@@ -61,17 +61,29 @@ qt_add_resources(fretwork "appicon"
     PREFIX "/"
     BASE ${CMAKE_SOURCE_DIR}/icons
     FILES ${CMAKE_SOURCE_DIR}/icons/sc-apps-io.github.sonicp3l1c4n.fretwork.svg
+          ${CMAKE_SOURCE_DIR}/icons/instrument-guitar.svg
+          ${CMAKE_SOURCE_DIR}/icons/instrument-bass.svg
+          ${CMAKE_SOURCE_DIR}/icons/instrument-drums.svg
+          ${CMAKE_SOURCE_DIR}/icons/instrument-keys.svg
+          ${CMAKE_SOURCE_DIR}/icons/instrument-note.svg
 )
 
 # Aliased to the root of the module: without this the type is registered under
 # the directory it happens to sit in, and the module has no "Main" in it.
 set_source_files_properties(gui/Main.qml PROPERTIES QT_RESOURCE_ALIAS Main.qml)
 
+# The colours, in one place and available to every file in the module.
+set_source_files_properties(gui/Ink.qml PROPERTIES
+    QT_RESOURCE_ALIAS Ink.qml
+    QT_QML_SINGLETON_TYPE TRUE
+)
+
 qt_add_qml_module(fretwork
     URI org.kde.fretwork
     VERSION 1.0
     QML_FILES
         gui/Main.qml
+        gui/Ink.qml
 )
 
 target_link_libraries(fretwork PRIVATE

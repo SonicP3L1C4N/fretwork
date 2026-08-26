@@ -149,4 +149,14 @@ double seconds(const Score &score, const QList<int> &order);
  * on. Returns -1 before the beginning and after the end.
  */
 int barAt(const Score &score, const QList<int> &order, const Clock &clock, double seconds);
+
+/**
+ * When a pass through the played order begins, in seconds.
+ *
+ * The other direction of `barAt`, and indexed the same way: a pass rather than
+ * a bar, because a bar inside a repeat happens more than once and "when does
+ * bar 12 start" has as many answers as there are times through it.
+ */
+double secondsAtPass(const Score &score, const QList<int> &order, const Clock &clock,
+                     int pass);
 }

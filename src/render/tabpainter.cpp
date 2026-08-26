@@ -53,10 +53,10 @@ void paintRhythm(QPainter &painter, const Tab::Layout &layout, const Tab::LaidBe
     if (rhythm.rest) {
         const qreal middle = top + layout.staffHeight() / 2;
         painter.fillRect(QRectF(x - style.restWidth / 2, middle - 1.1, style.restWidth, 2.2),
-                         palette.staff);
+                         palette.rhythm);
     }
 
-    painter.setPen(QPen(palette.staff, 0.9));
+    painter.setPen(QPen(palette.rhythm, 0.9));
     painter.setBrush(Qt::NoBrush);
     if (rhythm.stem) {
         painter.drawLine(QPointF(x, stemTop), QPointF(x, foot));
@@ -72,7 +72,7 @@ void paintRhythm(QPainter &painter, const Tab::Layout &layout, const Tab::LaidBe
         return foot - level * style.beamSpacing;
     };
     const int shared = std::max(rhythm.beamLeft, rhythm.beamRight);
-    painter.setPen(QPen(palette.staff, style.beamThickness));
+    painter.setPen(QPen(palette.rhythm, style.beamThickness));
 
     for (int level = 0; level < rhythm.beamRight; ++level) {
         painter.drawLine(QPointF(x, beamAt(level)), QPointF(nextX, beamAt(level)));
@@ -97,7 +97,7 @@ void paintRhythm(QPainter &painter, const Tab::Layout &layout, const Tab::LaidBe
         // does not put its dot through the beam.
         const qreal dotY = beamAt(std::max({rhythm.flags, shared + rhythm.stubs}));
         painter.setPen(Qt::NoPen);
-        painter.setBrush(palette.staff);
+        painter.setBrush(palette.rhythm);
         for (int index = 0; index < rhythm.dots; ++index) {
             painter.drawEllipse(QPointF(x + 2.6 + index * 2.2, dotY), 0.7, 0.7);
         }
@@ -156,7 +156,7 @@ void paintRuns(QPainter &painter, const Tab::Layout &layout, const Tab::System &
 }
 
 void paintSystem(QPainter &painter, const Tab::Layout &layout, const Tab::System &system,
-                 const Tab::Palette &palette)
+                 const Tab::Palette &palette, int playingBar)
 {
     const Tab::Style &style = layout.style;
     const qreal left = style.margin;
@@ -168,7 +168,24 @@ void paintSystem(QPainter &painter, const Tab::Layout &layout, const Tab::System
         width = std::max(width, bar.x + bar.width);
     }
 
-    painter.setPen(QPen(palette.staff, 0.6));
+    // The bar being played, washed in behind everything else: over the music
+    // it would be a highlighter pen, and the point is to be able to read what
+    // is under it. Up as far as the bar number, so the number is lit too --
+    // that is the label a reader is looking for when they are lost.
+    for (const Tab::LaidBar &bar : system.bars) {
+        if (bar.index != playingBar) {
+            continue;
+        }
+        const qreal above = style.markGap + style.labelSize * 2.4;
+        painter.fillRect(QRectF(left + bar.x, top - above, bar.width,
+                                above + layout.systemHeight()),
+                         palette.playing);
+    }
+
+    // Wider than the bar lines are, which looks wrong written down and is
+    // right on a screen: the string lines are the palest thing on the page, and
+    // a pale line thinner than a pixel is antialiased into nothing at all.
+    painter.setPen(QPen(palette.staff, 0.9));
     for (int string = 0; string < layout.strings; ++string) {
         const qreal y = lineY(layout, top, string);
         painter.drawLine(QPointF(left, y), QPointF(left + width, y));
@@ -176,15 +193,16 @@ void paintSystem(QPainter &painter, const Tab::Layout &layout, const Tab::System
 
     for (const Tab::LaidBar &bar : system.bars) {
         const qreal x = left + bar.x;
+        const bool playing = bar.index == playingBar;
 
-        painter.setPen(QPen(palette.staff, bar.repeatStart ? 1.6 : 0.6));
+        painter.setPen(QPen(palette.barline, bar.repeatStart ? 1.6 : 0.6));
         painter.drawLine(QPointF(x, top), QPointF(x, top + staff));
         if (bar.repeatStart) {
             painter.drawLine(QPointF(x + 3, top), QPointF(x + 3, top + staff));
         }
         if (bar.repeatEnd) {
             const qreal end = left + bar.x + bar.width;
-            painter.setPen(QPen(palette.staff, 1.6));
+            painter.setPen(QPen(palette.barline, 1.6));
             painter.drawLine(QPointF(end - 3, top), QPointF(end - 3, top + staff));
         }
 
@@ -246,9 +264,11 @@ void paintSystem(QPainter &painter, const Tab::Layout &layout, const Tab::System
 
                 // The string line is cleared behind the number rather than
                 // drawn through it, which is how tablature has always been set.
-                painter.fillRect(box.adjusted(2.5, 1, -2.5, -1), palette.paper);
-                painter.setPen(note.bend || note.slide || note.hammer ? palette.accent
-                                                                      : palette.ink);
+                painter.fillRect(box.adjusted(2.5, 1, -2.5, -1),
+                                 playing ? palette.playing : palette.paper);
+                painter.setPen(note.bend || note.slide || note.hammer
+                                   ? palette.accent
+                                   : (playing ? palette.playingInk : palette.ink));
                 painter.drawText(box, Qt::AlignCenter, note.text);
             }
         }
@@ -257,13 +277,13 @@ void paintSystem(QPainter &painter, const Tab::Layout &layout, const Tab::System
     paintRuns(painter, layout, system, palette);
 
     // The closing barline of the system.
-    painter.setPen(QPen(palette.staff, 0.6));
+    painter.setPen(QPen(palette.barline, 0.6));
     painter.drawLine(QPointF(left + width, top), QPointF(left + width, top + staff));
 }
 }
 
 void Tab::paintPage(QPainter &painter, const Layout &layout, int pageIndex,
-                    const Palette &palette)
+                    const Palette &palette, int playingBar)
 {
     if (pageIndex < 0 || pageIndex >= layout.pages.size()) {
         return;
@@ -302,7 +322,7 @@ void Tab::paintPage(QPainter &painter, const Layout &layout, int pageIndex,
     }
 
     for (const System &system : layout.pages.at(pageIndex).systems) {
-        paintSystem(painter, layout, system, palette);
+        paintSystem(painter, layout, system, palette, playingBar);
     }
 }
 

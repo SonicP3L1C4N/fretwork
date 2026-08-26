@@ -33,9 +33,17 @@ played lit up as it goes.
 
 ![The Fretwork window showing Horses by Slomosa: tablature on the left, mixer on the right](docs/window.png)
 
+Every track is a row down the left with a drawing of what it is — a guitar, a
+bass, a drum kit — opposite the mixer, which says what it sounds like. Every
+bar of the piece is a box along the bottom, with the section names in among the
+numbers: click one and the caret and the playhead both go there, and while it
+plays the strip follows the music.
+
 Every track has a synthesiser of its own, so the **S** and **M** buttons take
 effect while it plays — no re-render, no bounce. The view follows the playhead
-until you scroll, and then leaves you where you looked.
+until you scroll, and then leaves you where you looked. The bar strip, the
+mixer and the status bar can each be put away from the toolbar, and stay put
+away.
 
 Where a score is beyond what it can honestly play, it says so rather than
 playing it wrongly:
@@ -263,11 +271,30 @@ python3 spike/gp2midi.py FILE.gp --no-repeats    # as notated, not as played
 No dependencies beyond the standard library, on purpose: a spike that needs a
 virtualenv is a spike nobody runs twice.
 
+## The look
+
+Ink chrome, paper in the middle, and one magenta taken from the fret marker on
+the app icon. The colours are the application's own rather than the desktop's,
+which is the choice a PDF reader makes and for the same reason: the thing in
+the middle is a document, and a document that changed colour with the desktop
+theme would be a different document. The chrome is dark so that the paper is
+the brightest thing in the window.
+
+They live in exactly two places — `src/gui/Ink.qml` for the window and
+`Tab::Palette` in `src/render/tabpainter.h` for the page — because C++ paints
+the score and QML paints everything round it, and neither can read the other's
+constants. The page is printed on white rather than on the window's off-white,
+which is the one colour a sheet of paper wants left alone.
+
 ## The icon
 
 An F built from a nut and strings, with a fret marker on it — drawn for this
 project, and ours like the rest of the artwork. Six raster sizes, a scalable
 copy, and a symbolic version, in `icons/`.
+
+The instrument drawings in the track list are ours too, in the same idiom and
+in the same directory: no icon theme ships a guitar, a bass or a drum kit, and
+a list that told them apart by their labels alone would be a list of words.
 
 ## Names and law
 
