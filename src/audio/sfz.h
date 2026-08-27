@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "noises.h"
+
 #include <QList>
 #include <QString>
 
@@ -105,6 +107,18 @@ struct Region {
     double release = 0.05;
 
     /**
+     * How much quieter a release recording is for every second the note was
+     * held, in decibels.
+     *
+     * The one opcode a release sample cannot do without. A string let go after
+     * a beat still has most of its energy and lets go audibly; the same string
+     * after eight bars has almost none, and a library that played the same
+     * recording for both would put a click on the end of every held note.
+     * Emily and Growlybass both say 7.
+     */
+    double releaseDecayDb = 0;
+
+    /**
      * A region in a group can silence the others in it.
      *
      * What a guitar needs it for: two notes on one string cannot sound at
@@ -146,6 +160,25 @@ struct Library {
  * beside forty others tells nobody anything.
  */
 QList<Library> found(const QStringList &roots, int maximumDepth = 5);
+
+/**
+ * Which of this instrument's keys are noises rather than notes.
+ *
+ * Discovered rather than configured, because a per-library table is a table
+ * that is wrong the first time somebody installs a library nobody has seen.
+ * Two things have to be true of a region before its key is called a noise:
+ * its sample is filed under a name that says what it is -- `noises/`,
+ * `scrape/`, `fingering1_rr3.wav` -- and its key sits above the highest note
+ * the instrument can actually play. Either test alone is too weak. A library
+ * with a `mute/` folder of palm-muted notes across the whole neck passes the
+ * first and fails the second, which is the point of having the second.
+ *
+ * Only regions that fire on the attack are considered. A release recording is
+ * a noise by any ordinary meaning of the word and is not one here: it is
+ * asked for by letting a note go, never by playing a key, so it has no key to
+ * put in a map.
+ */
+Noises::Map noises(const Instrument &instrument);
 
 /** Reads an `.sfz`. Empty, with `error` set, where it cannot. */
 Instrument read(const QString &path, QString *error = nullptr);

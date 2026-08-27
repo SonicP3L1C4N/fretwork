@@ -172,6 +172,19 @@ restrike. This layer — notation to events — is the difference between soundi
 like a guitar and sounding like a MIDI file from 1998, and it is where the
 project's effort should go.
 
+**The noises are notes, and which notes is discovered.** A sample library keeps
+its fingering squeaks, dead notes and pick-rests as regions above the top of the
+instrument's range — Emily at 90 to 96, Growlybass at 81 to 84 — and the keys
+differ per library, so nothing may hardcode one. The map is found from whichever
+library is loaded, by two tests that have to hold together: the sample is filed
+under a name that says what it is, and its key sits above the highest note the
+instrument can actually play. Either test alone is too weak, and a per-library
+table would be wrong the first time somebody installs a library nobody has seen.
+`Timeline` is handed that map and decides *when* — a position shift on a wound
+string, a dead note, a part coming to a stop — because the score is the only
+thing that knows. What reaches the engine is a note number like any other, and
+the sampler goes on knowing nothing about guitars.
+
 **One rule above all others: the engine is `fill(frames, at_sample_position)`
 and nothing more.** Live playback drives it from the PipeWire callback; stem
 export drives it from a loop, faster than real time, producing bit-identical

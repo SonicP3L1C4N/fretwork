@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "noises.h"
 #include "score.h"
 
 /**
@@ -43,6 +44,16 @@ struct NoteEvent {
     int velocity = 0;
     int channel = 0;    //< inside this track's own synth, not a global MIDI bus
     int string = -1;
+    int fret = 0;
+
+    /**
+     * A dead note: struck with the fretting hand resting on the string.
+     *
+     * Carried here as well as expressed as a short quiet note, because a
+     * library with a recording of one plays that instead, and a synthesiser
+     * with no such recording goes on doing what it did.
+     */
+    bool muted = false;
 
     /**
      * Empty for the great majority of notes. Where it is not, the first point
@@ -128,8 +139,32 @@ QList<NoteEvent> notesFor(const Score &score, int trackIndex, const QList<int> &
  * Sorted by time, and by kind where two land together: a channel is told its
  * bend range before it is asked to play, and returned to centre after a bent
  * note rather than during the next one.
+ *
+ * `noises` is what the instrument playing this can make besides notes, and is
+ * empty for everything that is not a sample library with the recordings in it.
+ * Where it is not empty, this is the layer that decides *when* -- a position
+ * shift, a dead note, a part coming to a stop -- because the score is the only
+ * thing that knows, and a sampler that worked it out for itself would be a
+ * sampler that knew what a guitar was. The result is a note number like any
+ * other by the time it leaves here.
+ *
+ * Deliberately not given to the MIDI writer, which calls this without one: a
+ * `.mid` carrying note 90 on a guitar channel is a file that plays a squeak as
+ * an F#6 in every other program that opens it.
  */
-QList<Message> messagesFor(const Score &score, int trackIndex, const QList<int> &order);
+QList<Message> messagesFor(const Score &score, int trackIndex, const QList<int> &order,
+                           const Noises::Map &noises = {});
+
+/**
+ * The noises a performance asks for, as notes of their own.
+ *
+ * Separated from `messagesFor` so that a test can say which noise landed where
+ * without reading it out of a stream of bend messages, and so that the rules
+ * -- how far a hand has to move to be heard moving, how much silence is a stop
+ * rather than a rest -- are in one place to be argued with.
+ */
+QList<NoteEvent> noisesFor(const Score &score, int trackIndex, const QList<int> &order,
+                           const Noises::Map &noises);
 
 /**
  * A click on every beat of the performance, which is a part no file contains.

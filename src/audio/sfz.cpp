@@ -100,6 +100,7 @@ Sfz::Region regionFrom(const Level &settings, const QString &directory,
     region.loopStart = qint64(number("loop_start", 0));
     region.loopEnd = qint64(number("loop_end", -1));
     region.release = number("ampeg_release", 0.05);
+    region.releaseDecayDb = number("rt_decay", 0);
     region.group = int(number("group", 0));
     region.lowRandom = number("lorand", 0);
     region.highRandom = number("hirand", 1);
@@ -235,6 +236,111 @@ Sfz::Instrument Sfz::parse(const QString &text, const QString &directory, QStrin
                                 "<region> with a sample");
     }
     return instrument;
+}
+
+namespace
+{
+/** Which noise a sample path names, or None where it names none. */
+enum class Named {
+    None,
+    Fingering,
+    Muted,
+    PickRest,
+    Scrape,
+};
+
+/**
+ * What a library calls the recording, reduced to which noise it is.
+ *
+ * The folder and the file name together, because libraries put the answer in
+ * one or the other and not reliably in both: Emily files everything under
+ * `noises/` and distinguishes them by file name, Growlybass names the folder
+ * `scrape/` and numbers the files.
+ *
+ * Read in order of how specific the word is. "pickrest" would otherwise be
+ * caught by nothing and "muted3" by anything looking for "mute" first is
+ * fine, but a file called `slide_mute` should be the mute -- so the words
+ * that name a thing come before the words that name a manner.
+ */
+Named namedIn(const QString &sample)
+{
+    const QString tail = QFileInfo(sample).dir().dirName().toLower()
+        + QLatin1Char('/') + QFileInfo(sample).fileName().toLower();
+
+    const auto has = [&tail](const char *word) {
+        return tail.contains(QLatin1String(word));
+    };
+    if (has("scrape") || has("scratch")) {
+        return Named::Scrape;
+    }
+    if (has("pickrest") || has("pick_rest") || has("pickstop") || has("pick_stop")) {
+        return Named::PickRest;
+    }
+    if (has("mute") || has("dead")) {
+        return Named::Muted;
+    }
+    if (has("finger") || has("squeak") || has("slide")) {
+        return Named::Fingering;
+    }
+    return Named::None;
+}
+
+void addSorted(QList<int> *keys, int from, int to)
+{
+    for (int key = from; key <= to; ++key) {
+        if (!keys->contains(key)) {
+            keys->append(key);
+        }
+    }
+    std::sort(keys->begin(), keys->end());
+}
+}
+
+Noises::Map Sfz::noises(const Instrument &instrument)
+{
+    // The top of what the instrument can play, which is every attack region
+    // whose sample is not filed under a noise. An instrument that is nothing
+    // but noises leaves this at -1 and every one of them qualifies, which is
+    // the right answer for a mapping that holds only scrapes.
+    int highestNote = -1;
+    for (const Region &region : instrument.regions) {
+        if (region.trigger != Region::Trigger::Attack || region.sample.isEmpty()) {
+            continue;
+        }
+        if (namedIn(region.sample) == Named::None) {
+            highestNote = std::max(highestNote, region.highKey);
+        }
+    }
+
+    Noises::Map map;
+    for (const Region &region : instrument.regions) {
+        if (region.trigger != Region::Trigger::Attack || region.sample.isEmpty()) {
+            continue;
+        }
+        // Above the range, all of it. A region straddling the top note is a
+        // region that answers to notes as well, and playing it as a noise
+        // would put a squeak where somebody wrote a note.
+        if (region.lowKey <= highestNote) {
+            continue;
+        }
+        switch (namedIn(region.sample)) {
+        case Named::Fingering:
+            addSorted(&map.fingering, region.lowKey, region.highKey);
+            break;
+        case Named::Muted:
+            addSorted(&map.muted, region.lowKey, region.highKey);
+            break;
+        case Named::PickRest:
+            addSorted(&map.pickRest, region.lowKey, region.highKey);
+            break;
+        case Named::Scrape:
+            addSorted(&map.scrape, region.lowKey, region.highKey);
+            break;
+        case Named::None:
+            break;
+        }
+    }
+    return map;
 }
 
 Sfz::Instrument Sfz::read(const QString &path, QString *error)

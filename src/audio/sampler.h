@@ -105,9 +105,41 @@ private:
         Timeline::Message message;
     };
 
-    void dispatch(const Timeline::Message &message);
-    void startNote(int channel, int key, int velocity);
-    void releaseNote(int channel, int key);
+    /**
+     * What a key is doing, per channel and note, so that letting it go can be
+     * answered properly.
+     *
+     * A release recording needs two things the note-off message does not
+     * carry: how hard the note was struck, since the library layers its
+     * releases by velocity as it layers everything else, and how long it was
+     * held, which is what `rt_decay` is measured against. Both are known at
+     * the note-on and nowhere else, so they are kept here.
+     *
+     * A flat vector of channels by keys, sized once. The alternative is a hash
+     * written to from the audio callback, and a hash that grows is an
+     * allocation in the one place this program may not make one.
+     */
+    struct Held {
+        qint64 at = 0;
+        int velocity = 0;
+        bool sounding = false;
+    };
+
+    void dispatch(const Timeline::Message &message, qint64 at);
+    void startNote(int channel, int key, int velocity, qint64 at);
+    void releaseNote(int channel, int key, qint64 at);
+
+    /**
+     * Sounds every region that answers to this key on this kind of trigger.
+     *
+     * One function for both the attack and the release because they differ in
+     * three lines and agree in forty: the same round-robins, the same random
+     * draw, the same velocity layers, the same voice stealing. Two copies of
+     * that would be two copies to keep in step, and the release copy is the
+     * one nobody would notice had drifted.
+     */
+    void start(Sfz::Region::Trigger which, int channel, int key, int velocity,
+               double heldSeconds);
 
     Options m_options;
     QString m_error;
@@ -115,6 +147,10 @@ private:
 
     std::vector<Playable> m_playables;
     std::vector<Voice> m_voices;
+    std::vector<Held> m_held;
+
+    /** Whether any region fires on letting go, so the common case costs nothing. */
+    bool m_hasRelease = false;
 
     /** Which take of a round-robin comes next, counted per note. */
     QHash<int, int> m_sequence;

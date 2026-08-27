@@ -133,6 +133,89 @@ int channelFor(const Track &track, const Note &note)
     }
     return std::min(note.string, track.stringCount() - 1);
 }
+
+/** How far a hand has to move along one string before it is heard moving. */
+constexpr int ShiftFrets = 3;
+
+/** How long a squeak is given in front of the note it arrives at. */
+const Rational SqueakBefore = Rational(1, 4);
+
+/**
+ * The most silence a shift can be heard across.
+ *
+ * Two notes a bar apart on one string are not a position shift; they are two
+ * phrases, and the hand moved between them at its leisure. A crotchet is about
+ * where a slide stops being part of the note it arrives at.
+ */
+const Rational ShiftGap = Rational(1);
+
+/** How much silence is a part stopping rather than a rest inside a phrase. */
+const Rational StopSilence = Rational(2);
+
+/** How long the pick is left resting before the noise is let go. */
+const Rational PickRestLength = Rational(1);
+
+/**
+ * How hard a noise is struck.
+ *
+ * Full, and not because a squeak is loud. Measured through this sampler at
+ * the same velocity, Emily's fingering recording comes out fifty-eight
+ * decibels below one of its notes and its pick-rest thirty-seven below, which
+ * is what those sounds are on a guitar recorded direct with the knobs on ten.
+ * They are heard because an amplifier brings them up, which is exactly where
+ * Fretwork puts them -- between the instrument and its chain. Its dead notes
+ * measure from three decibels above a note to eight below, because a dead note
+ * is a struck string and belongs at a struck string's level; they keep the
+ * velocity the beat was written at, and only these do.
+ * Scaling the rest by a velocity as well would be deciding twice.
+ */
+constexpr int NoiseVelocity = 127;
+
+/**
+ * Which of a library's recordings of one noise this string gets.
+ *
+ * Five dead notes and six strings is not a round-robin -- the library already
+ * writes those with `lorand` -- it is five strings' worth of the same gesture,
+ * and Emily's are ordered the way the strings are: the first is the loudest
+ * and deepest, the fifth the thinnest. Spread in order, so the lowest string
+ * gets the first recording and the highest gets the last.
+ */
+int variantFor(const QList<int> &keys, int string, int strings)
+{
+    if (keys.isEmpty()) {
+        return -1;
+    }
+    if (string < 0 || strings <= 0) {
+        return keys.first();
+    }
+    const int index = std::clamp(string * int(keys.size()) / strings, 0,
+                                 int(keys.size()) - 1);
+    return keys.at(index);
+}
+
+/**
+ * Whether a string is wound, and therefore whether a hand on it squeaks.
+ *
+ * The top three of a guitar are plain wire with nothing for a fingertip to
+ * catch on. A bass has four and all of them are wound, which is the reason
+ * this is a count rather than a fixed three.
+ */
+bool isWound(int string, int strings)
+{
+    return strings <= 4 || string < strings - 3;
+}
+
+Timeline::NoteEvent noiseAt(const Rational &start, const Rational &end, int key,
+                            int channel)
+{
+    Timeline::NoteEvent event;
+    event.start = start;
+    event.end = end;
+    event.pitch = key;
+    event.velocity = NoiseVelocity;
+    event.channel = channel;
+    return event;
+}
 }
 
 QList<int> Timeline::playedOrder(const Score &score, bool expandRepeats)
@@ -245,6 +328,8 @@ QList<Timeline::NoteEvent> Timeline::notesFor(const Score &score, int trackIndex
                     event.end = start + sounding;
                     event.pitch = note->midi;
                     event.string = note->string;
+                    event.fret = note->fret;
+                    event.muted = note->muted;
                     event.channel = channelFor(track, *note);
                     event.bend = bendCurve(*note, sounding);
                     // A legato slide is fretted rather than picked, the same as
@@ -505,15 +590,130 @@ double Timeline::Clock::totalSeconds() const
     return secondsAt(m_length);
 }
 
+QList<Timeline::NoteEvent> Timeline::noisesFor(const Score &score, int trackIndex,
+                                              const QList<int> &order,
+                                              const Noises::Map &noises)
+{
+    QList<NoteEvent> found;
+    if (trackIndex < 0 || trackIndex >= score.tracks.size() || noises.isEmpty()) {
+        return found;
+    }
+    const Track &track = score.tracks.at(trackIndex);
+    if (track.isPercussion()) {
+        return found;
+    }
+    const int strings = track.stringCount();
+    const QList<NoteEvent> notes = notesFor(score, trackIndex, order);
+
+    // A position shift: the same string, twice, with the hand somewhere else
+    // the second time. Walked per string because "the next note" means the
+    // next one on that string, and the note in between was played by a
+    // different finger on a different course of wire.
+    if (!noises.fingering.isEmpty()) {
+        for (int string = 0; string < strings; ++string) {
+            if (!isWound(string, strings)) {
+                continue;
+            }
+            const NoteEvent *previous = nullptr;
+            for (const NoteEvent &note : notes) {
+                if (note.string != string) {
+                    continue;
+                }
+                const NoteEvent *was = previous;
+                previous = &note;
+                if (!was) {
+                    continue;
+                }
+                // An open string has no finger on it to slide. Either end of
+                // the shift being open means the hand left the neck rather
+                // than moved along it.
+                if (was->fret <= 0 || note.fret <= 0) {
+                    continue;
+                }
+                if (std::abs(was->fret - note.fret) < ShiftFrets) {
+                    continue;
+                }
+                // Not across a silence: two notes a bar apart on one string
+                // are two phrases, not a shift.
+                if (was->end < note.start && ShiftGap < note.start - was->end) {
+                    continue;
+                }
+                // In front of the note it arrives at, and never in front of
+                // the note it left -- a squeak that started before the hand
+                // did would be a squeak somebody else made.
+                Rational from = note.start - SqueakBefore;
+                if (from < was->start) {
+                    from = was->start;
+                }
+                if (!(from < note.start)) {
+                    continue;
+                }
+                found.append(noiseAt(from, note.start,
+                                     variantFor(noises.fingering, string, strings),
+                                     std::min(string, std::max(0, strings - 1))));
+            }
+        }
+    }
+
+    // The pick coming to rest, which is where the part stops rather than where
+    // a bar happens to have a rest in it. Measured against the furthest
+    // anything is still ringing, so a let-ring chord under a silent bar is not
+    // a stop until it has finished.
+    if (!noises.pickRest.isEmpty() && !notes.isEmpty()) {
+        Rational ringingUntil = notes.first().end;
+        for (int index = 0; index < notes.size(); ++index) {
+            if (ringingUntil < notes.at(index).end) {
+                ringingUntil = notes.at(index).end;
+            }
+            const bool last = index + 1 >= notes.size();
+            const Rational next = last ? Rational(0) : notes.at(index + 1).start;
+            if (!last && (next < ringingUntil || next - ringingUntil < StopSilence)) {
+                continue;
+            }
+            Rational until = ringingUntil + PickRestLength;
+            if (!last && next < until) {
+                until = next;
+            }
+            found.append(noiseAt(ringingUntil, until, noises.pickRest.first(), 0));
+        }
+    }
+
+    std::stable_sort(found.begin(), found.end(),
+                     [](const NoteEvent &a, const NoteEvent &b) {
+                         return a.start < b.start;
+                     });
+    return found;
+}
+
 QList<Timeline::Message> Timeline::messagesFor(const Score &score, int trackIndex,
-                                               const QList<int> &order)
+                                               const QList<int> &order,
+                                               const Noises::Map &noises)
 {
     QList<Message> messages;
     if (trackIndex < 0 || trackIndex >= score.tracks.size()) {
         return messages;
     }
 
-    const QList<NoteEvent> notes = notesFor(score, trackIndex, order);
+    const Track &track = score.tracks.at(trackIndex);
+    const int strings = track.stringCount();
+    QList<NoteEvent> notes = notesFor(score, trackIndex, order);
+
+    // A dead note has no pitch, and where the library has a recording of one
+    // it is played instead of the note rather than beside it: the short quiet
+    // note the model falls back to is an approximation of exactly this sound,
+    // and playing both would be the approximation and the thing at once.
+    if (!noises.muted.isEmpty() && !track.isPercussion()) {
+        for (NoteEvent &note : notes) {
+            if (note.muted) {
+                note.pitch = variantFor(noises.muted, note.string, strings);
+            }
+        }
+    }
+    notes.append(noisesFor(score, trackIndex, order, noises));
+    std::stable_sort(notes.begin(), notes.end(),
+                     [](const NoteEvent &a, const NoteEvent &b) {
+                         return a.start < b.start;
+                     });
 
     // Every channel this track will use, told its bend range before anything
     // plays. A synth that has not been told assumes two semitones, and every

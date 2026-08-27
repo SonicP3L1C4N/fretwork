@@ -196,6 +196,98 @@ private Q_SLOTS:
         QVERIFY(Sfz::found({base.filePath(QStringLiteral("unruly-drums/Samples"))}).isEmpty());
         QVERIFY(Sfz::found({QStringLiteral("/nowhere/at/all")}).isEmpty());
     }
+
+    // ---- which keys are noises rather than notes ----
+
+    void findsTheNoisesAboveTheTopOfTheRange()
+    {
+        // Emily's mapping in miniature: notes to 89, then a fingering squeak,
+        // five dead notes and a pick coming to rest above them.
+        const Sfz::Instrument instrument = of(QStringLiteral(
+            "<group> lokey=40 hikey=89\n"
+            "<region> sample=notes\\e2_f_rr1.wav\n"
+            "<group> lokey=90 hikey=90\n"
+            "<region> sample=noises\\fingering1_rr1.wav\n"
+            "<group> lokey=91 hikey=95\n"
+            "<region> sample=noises\\muted1_rr1.wav\n"
+            "<group> lokey=96 hikey=96\n"
+            "<region> sample=noises\\pickrest1_rr1.wav\n"));
+
+        const Noises::Map map = Sfz::noises(instrument);
+        QCOMPARE(map.fingering, QList<int>({90}));
+        QCOMPARE(map.muted, QList<int>({91, 92, 93, 94, 95}));
+        QCOMPARE(map.pickRest, QList<int>({96}));
+        QVERIFY(map.scrape.isEmpty());
+    }
+
+    void findsThemWhereTheFolderIsWhatSaysSo()
+    {
+        // Growlybass names the folder and numbers the files, where Emily
+        // files everything under noises/ and names them. Both have to work,
+        // or the rule is a rule about one library.
+        const Sfz::Instrument instrument = of(QStringLiteral(
+            "<group> lokey=33 hikey=79\n"
+            "<region> sample=sustain\\db2_pp_rr1.wav\n"
+            "<group> lokey=81 hikey=84\n"
+            "<region> sample=scrape\\scrape_1_rr1.wav\n"));
+
+        const Noises::Map map = Sfz::noises(instrument);
+        QCOMPARE(map.scrape, QList<int>({81, 82, 83, 84}));
+        QVERIFY(map.fingering.isEmpty());
+        QVERIFY(map.muted.isEmpty());
+    }
+
+    void willNotCallANoteANoiseBecauseOfItsName()
+    {
+        // The case the second half of the rule exists for: a library whose
+        // muted notes are an articulation across the whole neck rather than a
+        // click above the top of it. Called a noise, every palm mute in the
+        // score would be played as a dead string.
+        const Sfz::Instrument instrument = of(QStringLiteral(
+            "<group> lokey=40 hikey=88\n"
+            "<region> sample=mute\\e2_mute_rr1.wav\n"
+            "<group> lokey=40 hikey=88\n"
+            "<region> sample=notes\\e2_f_rr1.wav\n"));
+
+        QVERIFY(Sfz::noises(instrument).isEmpty());
+    }
+
+    void aReleaseRecordingIsNotAKeyOnTheMap()
+    {
+        // Release samples are noises by any ordinary meaning and are not on
+        // this map: nothing plays them by asking for a key, so there is no key
+        // to put on it.
+        const Sfz::Instrument instrument = of(QStringLiteral(
+            "<group> lokey=40 hikey=88\n"
+            "<region> sample=notes\\e2_f_rr1.wav\n"
+            "<group> lokey=40 hikey=88 trigger=release\n"
+            "<region> sample=release\\e2_release_rr1.wav\n"));
+
+        QVERIFY(Sfz::noises(instrument).isEmpty());
+    }
+
+    void anInstrumentThatIsAllNoiseIsAllNoise()
+    {
+        // Nothing to be above, and the answer is still every one of them:
+        // Growlybass ships a mapping of nothing but its release samples, and a
+        // rule that needed a note to compare against would find none here.
+        const Sfz::Instrument instrument = of(QStringLiteral(
+            "<group> lokey=81 hikey=81\n"
+            "<region> sample=scrape\\scrape_1_rr1.wav\n"));
+
+        QCOMPARE(Sfz::noises(instrument).scrape, QList<int>({81}));
+    }
+
+    void readsHowMuchQuieterALongHeldNoteLetsGo()
+    {
+        const Sfz::Instrument instrument = of(QStringLiteral(
+            "<region> sample=e2_release.wav trigger=release rt_decay=7\n"
+            "<region> sample=e2.wav\n"));
+        QCOMPARE(instrument.regions.at(0).releaseDecayDb, 7.0);
+        // Not a default anything: a library that does not say gets no decay
+        // rather than a number this program invented.
+        QCOMPARE(instrument.regions.at(1).releaseDecayDb, 0.0);
+    }
 };
 
 QTEST_GUILESS_MAIN(SfzTest)

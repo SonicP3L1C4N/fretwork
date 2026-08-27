@@ -78,6 +78,42 @@ private:
         return {at, Timeline::MessageKind::NoteOn, 0, key, velocity};
     }
 
+    static Timeline::Message noteOff(const Rational &at, int key)
+    {
+        return {at, Timeline::MessageKind::NoteOff, 0, key, 0};
+    }
+
+    /**
+     * A stretch of output, filled the way the engine fills it.
+     *
+     * In blocks, because that is the contract: a note that lands halfway
+     * through a block lands at the start of it, and a test that asked for six
+     * seconds in one call would dispatch every message in the piece before
+     * rendering a single frame of it.
+     */
+    static std::vector<float> render(Sampler *sampler, double seconds)
+    {
+        const int frames = int(seconds * Rate);
+        std::vector<float> left(size_t(frames), 0.0f);
+        std::vector<float> right(size_t(frames), 0.0f);
+        for (int at = 0; at < frames; at += 512) {
+            sampler->fill(left.data() + at, right.data() + at,
+                          std::min(512, frames - at), at);
+        }
+        return left;
+    }
+
+    /** The loudest sample between two moments, in seconds. */
+    static float peakBetween(const std::vector<float> &block, double from, double to)
+    {
+        float loudest = 0;
+        for (int frame = int(from * Rate); frame < int(to * Rate)
+             && frame < int(block.size()); ++frame) {
+            loudest = std::max(loudest, std::abs(block[size_t(frame)]));
+        }
+        return loudest;
+    }
+
     /** A clock at one beat a second, so a quarter is a second. */
     static Score oneBar()
     {
@@ -260,6 +296,115 @@ private Q_SLOTS:
         QVERIFY(!sampler.isValid());
         QVERIFY2(sampler.error().contains(QLatin1String("nothing_here.wav")),
                  qPrintable(sampler.error()));
+    }
+
+    // ---- letting a note go, which is a sound of its own ----
+
+    /**
+     * A note at 440 and, on letting it go, a different tone at 880.
+     *
+     * Two frequencies rather than two levels, because the question is which
+     * recording came out and not how loud it was: a release sample that never
+     * fired and a note that rang on are the same measurement by amplitude and
+     * different ones by pitch.
+     */
+    Sfz::Instrument withARelease(double decayDb = 0)
+    {
+        writeTone(QStringLiteral("note440.wav"), 440);
+        writeTone(QStringLiteral("release880.wav"), 880);
+        return Sfz::parse(QStringLiteral("<region> sample=note440.wav key=69\n"
+                                         "<region> sample=release880.wav key=69 "
+                                         "trigger=release rt_decay=%1\n")
+                              .arg(decayDb),
+                          m_directory.path());
+    }
+
+    void doesNotPlayAReleaseRecordingWhenTheNoteIsStruck()
+    {
+        const Score score = oneBar();
+        const Timeline::Clock clock(score, {0});
+        Sampler sampler(withARelease(), {noteOn(Rational(0), 69, 100)}, clock, {});
+        QVERIFY2(sampler.isValid(), qPrintable(sampler.error()));
+
+        const std::vector<float> out = render(&sampler, 0.5);
+        // The struck note, and only it. A sampler that fired both would put
+        // the sound of a string being let go on the front of every note.
+        QVERIFY2(std::abs(toneOf(out.data() + 4096, 4096) - 440) < 6,
+                 qPrintable(QString::number(toneOf(out.data() + 4096, 4096))));
+    }
+
+    void playsTheReleaseRecordingWhenTheNoteIsLetGo()
+    {
+        const Score score = oneBar();
+        const Timeline::Clock clock(score, {0});
+        // A quarter at sixty is a second, so this is struck at nought and let
+        // go at one.
+        Sampler sampler(withARelease(),
+                        {noteOn(Rational(0), 69, 100), noteOff(Rational(1), 69)}, clock,
+                        {});
+        QVERIFY2(sampler.isValid(), qPrintable(sampler.error()));
+
+        const std::vector<float> out = render(&sampler, 2.0);
+        // Past the note's own fade, so what is left is the release recording
+        // rather than the tail of the note it followed.
+        const int after = int(1.2 * Rate);
+        QVERIFY2(std::abs(toneOf(out.data() + after, 4096) - 880) < 6,
+                 qPrintable(QString::number(toneOf(out.data() + after, 4096))));
+    }
+
+    void doesNotLetGoOfANoteThatWasNeverStruck()
+    {
+        const Score score = oneBar();
+        const Timeline::Clock clock(score, {0});
+        // Which is the state seeking into the middle of a held note leaves,
+        // and a release fired from it is a click with no note in front of it.
+        Sampler sampler(withARelease(), {noteOff(Rational(1), 69)}, clock, {});
+        QVERIFY2(sampler.isValid(), qPrintable(sampler.error()));
+
+        const std::vector<float> out = render(&sampler, 2.0);
+        QCOMPARE(peakBetween(out, 0, 2.0), 0.0f);
+    }
+
+    void aNoteHeldLongerLetsGoMoreQuietly()
+    {
+        const Score score = oneBar();
+        const Timeline::Clock clock(score, {0});
+        // Six decibels a second, so a note held two seconds longer than
+        // another lets go twelve decibels quieter -- a quarter of the level.
+        const Sfz::Instrument instrument = withARelease(6);
+
+        Sampler brief(instrument, {noteOn(Rational(0), 69, 100), noteOff(Rational(1), 69)},
+                      clock, {});
+        Sampler held(instrument, {noteOn(Rational(0), 69, 100), noteOff(Rational(3), 69)},
+                     clock, {});
+        QVERIFY(brief.isValid() && held.isValid());
+
+        const std::vector<float> quick = render(&brief, 4.0);
+        const std::vector<float> late = render(&held, 5.0);
+        const float first = peakBetween(quick, 1.2, 1.4);
+        const float second = peakBetween(late, 3.2, 3.4);
+        QVERIFY(first > 0 && second > 0);
+        const double decibels = 20 * std::log10(double(first) / double(second));
+        QVERIFY2(std::abs(decibels - 12) < 1.5, qPrintable(QString::number(decibels)));
+    }
+
+    void aReleaseRecordingIsNotCutShortByTheNextNoteOff()
+    {
+        const Score score = oneBar();
+        const Timeline::Clock clock(score, {0});
+        // The same string struck again and let go again. Left under the key
+        // that started it, the second note-off would fade the noise the first
+        // one had just asked for.
+        Sampler sampler(withARelease(),
+                        {noteOn(Rational(0), 69, 100), noteOff(Rational(1), 69),
+                         noteOn(Rational(1), 69, 100), noteOff(Rational(1, 2) + Rational(1), 69)},
+                        clock, {});
+        QVERIFY2(sampler.isValid(), qPrintable(sampler.error()));
+
+        const std::vector<float> out = render(&sampler, 3.0);
+        // The first release runs a second from where it started, so it is
+        // still sounding well past the note-off that follows it.
+        QVERIFY(peakBetween(out, 1.7, 1.9) > 0.05f);
     }
 
     void readsBackWhatTheWriterWrote()

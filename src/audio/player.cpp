@@ -94,12 +94,20 @@ Player::Player(const Score &score, const QList<int> &order, const Options &optio
     qint64 lastEvent = 0;
     for (int index = 0; index < score.tracks.size(); ++index) {
         auto channel = std::make_unique<Channel>();
-        const QList<Timeline::Message> messages = Timeline::messagesFor(score, index, order);
 
+        // The library first, because what it can make besides notes decides
+        // what the timeline asks for: a squeak has to be a note number by the
+        // time anything downstream sees it, and only the library knows which
+        // one. A part with no library gets an empty map and the notes it
+        // always had.
         const QString sfz = m_options.samplers.value(index);
+        QString why;
+        const Sfz::Instrument instrument =
+            sfz.isEmpty() ? Sfz::Instrument{} : Sfz::read(sfz, &why);
+        const QList<Timeline::Message> messages =
+            Timeline::messagesFor(score, index, order, Sfz::noises(instrument));
+
         if (!sfz.isEmpty()) {
-            QString why;
-            const Sfz::Instrument instrument = Sfz::read(sfz, &why);
             Sampler::Options samplerOptions;
             samplerOptions.sampleRate = m_options.sampleRate;
             samplerOptions.gain = m_options.gain;

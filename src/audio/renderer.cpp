@@ -96,13 +96,20 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
         synthOptions.soundFont = options.soundFont;
         synthOptions.sampleRate = options.sampleRate;
         synthOptions.gain = options.gain;
-        const QList<Timeline::Message> messages = Timeline::messagesFor(score, index, order);
+        // The library first, because what it can make besides notes decides
+        // what the timeline asks for: a squeak has to be a note number by the
+        // time anything downstream sees it, and only the library knows which
+        // one. A part with no library gets an empty map and the notes it
+        // always had.
+        const QString sfz = options.samplers.value(index);
+        QString why;
+        const Sfz::Instrument instrument =
+            sfz.isEmpty() ? Sfz::Instrument{} : Sfz::read(sfz, &why);
+        const QList<Timeline::Message> messages =
+            Timeline::messagesFor(score, index, order, Sfz::noises(instrument));
 
         std::unique_ptr<Synth> voice;
-        const QString sfz = options.samplers.value(index);
         if (!sfz.isEmpty()) {
-            QString why;
-            const Sfz::Instrument instrument = Sfz::read(sfz, &why);
             Sampler::Options samplerOptions;
             samplerOptions.sampleRate = options.sampleRate;
             samplerOptions.gain = options.gain;

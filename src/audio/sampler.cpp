@@ -14,6 +14,7 @@
 namespace
 {
 constexpr int Channels = 16;
+constexpr size_t KeyCount = 128;
 
 /** Decibels as a multiplier, which is what a mix actually does with them. */
 float amplitudeOf(double decibels)
@@ -119,7 +120,15 @@ Sampler::Sampler(const Sfz::Instrument &instrument, const QList<Timeline::Messag
         return;
     }
 
+    for (const Playable &playable : m_playables) {
+        if (playable.region.trigger == Sfz::Region::Trigger::Release) {
+            m_hasRelease = true;
+            break;
+        }
+    }
+
     m_voices.assign(size_t(std::max(1, m_options.voices)), Voice{});
+    m_held.assign(size_t(Channels) * KeyCount, Held{});
     m_bend.assign(Channels, 0.0);
     m_bendRange.assign(Channels, 2.0);
 
@@ -154,7 +163,7 @@ qint64 Sampler::lastEventSample() const
     return m_events.empty() ? 0 : m_events.back().at;
 }
 
-void Sampler::startNote(int channel, int key, int velocity)
+void Sampler::startNote(int channel, int key, int velocity, qint64 at)
 {
     // A note in the switch range chooses an articulation and makes no sound of
     // its own, which is what a keyswitch is.
@@ -163,6 +172,44 @@ void Sampler::startNote(int channel, int key, int velocity)
         return;
     }
 
+    m_held[size_t(channel) * KeyCount + size_t(key)] = Held{at, velocity, true};
+    start(Sfz::Region::Trigger::Attack, channel, key, velocity, 0);
+}
+
+void Sampler::releaseNote(int channel, int key, qint64 at)
+{
+    for (Voice &voice : m_voices) {
+        if (!voice.active || voice.key != key || voice.channel != channel) {
+            continue;
+        }
+        voice.releasing = true;
+        const double seconds = std::max(0.005, voice.playable->region.release);
+        voice.fadeStep = -1.0f / float(seconds * m_options.sampleRate);
+    }
+
+    Held &held = m_held[size_t(channel) * KeyCount + size_t(key)];
+    if (!held.sounding) {
+        // Nothing was struck here, so there is nothing to let go of. Seeking
+        // into the middle of a held note leaves exactly this state, and a
+        // release recording fired from it would be a click with no note in
+        // front of it.
+        return;
+    }
+    held.sounding = false;
+    if (!m_hasRelease) {
+        return;
+    }
+
+    // How long the string rang before the hand came off it, which is what
+    // rt_decay is measured against.
+    const double heldSeconds =
+        std::max(0.0, double(at - held.at) / std::max(1, m_options.sampleRate));
+    start(Sfz::Region::Trigger::Release, channel, key, held.velocity, heldSeconds);
+}
+
+void Sampler::start(Sfz::Region::Trigger which, int channel, int key, int velocity,
+                    double heldSeconds)
+{
     // Which take of the round-robin this is. Counted per note, because that is
     // what a listener notices: the same note twice in a row is what gives a
     // sampled instrument away, and two different notes never sounded alike.
@@ -176,11 +223,10 @@ void Sampler::startNote(int channel, int key, int velocity)
     bool started = false;
     for (const Playable &playable : m_playables) {
         const Sfz::Region &region = playable.region;
-        // Only what fires when a note is struck. Release noises, first-note
-        // and legato regions are real parts of a library and are not this: a
-        // sampler that fired them here would put a fingering squeak on the
-        // front of every note.
-        if (region.trigger != Sfz::Region::Trigger::Attack) {
+        // One kind of trigger at a time. A sampler that fired them together
+        // would put a fingering squeak on the front of every note, and a
+        // string being let go under every one it struck.
+        if (region.trigger != which) {
             continue;
         }
         if (key < region.lowKey || key > region.highKey) {
@@ -238,10 +284,19 @@ void Sampler::startNote(int channel, int key, int velocity)
         free->playable = &playable;
         free->position = double(std::max<qint64>(0, region.offset));
         free->step = std::pow(2.0, semitones / 12.0) * playable.stepScale;
-        const float loudness = velocityGain(velocity) * float(m_options.gain);
+        float loudness = velocityGain(velocity) * float(m_options.gain);
+        // A string let go after a beat still has most of its energy; the same
+        // string after eight bars has almost none. Without this every held
+        // note ends in the same click at the same level.
+        if (region.releaseDecayDb > 0 && heldSeconds > 0) {
+            loudness *= amplitudeOf(-region.releaseDecayDb * heldSeconds);
+        }
         free->gainLeft = playable.gainLeft * loudness;
         free->gainRight = playable.gainRight * loudness;
-        free->key = key;
+        // A release recording answers to nothing further. Left under the key
+        // that started it, the next note-off on that string would fade the
+        // noise it had just asked for.
+        free->key = which == Sfz::Region::Trigger::Attack ? key : -1;
         free->channel = channel;
         free->group = region.group;
         free->fade = 1.0f;
@@ -250,32 +305,23 @@ void Sampler::startNote(int channel, int key, int velocity)
         started = true;
     }
 
-    if (started) {
+    // Only what was struck advances the round-robin. A release counted here
+    // would step the takes twice per note and play half of them.
+    if (started && which == Sfz::Region::Trigger::Attack) {
         m_sequence.insert(key, turn + 1);
     }
 }
 
-void Sampler::releaseNote(int channel, int key)
-{
-    for (Voice &voice : m_voices) {
-        if (!voice.active || voice.key != key || voice.channel != channel) {
-            continue;
-        }
-        voice.releasing = true;
-        const double seconds = std::max(0.005, voice.playable->region.release);
-        voice.fadeStep = -1.0f / float(seconds * m_options.sampleRate);
-    }
-}
-
-void Sampler::dispatch(const Timeline::Message &message)
+void Sampler::dispatch(const Timeline::Message &message, qint64 at)
 {
     const int channel = std::clamp(message.channel, 0, Channels - 1);
+    const int key = std::clamp(message.data1, 0, int(KeyCount) - 1);
     switch (message.kind) {
     case Timeline::MessageKind::NoteOn:
-        startNote(channel, message.data1, message.data2);
+        startNote(channel, key, message.data2, at);
         break;
     case Timeline::MessageKind::NoteOff:
-        releaseNote(channel, message.data1);
+        releaseNote(channel, key, at);
         break;
     case Timeline::MessageKind::PitchBend:
         // The same fourteen-bit value the MIDI writer sends, turned back into
@@ -296,7 +342,11 @@ void Sampler::fill(float *left, float *right, int frames, qint64 at)
 
     const qint64 until = at + frames;
     while (m_next < int(m_events.size()) && m_events[size_t(m_next)].at < until) {
-        dispatch(m_events[size_t(m_next)].message);
+        // Its own sample position rather than the block's. Nothing else here
+        // needs it, and a release does: how long a note was held is the
+        // difference between two of these, and rounding both to a block would
+        // measure a semiquaver at 120 as either nothing or twice itself.
+        dispatch(m_events[size_t(m_next)].message, m_events[size_t(m_next)].at);
         ++m_next;
     }
 
@@ -366,6 +416,9 @@ void Sampler::seek(qint64 sample)
 {
     for (Voice &voice : m_voices) {
         voice.active = false;
+    }
+    for (Held &held : m_held) {
+        held.sounding = false;
     }
     m_sequence.clear();
     const auto found = std::lower_bound(m_events.begin(), m_events.end(), sample,

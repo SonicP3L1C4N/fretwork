@@ -60,6 +60,46 @@ private:
         return note;
     }
 
+    /** The same, with the fret said out loud, which is what a shift is measured in. */
+    static Note fretted(int string, int fret)
+    {
+        Note note;
+        note.string = string;
+        note.fret = fret;
+        note.midi = 40 + string * 5 + fret;
+        return note;
+    }
+
+    /** Emily's noises, as this program discovers them from the library. */
+    static Noises::Map emily()
+    {
+        Noises::Map map;
+        map.fingering = {90};
+        map.muted = {91, 92, 93, 94, 95};
+        map.pickRest = {96};
+        return map;
+    }
+
+    /** The key of the first thing this part is told to play. */
+    static int firstNoteOn(const QList<Timeline::Message> &messages)
+    {
+        for (const Timeline::Message &message : messages) {
+            if (message.kind == Timeline::MessageKind::NoteOn) {
+                return message.data1;
+            }
+        }
+        return -1;
+    }
+
+    static QList<int> keysOf(const QList<Timeline::NoteEvent> &events)
+    {
+        QList<int> keys;
+        for (const Timeline::NoteEvent &event : events) {
+            keys.append(event.pitch);
+        }
+        return keys;
+    }
+
 private Q_SLOTS:
     // ---- repeats ----
 
@@ -383,6 +423,183 @@ private Q_SLOTS:
         QCOMPARE(clicks.at(1).second, clicks.at(0).second);   // both are first beats
         QCOMPARE(clicks.at(2).first, Rational(2));
         QVERIFY(clicks.at(2).second != clicks.at(1).second);
+    }
+    // ---- the sounds that are not notes ----
+
+    void aPositionShiftOnAWoundStringIsHeard()
+    {
+        Score score = blank(2);
+        // The low E string, first fret and then the twelfth: a hand that has
+        // travelled the length of the neck along a wound string.
+        fill(score, 0, {fretted(0, 1), fretted(0, 12)});
+
+        Noises::Map map;
+        map.fingering = {90};
+        const QList<Timeline::NoteEvent> noises =
+            Timeline::noisesFor(score, 0, {0, 1}, map);
+        QCOMPARE(noises.size(), 1);
+        QCOMPARE(noises.first().pitch, 90);
+        // It ends where the note it was travelling towards begins, because
+        // that is where the hand arrives and stops making the noise.
+        QCOMPARE(noises.first().end, Rational(1));
+        QCOMPARE(noises.first().start, Rational(3, 4));
+    }
+
+    void aHandThatBarelyMovesIsNotHeardMoving()
+    {
+        Score score = blank(2);
+        fill(score, 0, {fretted(0, 5), fretted(0, 6)});
+
+        Noises::Map map;
+        map.fingering = {90};
+        QVERIFY(Timeline::noisesFor(score, 0, {0, 1}, map).isEmpty());
+    }
+
+    void aShiftOnAPlainStringIsNotHeard()
+    {
+        Score score = blank(2);
+        // The top string of a guitar is plain wire, and a fingertip on it
+        // catches on nothing. The three below it are wound.
+        fill(score, 0, {fretted(5, 1), fretted(5, 12)});
+
+        Noises::Map map;
+        map.fingering = {90};
+        QVERIFY(Timeline::noisesFor(score, 0, {0, 1}, map).isEmpty());
+
+        fill(score, 0, {fretted(2, 1), fretted(2, 12)});
+        QCOMPARE(Timeline::noisesFor(score, 0, {0, 1}, map).size(), 1);
+    }
+
+    void aShiftToOrFromAnOpenStringIsNotHeard()
+    {
+        Score score = blank(2);
+        // Nothing is on the string to slide along it: the hand left the neck
+        // rather than moved along it.
+        fill(score, 0, {fretted(0, 0), fretted(0, 12)});
+
+        Noises::Map map;
+        map.fingering = {90};
+        QVERIFY(Timeline::noisesFor(score, 0, {0, 1}, map).isEmpty());
+
+        fill(score, 0, {fretted(0, 12), fretted(0, 0)});
+        QVERIFY(Timeline::noisesFor(score, 0, {0, 1}, map).isEmpty());
+    }
+
+    void aShiftAcrossASilenceIsTwoPhrasesRatherThanAShift()
+    {
+        Score score = blank(3);
+        // A note, then two bars of nothing, then a note somewhere else. The
+        // hand moved at its leisure and nobody heard it.
+        fill(score, 0, {fretted(0, 1)});
+        fill(score, 2, {fretted(0, 12)});
+
+        Noises::Map map;
+        map.fingering = {90};
+        QVERIFY(Timeline::noisesFor(score, 0, {0, 1, 2}, map).isEmpty());
+    }
+
+    void aPartComingToAStopRestsThePick()
+    {
+        Score score = blank(3);
+        fill(score, 0, {fretted(0, 5)});
+
+        Noises::Map map;
+        map.pickRest = {96};
+        const QList<Timeline::NoteEvent> noises =
+            Timeline::noisesFor(score, 0, {0, 1, 2}, map);
+        QCOMPARE(keysOf(noises), QList<int>({96}));
+        // Where the last note stops ringing, which is where a hand actually
+        // puts the pick down.
+        QCOMPARE(noises.first().start, Rational(1));
+    }
+
+    void aRestInsideAPhraseIsNotAStop()
+    {
+        Score score = blank(2);
+        // The first note is palm-muted, so it stops halfway through its beat
+        // and there is a rest before the next one. The pick has not gone
+        // anywhere and nothing has come to rest on the strings.
+        Note damped = fretted(0, 5);
+        damped.palmMuted = true;
+        fill(score, 0, {damped, fretted(0, 5)});
+
+        Noises::Map map;
+        map.pickRest = {96};
+        const QList<Timeline::NoteEvent> noises =
+            Timeline::noisesFor(score, 0, {0, 1}, map);
+        // One where the part actually stops, and none in the middle of it.
+        QCOMPARE(noises.size(), 1);
+        QCOMPARE(noises.first().start, Rational(2));
+    }
+
+    void aDeadNoteIsPlayedAsTheLibrarysDeadNote()
+    {
+        Score score = blank(1);
+        Note dead = fretted(0, 5);
+        dead.muted = true;
+        fill(score, 0, {dead});
+
+        // Without a library that has one, it stays the short quiet note it
+        // always was -- which is the approximation, and is what a General MIDI
+        // programme gets.
+        const QList<Timeline::Message> plain = Timeline::messagesFor(score, 0, {0});
+        QCOMPARE(firstNoteOn(plain), 45);
+
+        // With one, the recording is played instead of the note rather than
+        // beside it. The lowest string takes the first of the five.
+        const QList<Timeline::Message> sampled =
+            Timeline::messagesFor(score, 0, {0}, emily());
+        QCOMPARE(firstNoteOn(sampled), 91);
+    }
+
+    void eachStringGetsItsOwnDeadNote()
+    {
+        Score score = blank(1);
+        QList<Note> notes;
+        for (int string = 0; string < 6; ++string) {
+            Note dead = fretted(string, 5);
+            dead.muted = true;
+            notes.append(dead);
+        }
+        fill(score, 0, notes);
+
+        Noises::Map map;
+        map.muted = emily().muted;
+        QList<int> keys;
+        for (const Timeline::Message &message : Timeline::messagesFor(score, 0, {0}, map)) {
+            if (message.kind == Timeline::MessageKind::NoteOn) {
+                keys.append(message.data1);
+            }
+        }
+        // Five recordings spread across six strings, in order, so the lowest
+        // gets the first and the highest gets the last.
+        QCOMPARE(keys, QList<int>({91, 91, 92, 93, 94, 95}));
+    }
+
+    void aPartWithNoLibraryIsPlayedExactlyAsItWas()
+    {
+        Score score = blank(2);
+        fill(score, 0, {fretted(0, 1), fretted(0, 12)});
+        const QList<Timeline::Message> was = Timeline::messagesFor(score, 0, {0, 1});
+        const QList<Timeline::Message> still =
+            Timeline::messagesFor(score, 0, {0, 1}, Noises::Map{});
+        QCOMPARE(was.size(), still.size());
+        for (int index = 0; index < was.size(); ++index) {
+            QCOMPARE(was.at(index).at, still.at(index).at);
+            QCOMPARE(was.at(index).data1, still.at(index).data1);
+        }
+        // And the squeak the same notes would have made with one.
+        Noises::Map map;
+        map.fingering = {90};
+        QVERIFY(Timeline::messagesFor(score, 0, {0, 1}, map).size() > was.size());
+    }
+
+    void aDrumKitMakesNoneOfThisNoise()
+    {
+        Score score = blank(2);
+        score.tracks[0].instrumentType = QStringLiteral("drumKit");
+        fill(score, 0, {fretted(0, 1), fretted(0, 12)});
+        QVERIFY(Timeline::noisesFor(score, 0, {0, 1}, emily()).isEmpty());
     }
 };
 
