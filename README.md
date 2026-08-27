@@ -418,6 +418,25 @@ A window opened with `--sfz` and `--lv2` comes up with that rig already on the
 part, rather than opening dry and asking somebody to rebuild by hand what they
 have just typed out.
 
+**Somebody else's ears, as a starting point.** A chain at its defaults is an
+amplifier nobody has turned up. Guitarix ships nineteen presets named after the
+records they aim at, and the **Voicing** button on each plugin — or
+`--voicing 0:0=Iron Man`, and `--voicings` to list them — sets the amplifier to
+one. The valve, the tone stack, the cabinet and the levels are matched against
+the choices the plugin itself declares, so nothing here is a table of names
+that has to be kept up to date with guitarix.
+
+What it carries is the amplifier and nothing else, and it says so. A `.gx`
+preset describes the whole guitarix rig — forty modules, of which the ones the
+factory bank leans on hardest ship no LV2 plugin at all: `shaper` in nine of
+the nineteen, the `jconv` convolver in nine, `stereoverb` in six. Loading one
+of those and calling the result *Bass — Come Together* would be a sound that is
+not that sound, announced as though it were. So each voicing reports what it
+left behind, and a value the plugin will not take — the bank asks for −32 dB of
+master on a control that stops at −20 — is refused and named, along with where
+that leaves the knob, because "declined" on a master level means "louder than
+asked for" and should read that way.
+
 **A part can be played by recordings** rather than by a General MIDI
 programme. `--sfz 0=guitar.sfz` gives track 0 an SFZ instrument, and the parts
 without one carry on as they were — because a sample library exists for the

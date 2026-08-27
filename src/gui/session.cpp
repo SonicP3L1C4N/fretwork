@@ -60,6 +60,12 @@ Session::Session(QObject *parent)
     // Read once: lilv parses every manifest on the machine to answer the
     // first question asked of it.
     m_plugins = Lv2::installed();
+    // The same argument: banks are a handful of files, read once at the start
+    // rather than every time a menu opens.
+    const QStringList banks = Gx::banks();
+    for (const QString &bank : banks) {
+        m_voicings += Gx::read(bank);
+    }
 
     m_ticker.setInterval(50);
     connect(&m_ticker, &QTimer::timeout, this, [this] {
@@ -378,6 +384,11 @@ QVariantList Session::chainHere() const
                 {QStringLiteral("toggled"), control.toggled},
                 {QStringLiteral("integer"), control.integer},
                 {QStringLiteral("choices"), control.choices},
+                // The numbers behind the names. A control whose choices are
+                // 0, 2 and 5 is not a control whose choices are 0, 1 and 2,
+                // and a menu that sent back a position would set the wrong
+                // amplifier.
+                {QStringLiteral("choiceValues"), QVariant::fromValue(control.choiceValues)},
             });
         }
         chain.append(QVariantMap{{QStringLiteral("name"), stages.at(index).name},
@@ -421,6 +432,65 @@ void Session::setEffectControl(int stage, int index, double value)
     // takes to load.
     m_player->setEffectControl(m_currentTrack, stage, quint32(index), float(value));
     m_knobs[m_currentTrack][stage].insert(quint32(index), float(value));
+}
+
+QVariantList Session::voicings() const
+{
+    QVariantList found;
+    for (const Gx::Voicing &voicing : m_voicings) {
+        found.append(QVariantMap{
+            {QStringLiteral("name"), voicing.name},
+            {QStringLiteral("bank"), voicing.bank},
+            // What it is, in the words the bank uses, so the menu says more
+            // than a song title: two voicings named for records can be the
+            // same amplifier, and the valve is how you tell.
+            {QStringLiteral("summary"),
+             voicing.usesAmplifier()
+                 ? QStringLiteral("%1 \u00b7 %2").arg(voicing.valve, voicing.toneStack)
+                 : i18n("no amplifier")},
+            {QStringLiteral("amplified"), voicing.usesAmplifier()}});
+    }
+    return found;
+}
+
+void Session::applyVoicing(int stage, const QString &name)
+{
+    if (!m_player) {
+        return;
+    }
+    for (const Gx::Voicing &voicing : m_voicings) {
+        if (voicing.name != name) {
+            continue;
+        }
+
+        const Gx::Fitting fitting = m_player->applyVoicing(m_currentTrack, stage, voicing);
+        if (fitting.isEmpty()) {
+            setStatus(i18n("%1 takes nothing from %2.", effectsHere().value(stage), name));
+            return;
+        }
+
+        // Remembered the same way a hand-turned knob is, so that rebuilding the
+        // chain later -- adding a pedal after it -- does not lose the voicing.
+        // The chain held in a local first: `chainOn` returns a temporary, and
+        // a loop over a member of one reads memory that has already gone.
+        const QList<Lv2::Stage> stages = m_player->chainOn(m_currentTrack);
+        for (const Gx::Setting &setting : fitting.settings) {
+            for (const Lv2::Control &control : stages.at(stage).controls) {
+                if (control.symbol == setting.symbol) {
+                    m_knobs[m_currentTrack][stage].insert(control.index, setting.value);
+                    break;
+                }
+            }
+        }
+
+        setStatus(fitting.declined.isEmpty()
+                      ? i18n("%1: %2 settings.", name, QString::number(fitting.settings.size()))
+                      : i18n("%1: %2 settings. %3", name,
+                             QString::number(fitting.settings.size()),
+                             fitting.declined.join(QStringLiteral(" "))));
+        Q_EMIT effectsChanged();
+        return;
+    }
 }
 
 QVariantList Session::availableEffects() const

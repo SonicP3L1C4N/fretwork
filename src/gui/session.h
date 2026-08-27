@@ -4,6 +4,7 @@
 #pragma once
 
 #include "editor.h"
+#include "gxpreset.h"
 #include "lv2chain.h"
 #include "sfz.h"
 #include "player.h"
@@ -107,6 +108,14 @@ class Session : public QObject
      */
     Q_PROPERTY(QVariantList chainHere READ chainHere NOTIFY effectsChanged)
     Q_PROPERTY(QVariantList availableEffects READ availableEffects NOTIFY effectsChanged)
+
+    /**
+     * The amplifier voicings guitarix ships, for a menu on each plugin.
+     *
+     * Constant because banks are files on the machine and this window does not
+     * write them: what is installed when it opens is what it offers.
+     */
+    Q_PROPERTY(QVariantList voicings READ voicings CONSTANT)
 
     /** Everything a new part may be: names to show, and ids to ask for. */
     Q_PROPERTY(QStringList instrumentNames READ instrumentNames CONSTANT)
@@ -250,6 +259,19 @@ public:
      */
     Q_INVOKABLE void applyRig(const QVariantMap &samplers, const QVariantMap &effects);
     QVariantList availableEffects() const;
+
+    QVariantList voicings() const;
+
+    /**
+     * Sets one plugin on the current part to a named guitarix voicing.
+     *
+     * Several knobs at once and nothing else -- the chain is not rebuilt, so
+     * the part does not stop. What the plugin would not take goes to the
+     * status line rather than nowhere: a voicing that quietly lost its
+     * cabinet, or its level, is not the voicing on the label, and the person
+     * listening is the one who needs to know.
+     */
+    Q_INVOKABLE void applyVoicing(int stage, const QString &name);
 
     /** Puts a plugin on the end of the current part's chain. */
     Q_INVOKABLE void addEffect(const QString &uri);
@@ -484,6 +506,7 @@ private:
     bool m_following = false;
     QHash<int, QString> m_samplers;
     QHash<int, QStringList> m_effects;
+    QList<Gx::Voicing> m_voicings;
     QHash<int, QHash<int, QHash<quint32, float>>> m_knobs;
     QList<Lv2::Description> m_plugins;
     QList<Sfz::Library> m_libraries;

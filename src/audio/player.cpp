@@ -426,6 +426,27 @@ void Player::setEffectControl(int track, int stage, quint32 index, float value)
     }
 }
 
+Gx::Fitting Player::applyVoicing(int track, int stage, const Gx::Voicing &voicing)
+{
+    const QList<Lv2::Stage> stages = chainOn(track);
+    if (stage < 0 || stage >= stages.size()) {
+        return {};
+    }
+
+    // Fitted against the knobs this plugin actually reports, so a chain whose
+    // second slot is a delay rather than an amplifier simply takes nothing.
+    const Gx::Fitting fitting = Gx::fit(voicing, stages.at(stage).controls);
+    for (const Gx::Setting &setting : fitting.settings) {
+        for (const Lv2::Control &control : stages.at(stage).controls) {
+            if (control.symbol == setting.symbol) {
+                setEffectControl(track, stage, control.index, setting.value);
+                break;
+            }
+        }
+    }
+    return fitting;
+}
+
 bool Player::isFollowing() const
 {
     return m_options.followTransport && m_ports != nullptr;

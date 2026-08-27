@@ -90,6 +90,15 @@ struct Control {
     QList<float> choiceValues;
 };
 
+/**
+ * The knobs a plugin has, read from its manifest without loading it.
+ *
+ * For deciding what a setting would do before committing to it: fitting a
+ * guitarix voicing needs the plugin's own list of valve models, and asking
+ * that question should not cost an instantiation.
+ */
+QList<Control> controlsOf(const QString &uri);
+
 /** One plugin in a chain, and the knobs on it. */
 struct Stage {
     QString uri;

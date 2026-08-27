@@ -4,6 +4,7 @@
 #include "audioinput.h"
 #include "fwformat.h"
 #include "gpif.h"
+#include "gxpreset.h"
 #include "lv2chain.h"
 #include "session.h"
 #include "midi.h"
@@ -103,6 +104,131 @@ QHash<int, QStringList> effectsFrom(const QStringList &given, QTextStream &error
         chains.insert(track, pair.mid(split + 1).split(QLatin1Char(','), Qt::SkipEmptyParts));
     }
     return chains;
+}
+
+/** Every guitarix voicing on the machine, in one list. */
+QList<Gx::Voicing> allVoicings()
+{
+    QList<Gx::Voicing> voicings;
+    const QStringList banks = Gx::banks();
+    for (const QString &bank : banks) {
+        voicings += Gx::read(bank);
+    }
+    return voicings;
+}
+
+/**
+ * A voicing by name: exactly, then ignoring case, then as a fragment.
+ *
+ * "Bass - Come Together" is a lot to type accurately, so `--voicing 0:0=rising`
+ * finds it. A fragment matching two voicings is refused with both named rather
+ * than resolved to the first: picking one would be picking somebody's
+ * amplifier for them.
+ */
+bool voicingNamed(const QString &wanted, Gx::Voicing *found, QTextStream &error)
+{
+    const QList<Gx::Voicing> voicings = allVoicings();
+    QList<Gx::Voicing> fragments;
+    for (const Gx::Voicing &voicing : voicings) {
+        if (voicing.name == wanted) {
+            *found = voicing;
+            return true;
+        }
+        if (voicing.name.contains(wanted, Qt::CaseInsensitive)) {
+            fragments.append(voicing);
+        }
+    }
+    if (fragments.size() == 1) {
+        *found = fragments.first();
+        return true;
+    }
+    if (fragments.isEmpty()) {
+        error << QStringLiteral("fretwork: no voicing is called \"%1\"\n").arg(wanted);
+        return false;
+    }
+    QStringList names;
+    for (const Gx::Voicing &voicing : std::as_const(fragments)) {
+        names << voicing.name;
+    }
+    error << QStringLiteral("fretwork: \"%1\" could be %2\n").arg(wanted, names.join(QStringLiteral(", ")));
+    return false;
+}
+
+/** `--voicing 0:0=Bassman` into a plugin to set and the voicing to set it to. */
+struct AskedVoicing {
+    int track = 0;
+    int stage = 0;
+    QString name;
+};
+
+QList<AskedVoicing> voicingsFrom(const QStringList &given, QTextStream &error, int *bad)
+{
+    QList<AskedVoicing> asked;
+    static const QRegularExpression shape(QStringLiteral("^(\\d+):(\\d+)=(.+)$"));
+    for (const QString &entry : given) {
+        const QRegularExpressionMatch match = shape.match(entry);
+        if (!match.hasMatch()) {
+            error << QStringLiteral("fretwork: --voicing wants track:plugin=name, as in "
+                                    "--voicing 0:0=Bassman, not \"%1\"\n")
+                         .arg(entry);
+            ++(*bad);
+            continue;
+        }
+        asked.append({match.captured(1).toInt(), match.captured(2).toInt(), match.captured(3)});
+    }
+    return asked;
+}
+
+/**
+ * Voicings turned into ordinary knob settings, for a path that only has knobs.
+ *
+ * The renderer applies knobs and knows nothing about guitarix, which is right:
+ * a voicing *is* knob positions, and the plugin's manifest is enough to work
+ * out which. What the plugin will not take is reported here rather than
+ * dropped, so a rendered stem says the same thing a played one does.
+ */
+template<typename Knob>
+QList<Knob> knobsForVoicings(const QStringList &given, const QHash<int, QStringList> &effects,
+                             QTextStream &out, QTextStream &error, int *bad)
+{
+    QList<Knob> knobs;
+    const QList<AskedVoicing> asked = voicingsFrom(given, error, bad);
+    for (const AskedVoicing &want : asked) {
+        Gx::Voicing found;
+        if (!voicingNamed(want.name, &found, error)) {
+            ++(*bad);
+            continue;
+        }
+        const QStringList chain = effects.value(want.track);
+        if (want.stage < 0 || want.stage >= chain.size()) {
+            error << QStringLiteral("fretwork: track %1 has no plugin %2 to voice\n")
+                         .arg(want.track).arg(want.stage);
+            ++(*bad);
+            continue;
+        }
+
+        const Gx::Fitting fitting = Gx::fit(found, Lv2::controlsOf(chain.at(want.stage)));
+        if (fitting.isEmpty()) {
+            error << QStringLiteral("fretwork: %1 takes nothing from \"%2\"\n")
+                         .arg(chain.at(want.stage), found.name);
+            ++(*bad);
+            continue;
+        }
+        for (const Gx::Setting &setting : fitting.settings) {
+            Knob knob;
+            knob.track = want.track;
+            knob.stage = want.stage;
+            knob.symbol = setting.symbol;
+            knob.value = setting.value;
+            knobs.append(knob);
+        }
+        out << i18n("  %1 on track %2: %3 setting(s)\n", found.name,
+                    QString::number(want.track), QString::number(fitting.settings.size()));
+        for (const QString &line : fitting.declined) {
+            out << QStringLiteral("    %1\n").arg(line);
+        }
+    }
+    return knobs;
 }
 
 /**
@@ -298,7 +424,8 @@ bool writeMidi(QTextStream &out, QTextStream &error, const Score &score,
 bool renderAudio(QTextStream &out, QTextStream &error, const Score &score,
                  const QList<int> &order, const QString &directory,
                  const QString &soundFont, bool click, const QHash<int, QString> &samplers,
-                 const QHash<int, QStringList> &effects, const QStringList &knobs)
+                 const QHash<int, QStringList> &effects, const QStringList &knobs,
+                 const QStringList &voicings)
 {
     Render::Options options;
     options.soundFont = soundFont;
@@ -307,6 +434,8 @@ bool renderAudio(QTextStream &out, QTextStream &error, const Score &score,
     options.effects = effects;
     int ignored = 0;
     options.knobs = knobsFrom<Render::Options::Knob>(knobs, error, &ignored);
+    options.knobs += knobsForVoicings<Render::Options::Knob>(voicings, effects, out, error,
+                                                             &ignored);
     options.effects = effects;
 
     QString why;
@@ -388,7 +517,8 @@ bool playScore(QTextStream &out, QTextStream &error, const Score &score,
                const QList<int> &order, const QString &soundFont, const QString &driver,
                const QStringList &solo, const QStringList &mute, bool click, bool ports,
                bool follow, const QHash<int, QString> &samplers,
-               const QHash<int, QStringList> &effects, const QStringList &knobs)
+               const QHash<int, QStringList> &effects, const QStringList &knobs,
+               const QStringList &voicings)
 {
     Player::Options options;
     options.soundFont = soundFont;
@@ -404,6 +534,28 @@ bool playScore(QTextStream &out, QTextStream &error, const Score &score,
     if (!player.isValid()) {
         error << QStringLiteral("fretwork: %1\n").arg(player.error());
         return false;
+    }
+
+    // Applied after the chains exist, because a voicing is knob positions on a
+    // plugin and there is nothing to turn until one is loaded.
+    int ignoredVoicings = 0;
+    const QList<AskedVoicing> asked = voicingsFrom(voicings, error, &ignoredVoicings);
+    for (const AskedVoicing &want : asked) {
+        Gx::Voicing found;
+        if (!voicingNamed(want.name, &found, error)) {
+            continue;
+        }
+        const Gx::Fitting fitting = player.applyVoicing(want.track, want.stage, found);
+        if (fitting.isEmpty()) {
+            error << QStringLiteral("fretwork: nothing on track %1 plugin %2 takes \"%3\"\n")
+                         .arg(want.track).arg(want.stage).arg(found.name);
+            continue;
+        }
+        out << i18n("  %1 on track %2: %3 setting(s)\n", found.name, QString::number(want.track),
+                    QString::number(fitting.settings.size()));
+        for (const QString &line : fitting.declined) {
+            out << QStringLiteral("    %1\n").arg(line);
+        }
     }
 
     for (const QString &track : solo) {
@@ -748,6 +900,14 @@ int main(int argc, char *argv[])
                                        "track:plugin:name=value; repeatable"),
                                   i18n("0:0:Drive=0.8"));
     parser.addOption(knob);
+    const QCommandLineOption voicing(
+        QStringLiteral("voicing"),
+        i18n("Set a plugin in a chain to a guitarix preset, as track:plugin=name"),
+        i18n("setting"));
+    parser.addOption(voicing);
+    const QCommandLineOption listVoicings(QStringLiteral("voicings"),
+                                          i18n("List the guitarix presets installed, and exit"));
+    parser.addOption(listVoicings);
     const QCommandLineOption listEffects(QStringLiteral("effects"),
                                          i18n("List the LV2 effects installed, and exit"));
     parser.addOption(listEffects);
@@ -805,6 +965,20 @@ int main(int argc, char *argv[])
                        .arg(plugin.uri);
         }
         out << i18n("  %1 usable in a chain\n", QString::number(found.size()));
+        return 0;
+    }
+
+    if (parser.isSet(listVoicings)) {
+        const QList<Gx::Voicing> voicings = allVoicings();
+        for (const Gx::Voicing &found : voicings) {
+            out << QStringLiteral("  %1  %2\n")
+                       .arg(found.name, -36)
+                       .arg(found.usesAmplifier()
+                                ? QStringLiteral("%1, %2").arg(found.valve, found.toneStack)
+                                : i18n("no amplifier"));
+        }
+        out << i18n("  %1 in %2 bank(s)\n", QString::number(voicings.size()),
+                    QString::number(Gx::banks().size()));
         return 0;
     }
 
@@ -907,7 +1081,7 @@ int main(int argc, char *argv[])
                            parser.value(audioDriver), parser.values(soloed),
                            parser.values(muted), parser.isSet(clicking),
                            parser.isSet(porting), parser.isSet(following), samplers, effects,
-                           parser.values(knob))) {
+                           parser.values(knob), parser.values(voicing))) {
                 ++failures;
             }
         }
@@ -950,7 +1124,7 @@ int main(int argc, char *argv[])
         if (parser.isSet(render)) {
             if (!renderAudio(out, error, score, order, parser.value(render),
                              parser.value(soundFont), parser.isSet(clicking), samplers, effects,
-                             parser.values(knob))) {
+                             parser.values(knob), parser.values(voicing))) {
                 ++failures;
             }
         }

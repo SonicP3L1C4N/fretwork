@@ -4,6 +4,7 @@
 #pragma once
 
 #include "score.h"
+#include "gxpreset.h"
 #include "jacktransport.h"
 #include "lv2chain.h"
 #include "portedoutput.h"
@@ -131,6 +132,17 @@ public:
 
     /** Turns one knob on a live chain, without rebuilding anything. */
     void setEffectControl(int track, int stage, quint32 index, float value);
+
+    /**
+     * Sets one plugin in a chain to a guitarix voicing, while it plays.
+     *
+     * A voicing is a handful of knob positions and nothing else, so this is
+     * the ordinary knob path run several times -- no rebuilding, no gap in the
+     * sound. What comes back is what the plugin would not take, which the
+     * caller is expected to show rather than swallow: a voicing that quietly
+     * lost its cabinet is a voicing that is not the one on the label.
+     */
+    Gx::Fitting applyVoicing(int track, int stage, const Gx::Voicing &voicing);
 
     /** Whether the transport is the graph's rather than this program's. */
     bool isFollowing() const;

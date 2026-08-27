@@ -1517,15 +1517,59 @@ Kirigami.ApplicationWindow {
                                 Layout.leftMargin: Kirigami.Units.smallSpacing
                                 spacing: 0
 
-                                QQC2.Label {
+                                RowLayout {
                                     Layout.fillWidth: true
                                     Layout.topMargin: Kirigami.Units.smallSpacing
-                                    text: i18n("%1. %2", stageRow.modelData.stage + 1,
-                                               stageRow.modelData.name)
-                                    elide: Text.ElideRight
-                                    color: Ink.ink
-                                    font.weight: Font.DemiBold
-                                    font.pointSize: Kirigami.Theme.smallFont.pointSize
+                                    spacing: Kirigami.Units.smallSpacing
+
+                                    QQC2.Label {
+                                        Layout.fillWidth: true
+                                        text: i18n("%1. %2", stageRow.modelData.stage + 1,
+                                                   stageRow.modelData.name)
+                                        elide: Text.ElideRight
+                                        color: Ink.ink
+                                        font.weight: Font.DemiBold
+                                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                                    }
+
+                                    /**
+                                     * Somebody else's ears, as a starting point.
+                                     *
+                                     * A chain at its defaults is an amplifier
+                                     * nobody has turned up. These are the
+                                     * guitarix factory presets, carrying the
+                                     * part of each that an amplifier can hold
+                                     * -- the valve, the tone stack, the
+                                     * cabinet and the levels. What they cannot
+                                     * carry goes to the status line, because a
+                                     * voicing missing its reverb is not the
+                                     * sound on the label and should not
+                                     * pretend to be.
+                                     */
+                                    MixerButton {
+                                        visible: session.voicings.length > 0
+                                        text: i18n("Voicing")
+                                        checkable: false
+                                        implicitWidth: Ink.control + Ink.smallControl
+                                        QQC2.ToolTip.text:
+                                            i18n("Set this plugin to a guitarix preset")
+                                        onClicked: voicingMenu.popup()
+
+                                        QQC2.Menu {
+                                            id: voicingMenu
+                                            Repeater {
+                                                model: session.voicings
+                                                delegate: QQC2.MenuItem {
+                                                    required property var modelData
+                                                    text: i18n("%1  \u2014  %2",
+                                                               modelData.name, modelData.summary)
+                                                    enabled: modelData.amplified
+                                                    onTriggered: session.applyVoicing(
+                                                        stageRow.modelData.stage, modelData.name)
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
 
                                 Repeater {
@@ -1567,25 +1611,38 @@ Kirigami.ApplicationWindow {
                                         // colours, which is the lesson the
                                         // track dropdown and the capo spinner
                                         // both taught already.
-                                        QQC2.Button {
+                                        MixerButton {
                                             id: choiceButton
                                             Layout.fillWidth: true
                                             visible: !knobRow.modelData.toggled
                                                      && knobRow.modelData.choices.length > 0
-                                            flat: true
-                                            text: knobRow.modelData.choices[
-                                                Math.max(0, Math.min(
-                                                    knobRow.modelData.choices.length - 1,
-                                                    Math.round(knobRow.modelData.value)))]
-                                            onClicked: choiceMenu.popup()
-
-                                            contentItem: QQC2.Label {
-                                                text: choiceButton.text
-                                                elide: Text.ElideRight
-                                                color: Ink.ink
-                                                font.pointSize:
-                                                    Kirigami.Theme.smallFont.pointSize
+                                            checkable: false
+                                            /**
+                                             * The name of the choice the value
+                                             * stands for -- found by the value,
+                                             * never by its place in the list.
+                                             * A plugin may number its choices
+                                             * 0, 2, 5, and lilv reports them in
+                                             * no particular order, so position
+                                             * is not an answer to "which one is
+                                             * this".
+                                             */
+                                            text: {
+                                                const names = knobRow.modelData.choices;
+                                                const values = knobRow.modelData.choiceValues;
+                                                if (!names || names.length === 0)
+                                                    return "";
+                                                let best = 0;
+                                                for (let i = 1; i < names.length; ++i) {
+                                                    if (Math.abs(values[i] - knobRow.modelData.value)
+                                                        < Math.abs(values[best]
+                                                                   - knobRow.modelData.value)) {
+                                                        best = i;
+                                                    }
+                                                }
+                                                return names[best];
                                             }
+                                            onClicked: choiceMenu.popup()
 
                                             QQC2.Menu {
                                                 id: choiceMenu
@@ -1599,7 +1656,8 @@ Kirigami.ApplicationWindow {
                                                             session.setEffectControl(
                                                                 stageRow.modelData.stage,
                                                                 knobRow.modelData.index,
-                                                                index)
+                                                                knobRow.modelData
+                                                                    .choiceValues[index])
                                                     }
                                                 }
                                             }

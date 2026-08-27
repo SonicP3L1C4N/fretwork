@@ -342,21 +342,38 @@ QList<Lv2::Control> readControls(const LilvPlugin *plugin, std::vector<float> &v
         }
         control.minimum = std::isnan(minimums[index]) ? 0.0f : minimums[index];
         control.maximum = std::isnan(maximums[index]) ? 1.0f : maximums[index];
-        control.value = index < values.size() ? values[index] : 0.0f;
+        // With no instance to read, the manifest's default is what the knob
+        // would be if one were loaded -- which is the honest answer to "where
+        // is this set", and nought would not be.
+        control.value = index < values.size()
+            ? values[index]
+            : (std::isnan(defaults[index]) ? 0.0f : defaults[index]);
         control.toggled = lilv_port_has_property(plugin, port, toggled);
         control.integer = lilv_port_has_property(plugin, port, integer);
         control.logarithmic = lilv_port_has_property(plugin, port, logarithmic);
 
         if (lilv_port_has_property(plugin, port, enumeration)) {
             if (LilvScalePoints *points = lilv_port_get_scale_points(plugin, port)) {
+                // Sorted, because lilv hands these back in whatever order the
+                // RDF happened to parse in -- "12AU7" before "12ax7" though
+                // the manifest lists them 0, 1. A list of amplifier models
+                // shown in an arbitrary order is a list nobody can read, and
+                // anything pairing a label with a value by position would pair
+                // them wrongly.
+                QList<QPair<float, QString>> sorted;
                 LILV_FOREACH (scale_points, iterator, points) {
                     const LilvScalePoint *point = lilv_scale_points_get(points, iterator);
-                    control.choices.append(QString::fromUtf8(
-                        lilv_node_as_string(lilv_scale_point_get_label(point))));
-                    control.choiceValues.append(
-                        float(lilv_node_as_float(lilv_scale_point_get_value(point))));
+                    sorted.append({float(lilv_node_as_float(lilv_scale_point_get_value(point))),
+                                   QString::fromUtf8(
+                                       lilv_node_as_string(lilv_scale_point_get_label(point)))});
                 }
                 lilv_scale_points_free(points);
+                std::sort(sorted.begin(), sorted.end(),
+                          [](const auto &a, const auto &b) { return a.first < b.first; });
+                for (const auto &point : std::as_const(sorted)) {
+                    control.choiceValues.append(point.first);
+                    control.choices.append(point.second);
+                }
             }
         }
         controls.append(control);
@@ -419,6 +436,21 @@ Lv2::Description Lv2::describe(const QString &uri)
                                                        wanted);
     lilv_node_free(wanted);
     return plugin ? describeOne(plugin) : Description{};
+}
+
+QList<Lv2::Control> Lv2::controlsOf(const QString &uri)
+{
+    LilvNode *wanted = lilv_new_uri(world(), uri.toUtf8().constData());
+    const LilvPlugin *plugin = lilv_plugins_get_by_uri(lilv_world_get_all_plugins(world()),
+                                                       wanted);
+    lilv_node_free(wanted);
+    if (!plugin) {
+        return {};
+    }
+    // No instance, so no port values to report: every control reads as the
+    // default the manifest gives, which is what a plugin not yet loaded is.
+    std::vector<float> none;
+    return readControls(plugin, none);
 }
 
 /** One plugin in the chain, which may be two instances of a mono one. */
@@ -727,6 +759,11 @@ QList<Lv2::Description> Lv2::installed()
 }
 
 Lv2::Description Lv2::describe(const QString &)
+{
+    return {};
+}
+
+QList<Lv2::Control> Lv2::controlsOf(const QString &)
 {
     return {};
 }

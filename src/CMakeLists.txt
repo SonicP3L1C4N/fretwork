@@ -19,6 +19,7 @@ add_library(fretworkcore STATIC
     audio/pitchdetector.cpp
     audio/portedoutput.cpp
     audio/sampler.cpp
+    audio/gxpreset.cpp
     audio/sfz.cpp
     audio/tuner.cpp
     audio/wav.cpp

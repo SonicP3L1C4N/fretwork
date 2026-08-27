@@ -63,8 +63,13 @@ P4 in the plan is three items. These are the rest of that thought.
   session file beside it, or a named preset of Fretwork's own, would both
   work and are different promises.
 
-- **Guitarix presets.** Its own amplifier settings, which are the difference
-  between a chain and a sound, and which it keeps in a format of its own.
+- **The rest of a guitarix rig.** The amplifier out of a `.gx` preset is
+  carried now, and that is as far as the plugins allow: the modules the factory
+  bank leans on hardest — `shaper`, the `jconv` convolver, `stereoverb` — are
+  not shipped as LV2 at all. Reproducing a whole preset would mean hosting
+  guitarix itself, which is the Carla argument again and gets the same answer.
+  A cabinet convolver taking guitarix's own impulse responses would close most
+  of the gap without any of that.
 
 - **Pick, fret and string noise.** The difference between a sampled guitar and
   a guitar. The SFZ layer exists now, so this is a question of a library having
