@@ -3,6 +3,7 @@
 
 #include "cursor.h"
 #include "editor.h"
+#include "notename.h"
 #include "timeline.h"
 
 #include <QTest>
@@ -1564,6 +1565,153 @@ private Q_SLOTS:
         editor.setCursor(Cursor{0, 1, 0, 0});
         QCOMPARE(editor.setTimeSignature(4, 4), Editor::Edit::Nothing);
         QVERIFY(!editor.canUndo());
+    }
+
+    // ---- the instrument ----
+
+    /** A bar of notes, one per string, all at the same fret. */
+    static Score fretted(int fret)
+    {
+        Score score = someBars(2);
+        for (int bar = 0; bar < 2; ++bar) {
+            const QList<int> beats = score.voices.value(bar).beats;
+            for (int at = 0; at < beats.size() && at < 4; ++at) {
+                Note note;
+                note.string = at;
+                note.fret = fret;
+                note.midi = score.tracks.first().tuning.at(at) + fret;
+                const int id = 900 + bar * 10 + at;
+                score.notes.insert(id, note);
+                score.beats[beats.at(at)].notes = {id};
+            }
+        }
+        return score;
+    }
+
+    void retuningMovesThePitchesAndLeavesTheFrets()
+    {
+        Editor editor;
+        editor.setScore(fretted(3));
+
+        // Standard tuning with the low string dropped a tone.
+        QCOMPARE(editor.retune({38, 45, 50, 55, 59, 64}), Editor::Edit::Done);
+        QCOMPARE(editor.score().tracks.first().tuning.first(), 38);
+
+        // Fret three is still fret three -- nobody rewrote the tab -- and it
+        // sounds a tone lower than it did.
+        const Note &low = editor.score().notes.value(900);
+        QCOMPARE(low.fret, 3);
+        QCOMPARE(low.midi, 41);         // was 40 + 3 = 43, now 38 + 3 = 41
+
+        // And every other string is untouched, because only one moved.
+        QCOMPARE(editor.score().notes.value(901).midi, 45 + 3);
+    }
+
+    void aCapoTakesEveryNoteWithIt()
+    {
+        Editor editor;
+        editor.setScore(fretted(0));
+        const int before = editor.score().notes.value(902).midi;
+
+        QCOMPARE(editor.setCapo(2), Editor::Edit::Done);
+        QCOMPARE(editor.score().tracks.first().capo, 2);
+        // Every string at once, and the fret numbers under it unchanged: they
+        // are counted from the capo rather than from the nut.
+        QCOMPARE(editor.score().notes.value(902).midi, before + 2);
+        QCOMPARE(editor.score().notes.value(902).fret, 0);
+        QCOMPARE(editor.score().notes.value(900).fret, 0);
+
+        // Moving it again moves by the difference, not from the nut again.
+        QCOMPARE(editor.setCapo(5), Editor::Edit::Done);
+        QCOMPARE(editor.score().notes.value(902).midi, before + 5);
+    }
+
+    void undoingAnInstrumentChangePutsThePitchesBack()
+    {
+        Editor editor;
+        editor.setScore(fretted(7));
+        const int wasMidi = editor.score().notes.value(900).midi;
+        const QList<int> wasTuning = editor.score().tracks.first().tuning;
+
+        QCOMPARE(editor.retune({36, 43, 48, 53, 57, 62}), Editor::Edit::Done);
+        QCOMPARE(editor.setCapo(3), Editor::Edit::Done);
+        editor.undo();
+        editor.undo();
+
+        QCOMPARE(editor.score().tracks.first().tuning, wasTuning);
+        QCOMPARE(editor.score().tracks.first().capo, 0);
+        QCOMPARE(editor.score().notes.value(900).midi, wasMidi);
+        QCOMPARE(editor.score().notes.value(900).fret, 7);
+    }
+
+    void refusesAnInstrumentNobodyIsHolding()
+    {
+        Editor editor;
+        editor.setScore(fretted(0));
+        // The wrong number of strings is a question about which one went.
+        QCOMPARE(editor.retune({40, 45, 50, 55, 59}), Editor::Edit::Refused);
+        // And a pitch outside anything fretted is a slipped digit.
+        QCOMPARE(editor.retune({4, 45, 50, 55, 59, 64}), Editor::Edit::Refused);
+        QCOMPARE(editor.retune({40, 45, 50, 55, 59, 120}), Editor::Edit::Refused);
+        QCOMPARE(editor.setCapo(13), Editor::Edit::Refused);
+        QCOMPARE(editor.setCapo(-1), Editor::Edit::Refused);
+
+        QCOMPARE(editor.score().tracks.first().tuning.first(), 40);
+        QCOMPARE(editor.score().tracks.first().capo, 0);
+
+        // Setting what is already set is nothing to do rather than a refusal.
+        QCOMPARE(editor.retune({40, 45, 50, 55, 59, 64}), Editor::Edit::Nothing);
+        QCOMPARE(editor.setCapo(0), Editor::Edit::Nothing);
+    }
+
+    void aNoteWithNoPitchStaysWithoutOne()
+    {
+        Score score = fretted(2);
+        score.notes[901].midi = -1;         // what an importer leaves behind
+        Editor editor;
+        editor.setScore(score);
+
+        QCOMPARE(editor.setCapo(4), Editor::Edit::Done);
+        QCOMPARE(editor.score().notes.value(901).midi, -1);
+    }
+
+    void readsATuningBackFromItsNames()
+    {
+        QCOMPARE(NoteName::parse(QStringLiteral("E2")), 40);
+        QCOMPARE(NoteName::parse(QStringLiteral("C2")), 36);
+        QCOMPARE(NoteName::parse(QStringLiteral("A#3")), 58);
+        QCOMPARE(NoteName::parse(QStringLiteral("Bb3")), 58);       // the same note
+        QCOMPARE(NoteName::parse(QStringLiteral("c4")), 60);
+        QCOMPARE(NoteName::parse(QStringLiteral("40")), 40);
+        QCOMPARE(NoteName::parse(QStringLiteral(" E2 ")), 40);
+        QCOMPARE(NoteName::parse(QStringLiteral("H2")), -1);
+        QCOMPARE(NoteName::parse(QStringLiteral("E")), -1);
+        QCOMPARE(NoteName::parse(QString()), -1);
+
+        // And whatever it prints, it reads.
+        for (int midi = 12; midi <= 96; ++midi) {
+            QCOMPARE(NoteName::parse(NoteName::of(midi)), midi);
+        }
+    }
+
+    void namesABarAndTakesTheNameOffAgain()
+    {
+        Editor editor;
+        editor.setScore(someBars(4));
+        editor.setCursor(Cursor{0, 2, 0, 0});
+
+        QCOMPARE(editor.setSection(QStringLiteral("Chorus")), Editor::Edit::Done);
+        QCOMPARE(editor.score().masterBars.at(2).section, QStringLiteral("Chorus"));
+        QCOMPARE(editor.score().masterBars.at(1).section, QString());
+
+        // A name that is a space is a section on the bar strip and nothing on
+        // the page, and nobody meant to make one.
+        QCOMPARE(editor.setSection(QStringLiteral("  Chorus  ")), Editor::Edit::Nothing);
+        QCOMPARE(editor.setSection(QStringLiteral("   ")), Editor::Edit::Done);
+        QCOMPARE(editor.score().masterBars.at(2).section, QString());
+
+        editor.undo();
+        QCOMPARE(editor.score().masterBars.at(2).section, QStringLiteral("Chorus"));
     }
 };
 

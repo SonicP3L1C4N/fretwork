@@ -258,6 +258,46 @@ public:
     /** Whether the caret's bar is where the signature changes rather than continues. */
     bool timeSignatureWrittenHere() const;
 
+    /**
+     * Names the section that starts at the caret's bar, or takes the name off.
+     *
+     * An empty name removes it, which is the only way to say "this is not
+     * where the chorus starts any more" -- there is no separate command for
+     * it, because a section is a name and no name is no section.
+     */
+    Edit setSection(const QString &name);
+
+    // ---- the instrument ----
+
+    /**
+     * Retunes the strings of the caret's track.
+     *
+     * The frets stay where they are and the pitches move, which is what
+     * retuning an instrument does: dropping the low string to D leaves fret
+     * three at fret three and makes it sound a tone lower. The tab on the page
+     * does not change at all, because nobody rewrote it.
+     *
+     * The other reading -- keep the pitches and move the frets -- is
+     * transcribing a part for a different tuning, which is a different act
+     * with a different answer for every note, and is reachable afterwards by
+     * transposing. Doing it here would rewrite the page in response to a
+     * change to the instrument, which is the wrong way round.
+     *
+     * Refused where a string would land outside the range of a fretted
+     * instrument, or where the list is the wrong length for the track.
+     */
+    Edit retune(const QList<int> &tuning);
+
+    /**
+     * Moves the capo of the caret's track.
+     *
+     * Every note in the track goes with it, because a capo raises every string
+     * at once and the fret numbers under it are counted from the capo rather
+     * than from the nut. Refused past the twelfth fret, where a capo stops
+     * being a capo and starts being a shorter instrument.
+     */
+    Edit setCapo(int fret);
+
     // ---- how long a beat lasts ----
 
     /**
@@ -337,6 +377,9 @@ private:
 
     /** The notes an edit means: the selection's, or the caret's own. */
     QList<int> notesToMove() const;
+
+    /** Every note id in a track, in no particular order. */
+    QList<int> notesOfTrack(int track) const;
 
     Score m_score;
     Cursor m_cursor;

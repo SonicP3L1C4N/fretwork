@@ -55,6 +55,22 @@ class Session : public QObject
     Q_PROPERTY(double tempoHere READ tempoHere NOTIFY cursorMoved)
     Q_PROPERTY(bool tempoWrittenHere READ tempoWrittenHere NOTIFY cursorMoved)
 
+    /**
+     * The current track's instrument: how it is tuned and where its capo is.
+     *
+     * The tuning reads as names rather than numbers -- "E2 A2 D3 G3 B3 E4" --
+     * because that is how a guitarist says one, and it is written back the
+     * same way.
+     */
+    Q_PROPERTY(QString tuningHere READ tuningHere NOTIFY cursorMoved)
+    Q_PROPERTY(int capoHere READ capoHere NOTIFY cursorMoved)
+
+    /** How many strings the current track has; none for a drum kit. */
+    Q_PROPERTY(int stringsHere READ stringsHere NOTIFY cursorMoved)
+
+    /** What the caret's bar is called, where the score calls it anything. */
+    Q_PROPERTY(QString sectionHere READ sectionHere NOTIFY cursorMoved)
+
     /** The caret's bar's time signature, as "4/4", and whether it starts there. */
     Q_PROPERTY(QString timeHere READ timeHere NOTIFY cursorMoved)
     Q_PROPERTY(bool timeWrittenHere READ timeWrittenHere NOTIFY cursorMoved)
@@ -205,6 +221,19 @@ public:
 
     /** Takes the caret's bar's own tempo change away, where it has one. */
     Q_INVOKABLE void clearTempoHere();
+
+    QString tuningHere() const;
+    int capoHere() const;
+    int stringsHere() const;
+
+    /** Retunes the current track. Frets stay where they are; pitches move. */
+    Q_INVOKABLE void setTuningHere(const QString &names);
+    Q_INVOKABLE void setCapoHere(int fret);
+
+    QString sectionHere() const;
+
+    /** Names the caret's bar, or takes its name off when given nothing. */
+    Q_INVOKABLE void setSectionHere(const QString &name);
 
     QString timeHere() const;
     bool timeWrittenHere() const;

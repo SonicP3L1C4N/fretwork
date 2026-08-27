@@ -968,6 +968,101 @@ private:
     QList<QPair<int, int>> m_previous;
 };
 
+/** What a bar is called, where the score calls it anything. */
+class SetSectionCommand : public QUndoCommand
+{
+public:
+    SetSectionCommand(Editor *editor, int bar, const QString &name)
+        : m_editor(editor)
+        , m_bar(bar)
+        , m_name(name)
+    {
+        m_previous = editor->score().masterBars.at(bar).section;
+        setText(name.isEmpty() ? i18n("Remove section name") : i18n("Name section"));
+    }
+
+    void redo() override
+    {
+        m_editor->mutableScore().masterBars[m_bar].section = m_name;
+        m_editor->noteEdited(m_bar);
+    }
+
+    void undo() override
+    {
+        m_editor->mutableScore().masterBars[m_bar].section = m_previous;
+        m_editor->noteEdited(m_bar);
+    }
+
+private:
+    Editor *m_editor;
+    int m_bar = 0;
+    QString m_name;
+    QString m_previous;
+};
+
+/**
+ * A change to the instrument: its tuning, or where its capo is.
+ *
+ * The notes move by a fixed number of semitones each, and the record kept is
+ * that number rather than a copy of every pitch in the track. Integer addition
+ * has an exact inverse, unlike a list edit that has swept other things up, and
+ * a fourteen-hundred-note guitar part would otherwise put fourteen hundred
+ * numbers on the undo stack to say the same thing twice.
+ */
+class RetuneCommand : public QUndoCommand
+{
+public:
+    /** `shifts` is a semitone offset per note id, gathered by the caller. */
+    RetuneCommand(Editor *editor, int track, const QList<int> &tuning, int capo,
+                  const QHash<int, int> &shifts, const QString &what)
+        : m_editor(editor)
+        , m_track(track)
+        , m_tuning(tuning)
+        , m_capo(capo)
+        , m_shifts(shifts)
+    {
+        const Track &part = editor->score().tracks.at(track);
+        m_wasTuning = part.tuning;
+        m_wasCapo = part.capo;
+        setText(what);
+    }
+
+    void redo() override
+    {
+        apply(m_tuning, m_capo, 1);
+    }
+
+    void undo() override
+    {
+        apply(m_wasTuning, m_wasCapo, -1);
+    }
+
+private:
+    void apply(const QList<int> &tuning, int capo, int direction)
+    {
+        Score &score = m_editor->mutableScore();
+        score.tracks[m_track].tuning = tuning;
+        score.tracks[m_track].capo = capo;
+        for (auto shift = m_shifts.constBegin(); shift != m_shifts.constEnd(); ++shift) {
+            Note &note = score.notes[shift.key()];
+            // A note the importer could not give a pitch to keeps not having
+            // one, rather than having arithmetic done on a -1.
+            if (note.midi >= 0) {
+                note.midi += shift.value() * direction;
+            }
+        }
+        m_editor->noteEdited(0);
+    }
+
+    Editor *m_editor;
+    int m_track = 0;
+    QList<int> m_tuning;
+    int m_capo = 0;
+    QHash<int, int> m_shifts;
+    QList<int> m_wasTuning;
+    int m_wasCapo = 0;
+};
+
 class InsertBarCommand : public QUndoCommand
 {
 public:
@@ -1784,6 +1879,115 @@ Editor::Edit Editor::setTimeSignature(int numerator, int denominator)
         run.append(index);
     }
     m_undo->push(new SetTimeCommand(this, run, numerator, denominator));
+    return Edit::Done;
+}
+
+Editor::Edit Editor::setSection(const QString &name)
+{
+    const int bar = m_cursor.bar;
+    if (bar < 0 || bar >= m_score.masterBars.size()) {
+        return Edit::Nothing;
+    }
+    // Trimmed, because a name that is a space is a section on the bar strip
+    // and nothing on the page, and nobody meant to make one.
+    const QString wanted = name.trimmed();
+    if (wanted == m_score.masterBars.at(bar).section) {
+        return Edit::Nothing;
+    }
+    m_undo->push(new SetSectionCommand(this, bar, wanted));
+    return Edit::Done;
+}
+
+QList<int> Editor::notesOfTrack(int track) const
+{
+    QList<int> notes;
+    if (track < 0 || track >= m_score.tracks.size()) {
+        return notes;
+    }
+    for (const MasterBar &master : m_score.masterBars) {
+        if (track >= master.bars.size()) {
+            continue;
+        }
+        for (const int voiceId : m_score.bars.value(master.bars.at(track)).voices) {
+            if (voiceId < 0) {
+                continue;
+            }
+            for (const int beatId : m_score.voices.value(voiceId).beats) {
+                notes.append(m_score.beats.value(beatId).notes);
+            }
+        }
+    }
+    return notes;
+}
+
+Editor::Edit Editor::retune(const QList<int> &tuning)
+{
+    const int track = m_cursor.track;
+    if (track < 0 || track >= m_score.tracks.size()) {
+        return Edit::Nothing;
+    }
+    const Track &part = m_score.tracks.at(track);
+    if (tuning.size() != part.tuning.size()) {
+        // A six-string given five pitches is a question about which string
+        // went, and there is no answer to it worth guessing.
+        return Edit::Refused;
+    }
+    // Wider than any instrument and narrow enough to catch a slipped digit:
+    // the lowest string of a five-string bass is a B0, the highest string of
+    // anything fretted is well under a C7.
+    for (const int pitch : tuning) {
+        if (pitch < 12 || pitch > 96) {
+            return Edit::Refused;
+        }
+    }
+    if (tuning == part.tuning) {
+        return Edit::Nothing;
+    }
+
+    // How far each string moved, and therefore how far every note sitting on
+    // it moves with it.
+    QHash<int, int> shifts;
+    for (const int noteId : notesOfTrack(track)) {
+        const Note &note = m_score.notes.value(noteId);
+        if (note.string < 0 || note.string >= tuning.size()) {
+            continue;
+        }
+        const int shift = tuning.at(note.string) - part.tuning.at(note.string);
+        if (shift != 0) {
+            shifts.insert(noteId, shift);
+        }
+    }
+
+    m_undo->push(new RetuneCommand(this, track, tuning, part.capo, shifts, i18n("Retune")));
+    return Edit::Done;
+}
+
+Editor::Edit Editor::setCapo(int fret)
+{
+    const int track = m_cursor.track;
+    if (track < 0 || track >= m_score.tracks.size()) {
+        return Edit::Nothing;
+    }
+    // Past the twelfth fret a capo stops being a capo and starts being a
+    // shorter instrument.
+    if (fret < 0 || fret > 12) {
+        return Edit::Refused;
+    }
+    const Track &part = m_score.tracks.at(track);
+    if (part.capo == fret) {
+        return Edit::Nothing;
+    }
+
+    // A capo raises every string at once, so every note in the track moves by
+    // the same amount -- the fret numbers under it are counted from the capo
+    // and not from the nut, so they do not change.
+    const int shift = fret - part.capo;
+    QHash<int, int> shifts;
+    for (const int noteId : notesOfTrack(track)) {
+        shifts.insert(noteId, shift);
+    }
+
+    m_undo->push(new RetuneCommand(this, track, part.tuning, fret, shifts, i18n("Move capo")));
     return Edit::Done;
 }
 

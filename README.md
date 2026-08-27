@@ -44,7 +44,12 @@ made and turns finding a bar back into scrolling for it, so the bars are laid
 out in as many columns as the window is wide enough for, in whole rows, growing
 to fit the score and stopping at a third of the window — a hundred and
 seventy-six bars would otherwise push the music it is a map of off the screen.
-Resize the window and the columns are recounted.
+Resize the window and the columns are recounted. **Sections are named** in the
+field over the grid: what it writes is what the grid and the page both print.
+
+The toolbar wraps too, in groups. A single row of every control is longer than
+a narrow window, and what ran off the end was not hidden so much as unreachable
+— which is worse than not fitting, because nothing says it is missing.
 
 Every track has a synthesiser of its own, so the **S** and **M** buttons take
 effect while it plays — no re-render, no bounce. The view follows the playhead
@@ -100,6 +105,21 @@ rest of the piece. A new bar is worth what the one it displaced was, so a bar
 added to a piece in 6/8 is in 6/8, and the tempo changes written after it move
 along with the music. The last bar of a score is kept: a score with no bars is
 not a shorter score.
+
+**The instrument is editable.** The tuning sits under the track list, written
+as names because that is how a guitarist says one — type `D2 A2 D3 G3 B3 E4`
+and the part is in drop D. Retuning moves the pitches and leaves the frets,
+which is what retuning an instrument does: fret three is still fret three and
+now sounds a tone lower, and the tab on the page does not change because
+nobody rewrote it. The other reading — keep the pitches and move the frets —
+is transcribing a part for a different tuning, which is a different act and is
+reachable afterwards by transposing.
+
+The capo moves every note in the part with it, because a capo raises every
+string at once and the fret numbers under it are counted from the capo rather
+than from the nut. Past the twelfth fret it is refused, where a capo stops
+being a capo and starts being a shorter instrument. A drum kit has no strings
+and is not offered either.
 
 **The tempo is editable**, which it had to become the moment there was a
 metronome to hear it against. The field beside the transport reads what the

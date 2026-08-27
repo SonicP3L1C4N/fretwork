@@ -5,12 +5,14 @@
 
 #include "fwformat.h"
 #include "gpif.h"
+#include "notename.h"
 #include "notevalue.h"
 
 #include <KLocalizedString>
 
 #include <QFileInfo>
 #include <QHash>
+#include <QRegularExpression>
 #include <QUrl>
 
 #include <algorithm>
@@ -281,6 +283,15 @@ void Session::setCurrentTrack(int track)
         return;
     }
     m_currentTrack = track;
+
+    // The caret goes with it. Until now it did not, and the caret is what
+    // every edit is aimed at -- so choosing a part in the list showed one
+    // track and typed into another, until somebody happened to click on the
+    // page and bring the two back together.
+    Cursor moved = m_editor.cursor();
+    moved.track = track;
+    m_editor.setCursor(moved);
+
     rebuildLayout();
     Q_EMIT currentTrackChanged();
 }
@@ -586,6 +597,24 @@ void Session::clearTempoHere()
     }
 }
 
+QString Session::sectionHere() const
+{
+    return hasScore() ? m_editor.score().masterBars.at(m_editor.cursor().bar).section
+                      : QString();
+}
+
+void Session::setSectionHere(const QString &name)
+{
+    if (m_editor.setSection(name) != Editor::Edit::Done) {
+        return;
+    }
+    setStatus(name.trimmed().isEmpty()
+                  ? i18n("Bar %1 is not the start of a section any more",
+                         QString::number(m_editor.cursor().bar + 1))
+                  : i18n("Bar %1 is \"%2\"", QString::number(m_editor.cursor().bar + 1),
+                         name.trimmed()));
+}
+
 QString Session::timeHere() const
 {
     if (!hasScore()) {
@@ -616,6 +645,74 @@ void Session::setTimeHere(const QString &signature)
         // The denominator is the half of this people get wrong, and saying
         // which half is wrong beats saying that something is.
         setStatus(i18n("The lower number has to be 1, 2, 4, 8, 16, 32 or 64"));
+        break;
+    case Editor::Edit::Nothing:
+        break;
+    }
+}
+
+QString Session::tuningHere() const
+{
+    if (!hasScore()) {
+        return QString();
+    }
+    QStringList names;
+    for (const int pitch : m_editor.score().tracks.at(m_currentTrack).tuning) {
+        names.append(NoteName::of(pitch));
+    }
+    return names.join(QLatin1Char(' '));
+}
+
+int Session::stringsHere() const
+{
+    return hasScore() ? m_editor.score().tracks.at(m_currentTrack).stringCount() : 0;
+}
+
+int Session::capoHere() const
+{
+    return hasScore() ? m_editor.score().tracks.at(m_currentTrack).capo : 0;
+}
+
+void Session::setTuningHere(const QString &names)
+{
+    QList<int> tuning;
+    const QStringList parts =
+        names.split(QRegularExpression(QStringLiteral("[\\s,]+")), Qt::SkipEmptyParts);
+    for (const QString &part : parts) {
+        const int pitch = NoteName::parse(part);
+        if (pitch < 0) {
+            setStatus(i18n("\"%1\" is not a note: write them like E2 A2 D3 G3 B3 E4", part));
+            return;
+        }
+        tuning.append(pitch);
+    }
+
+    switch (m_editor.retune(tuning)) {
+    case Editor::Edit::Done:
+        setStatus(i18n("Retuned to %1", tuningHere()));
+        break;
+    case Editor::Edit::Refused:
+        // Which of the two refusals it was, because they need different fixes.
+        setStatus(tuning.size() != m_editor.score().tracks.at(m_currentTrack).tuning.size()
+                      ? i18n("That track has %1 strings",
+                             QString::number(
+                                 m_editor.score().tracks.at(m_currentTrack).tuning.size()))
+                      : i18n("That is outside the range of anything with frets on it"));
+        break;
+    case Editor::Edit::Nothing:
+        break;
+    }
+}
+
+void Session::setCapoHere(int fret)
+{
+    switch (m_editor.setCapo(fret)) {
+    case Editor::Edit::Done:
+        setStatus(fret == 0 ? i18n("Capo off")
+                            : i18n("Capo at fret %1", QString::number(fret)));
+        break;
+    case Editor::Edit::Refused:
+        setStatus(i18n("A capo goes on the first twelve frets"));
         break;
     case Editor::Edit::Nothing:
         break;

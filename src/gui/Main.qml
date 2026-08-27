@@ -84,7 +84,12 @@ Kirigami.ApplicationWindow {
     Tuning {
         id: tuner
         listening: panels.tuner
-        strings: session.hasScore ? session.stringPitches(session.currentTrack) : []
+        // The comma is not a mistake: it makes this depend on tuningHere,
+        // which is what changes when the instrument is retuned. Without it the
+        // tuner would go on asking for the tuning the score arrived with.
+        strings: session.hasScore
+            ? (session.tuningHere, session.stringPitches(session.currentTrack))
+            : []
     }
 
     Connections {
@@ -384,7 +389,7 @@ Kirigami.ApplicationWindow {
     // ---- the transport ----
 
     header: Rectangle {
-        implicitHeight: Ink.control + Kirigami.Units.largeSpacing * 2
+        implicitHeight: toolFlow.implicitHeight + Kirigami.Units.largeSpacing * 2
         color: Ink.ink
 
         Kirigami.Theme.inherit: false
@@ -393,10 +398,42 @@ Kirigami.ApplicationWindow {
         Kirigami.Theme.textColor: Ink.paper
         Kirigami.Theme.highlightColor: Ink.accent
 
-        RowLayout {
-            anchors.fill: parent
+        /**
+         * Two groups: what the program does, and what the window shows.
+         *
+         * A single row of all of it is longer than a narrow window and simply
+         * ran off the end -- the transport, the clocks and every panel toggle
+         * were there and unreachable, which is worse than not fitting because
+         * nothing says they are missing. In a flow the toggles drop to a
+         * second line when the first cannot hold both groups, and the toolbar
+         * grows by a row to make room for them.
+         */
+        Flow {
+            id: toolFlow
+
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
             anchors.leftMargin: Kirigami.Units.largeSpacing * 2
             anchors.rightMargin: Kirigami.Units.largeSpacing * 2
+            anchors.topMargin: Kirigami.Units.largeSpacing
+            height: implicitHeight
+            spacing: Kirigami.Units.smallSpacing * 2
+
+            // Measured against what each group is asking for rather than what
+            // it got, so this decides the widths below without depending on
+            // them and going round in a circle.
+            /** What the groups that cannot stretch want between them. */
+            readonly property real fixed: fileGroup.implicitWidth + barGroup.implicitWidth
+                + toggles.implicitWidth + spacing * 3
+
+            /** Whether all four fit on one line, with room left for the slider. */
+            readonly property bool oneLine:
+                fixed + Kirigami.Units.gridUnit * 6 + 4 <= width
+
+
+        RowLayout {
+            id: fileGroup
             spacing: Kirigami.Units.smallSpacing * 2
 
             ChromeButton {
@@ -411,8 +448,6 @@ Kirigami.ApplicationWindow {
                 text: session.savesInPlace ? i18n("Save") : i18n("Save as…")
                 onClicked: root.saveScore()
             }
-
-            Item { implicitWidth: Kirigami.Units.smallSpacing }
 
             ChromeButton {
                 icon.name: "edit-undo"
@@ -430,7 +465,11 @@ Kirigami.ApplicationWindow {
                 onClicked: session.redo()
             }
 
-            Item { implicitWidth: Kirigami.Units.smallSpacing }
+        }
+
+        RowLayout {
+            id: barGroup
+            spacing: Kirigami.Units.smallSpacing * 2
 
             ChromeButton {
                 icon.name: session.playing ? "media-playback-pause" : "media-playback-start"
@@ -566,6 +605,24 @@ Kirigami.ApplicationWindow {
                 }
             }
 
+        }
+
+        /**
+         * The clocks and the slider, which is the group that takes the slack.
+         *
+         * Given the room left over when everything fits on one line, and a
+         * line of its own when it does not: a slider squeezed to nothing is a
+         * slider nobody can drag, and one wrapped onto its own row is still a
+         * transport.
+         */
+        RowLayout {
+            id: positionGroup
+
+            width: toolFlow.oneLine
+                ? Math.floor(toolFlow.width - toolFlow.fixed) - 2
+                : toolFlow.width
+            spacing: Kirigami.Units.smallSpacing * 2
+
             QQC2.Label {
                 text: session.clock(session.position)
                 color: Ink.paper
@@ -591,7 +648,12 @@ Kirigami.ApplicationWindow {
                 font.features: ({ "tnum": 1 })
             }
 
-            Item { implicitWidth: Kirigami.Units.smallSpacing }
+        }
+
+        RowLayout {
+            id: toggles
+
+            spacing: Kirigami.Units.smallSpacing * 2
 
             ChromeToggle {
                 text: i18n("Tracks")
@@ -627,6 +689,7 @@ Kirigami.ApplicationWindow {
                 checked: panels.status
                 onToggled: panels.status = checked
             }
+        }
         }
     }
 
@@ -687,6 +750,107 @@ Kirigami.ApplicationWindow {
                             onClicked: {
                                 session.currentTrack = index
                                 view.forceActiveFocus()
+                            }
+                        }
+                    }
+
+                    /**
+                     * What the instrument on the page is tuned to.
+                     *
+                     * Under the list because it belongs to whichever part is
+                     * chosen there, and written as names rather than numbers
+                     * because that is how a guitarist says a tuning. One field
+                     * for all six: somebody who wants drop D types drop D, and
+                     * six spin boxes would be six things to get right instead
+                     * of one.
+                     *
+                     * Retuning moves the pitches and leaves the frets: the tab
+                     * on the page does not change, because nobody rewrote it.
+                     */
+                    Kirigami.Separator {
+                        Layout.fillWidth: true
+                        visible: session.stringsHere > 0
+                        color: Ink.rule
+                    }
+
+                    QQC2.Label {
+                        // A drum kit has no strings and no business here.
+                        visible: session.stringsHere > 0
+                        text: i18n("Tuning")
+                        color: Ink.quiet
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                        font.weight: Font.DemiBold
+                    }
+
+                    QQC2.TextField {
+                        id: tuningField
+
+                        visible: session.stringsHere > 0
+                        Layout.fillWidth: true
+                        color: Ink.ink
+                        text: session.tuningHere
+                        placeholderText: i18n("E2 A2 D3 G3 B3 E4")
+
+                        background: Rectangle {
+                            radius: Ink.radius
+                            color: tuningField.activeFocus ? Ink.paper : "transparent"
+                            border.width: 1
+                            border.color: tuningField.activeFocus ? Ink.accent : Ink.rule
+                        }
+
+                        onAccepted: {
+                            session.setTuningHere(text)
+                            view.forceActiveFocus()
+                        }
+                        onActiveFocusChanged: if (!activeFocus) {
+                            text = Qt.binding(() => session.tuningHere)
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        visible: session.stringsHere > 0
+                        spacing: Kirigami.Units.smallSpacing
+
+                        QQC2.Label {
+                            Layout.fillWidth: true
+                            text: i18n("Capo")
+                            color: Ink.quiet
+                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                            font.weight: Font.DemiBold
+                        }
+
+                        // A capo raises every string at once, so this moves
+                        // every note in the part with it -- the fret numbers
+                        // are counted from the capo and do not change.
+                        //
+                        // A field and not a spin box: the desktop style draws
+                        // one of those out of the desktop's own colours, which
+                        // is the thing this window is deliberately not doing,
+                        // and is the lesson the track dropdown already taught.
+                        QQC2.TextField {
+                            id: capoField
+
+                            implicitWidth: Kirigami.Units.gridUnit * 3
+                            horizontalAlignment: Text.AlignHCenter
+                            color: session.capoHere > 0 ? Ink.accentDeep : Ink.ink
+                            font.features: ({ "tnum": 1 })
+                            validator: IntValidator { bottom: 0; top: 12 }
+                            text: session.capoHere
+
+                            background: Rectangle {
+                                radius: Ink.radius
+                                color: capoField.activeFocus ? Ink.paper : "transparent"
+                                border.width: 1
+                                border.color: capoField.activeFocus ? Ink.accent : Ink.rule
+                            }
+
+                            onAccepted: {
+                                session.setCapoHere(Number(text))
+                                view.forceActiveFocus()
+                            }
+                            onActiveFocusChanged: if (!activeFocus) {
+                                text = Qt.binding(() => session.capoHere)
                             }
                         }
                     }
@@ -1337,7 +1501,8 @@ Kirigami.ApplicationWindow {
 
             Layout.fillWidth: true
             Layout.preferredHeight: barPanel.shownRows * barPanel.cellHeight
-                                    + barPanel.cushion
+                                    + barPanel.cushion + Ink.smallControl
+                                    + Kirigami.Units.smallSpacing
             visible: panels.bars && session.hasScore
             color: Ink.panelDeep
 
@@ -1348,6 +1513,67 @@ Kirigami.ApplicationWindow {
                 color: Ink.rule
             }
 
+            /**
+             * What the bar the caret is in is called.
+             *
+             * Over the grid rather than in the toolbar, because a section is a
+             * name given to a bar and this panel is the one about bars -- the
+             * names it sets are printed in the grid underneath it. The toolbar
+             * had it first and could not hold it: three fields about the
+             * caret's bar and every panel toggle is more than a window this
+             * size has room for on one line.
+             */
+            RowLayout {
+                id: sectionRow
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.leftMargin: barPanel.inset
+                anchors.rightMargin: barPanel.inset
+                anchors.topMargin: barPanel.cushion / 2
+                height: Ink.smallControl
+                spacing: Kirigami.Units.smallSpacing
+
+                QQC2.Label {
+                    text: i18n("Bar %1", session.caretBar + 1)
+                    color: Ink.quiet
+                    font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    font.weight: Font.DemiBold
+                }
+
+                QQC2.TextField {
+                    id: sectionField
+
+                    Layout.preferredWidth: Kirigami.Units.gridUnit * 9
+                    Layout.alignment: Qt.AlignVCenter
+                    color: session.sectionHere.length > 0 ? Ink.ink : Ink.quiet
+                    text: session.sectionHere
+                    placeholderText: i18n("name this section")
+
+                    QQC2.ToolTip.text: i18n("Name the part of the music that starts here")
+                    QQC2.ToolTip.visible: hovered
+                    QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+
+                    background: Rectangle {
+                        radius: Ink.radius
+                        color: sectionField.activeFocus ? Ink.paper : "transparent"
+                        border.width: 1
+                        border.color: sectionField.activeFocus ? Ink.accent : Ink.rule
+                    }
+
+                    onAccepted: {
+                        session.setSectionHere(text)
+                        view.forceActiveFocus()
+                    }
+                    onActiveFocusChanged: if (!activeFocus) {
+                        text = Qt.binding(() => session.sectionHere)
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+            }
+
             GridView {
                 id: barGrid
 
@@ -1355,8 +1581,12 @@ Kirigami.ApplicationWindow {
 
                 readonly property int sectionLine: barPanel.sectionLine
 
-                anchors.fill: parent
-                anchors.margins: barPanel.cushion / 2
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: sectionRow.bottom
+                anchors.bottom: parent.bottom
+                anchors.topMargin: Kirigami.Units.smallSpacing
+                anchors.bottomMargin: barPanel.cushion / 2
                 anchors.leftMargin: barPanel.inset
                 anchors.rightMargin: barPanel.inset
 

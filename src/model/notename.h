@@ -26,4 +26,18 @@ QString pitchClass(int midi);
 
 /** "E2", "A#3" -- the pitch class and the octave it is in. */
 QString of(int midi);
+
+/**
+ * A name read back into a pitch: "E2", "A#3", "Eb2", or a plain number.
+ *
+ * Flats are accepted although they are never written: somebody typing a
+ * tuning in has a name in their head and it is as likely to be E flat as D
+ * sharp, and refusing half of the ways to say one note would be a refusal
+ * about spelling rather than about music. A bare number is accepted too,
+ * because the program prints tunings as numbers in `--info` and anything it
+ * prints it should be able to read.
+ *
+ * Returns -1 for anything it cannot make sense of.
+ */
+int parse(const QString &name);
 }

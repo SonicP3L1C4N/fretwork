@@ -138,12 +138,6 @@ cheaper.
   a stated policy about a note that lands between two subdivisions — the same
   argument as incomplete bars, and it should get the same answer.
 
-- **A tuner.** The same input path as pitch detection, and the cheapest thing
-  on this page once that path exists. Against the score's own tuning rather
-  than concert pitch, which is the version no standalone tuner offers: a score
-  in drop C should tune the guitar to drop C without anyone doing arithmetic,
-  and a score with a capo should account for it.
-
 - **Choosing the device, and remembering it.** Which PipeWire source, which
   MIDI port, what latency, and does it survive the interface being unplugged.
   The unglamorous half of everything above, and the half that decides whether
@@ -153,12 +147,6 @@ cheaper.
 
 P3 is fret entry, rhythm, bars, selection, clipboard and undo. These are the
 edits it cannot yet make.
-
-- **Tuning and capo.** Editable, and reflected in playback and on the page at
-  once. Currently whatever the importer read is what the score is stuck with.
-
-- **Time signature and tempo.** `Ctrl+B` adds a bar that inherits both; nothing
-  yet changes either.
 
 - **Track management.** Add, remove, reorder, rename, change instrument. The
   mixer and the track list both already assume a fixed set.
