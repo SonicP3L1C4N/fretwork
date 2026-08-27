@@ -269,6 +269,14 @@ have a metronome, which is the useful thing about it.
 it out of the mix: stems exist to be put back together somewhere else, and a
 click baked into a mix is one nobody can take out again.
 
+`--render --dry` follows the same reasoning one step further. A part that went
+through an amplifier is written twice — `00-Guitar.wav` as the amplifier
+finished it, `00-Guitar-dry.wav` as the instrument played it. A wet stem is a
+decision already taken: it cannot be reamped, and the amplifier chosen against
+a rough mix on one evening is not always the one that survives the mix on
+another. Only parts with a chain get one, because a part without would be the
+same samples under two names.
+
 **It listens**, which is new: the first thing in the program that wants a
 guitar lead rather than a speaker.
 

@@ -81,6 +81,12 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
     std::vector<std::unique_ptr<Synth>> voices;
     std::vector<std::unique_ptr<Lv2::Chain>> chains;
     std::vector<std::unique_ptr<WavWriter>> writers;
+    /** One per track where a dry copy was asked for, null everywhere else. */
+    std::vector<std::unique_ptr<WavWriter>> dryWriters;
+    // Kept apart from `paths`, which is walked in step with `writers` to say
+    // what was written: a dry file slipped into that list would rename every
+    // stem after it.
+    QStringList dryPaths;
     QStringList paths;
 
     qint64 lastEvent = 0;
@@ -153,9 +159,29 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
             }
             return false;
         }
+
+        // The same part before its chain, where there is a chain to be before.
+        // The wet stem keeps the name it always had, so anything already
+        // reading a rendered folder goes on reading it.
+        std::unique_ptr<WavWriter> dryWriter;
+        if (options.dryStems && chains.back()) {
+            const QString dryPath = folder.filePath(QStringLiteral("%1-%2-dry.wav")
+                                                        .arg(index, 2, 10, QLatin1Char('0'))
+                                                        .arg(safeName(track.name)));
+            dryWriter = std::make_unique<WavWriter>(dryPath, options.sampleRate);
+            if (!dryWriter->isOpen()) {
+                if (error) {
+                    *error = QStringLiteral("%1: %2").arg(dryPath, dryWriter->error());
+                }
+                return false;
+            }
+            dryPaths.append(dryPath);
+        }
+
         paths.append(path);
         voices.push_back(std::move(voice));
         writers.push_back(std::move(writer));
+        dryWriters.push_back(std::move(dryWriter));
     }
 
     // The metronome, if it was asked for: a part like any other to everything
@@ -221,6 +247,15 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
 
         for (size_t index = 0; index < voices.size(); ++index) {
             voices[index]->fill(left.data(), right.data(), frames, at);
+            // Written here, between the instrument and its amplifier, because
+            // that is the only place the dry signal exists.
+            if (index < dryWriters.size() && dryWriters[index]
+                && !dryWriters[index]->write(left.data(), right.data(), frames)) {
+                if (error) {
+                    *error = dryWriters[index]->error();
+                }
+                return false;
+            }
             if (index < chains.size() && chains[index]) {
                 // Between the instrument and the mix, the same as live: a stem
                 // that came out dry while the transport was playing it wet
@@ -263,6 +298,26 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
             written->append({paths.at(int(index)), peak, seconds});
         }
     }
+    // Closed like any other file, because a WAV that was never closed is a
+    // WAV whose header still says it holds nothing.
+    int dryIndex = 0;
+    for (size_t index = 0; index < dryWriters.size(); ++index) {
+        if (!dryWriters[index]) {
+            continue;
+        }
+        const float peak = dryWriters[index]->peak();
+        if (!dryWriters[index]->close()) {
+            if (error) {
+                *error = dryWriters[index]->error();
+            }
+            return false;
+        }
+        if (written) {
+            written->append({dryPaths.at(dryIndex), peak, seconds});
+        }
+        ++dryIndex;
+    }
+
     const float mixPeak = mix.peak();
     if (!mix.close()) {
         if (error) {

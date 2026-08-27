@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
+#include "lv2chain.h"
 #include "renderer.h"
 #include "timeline.h"
 #include "wav.h"
@@ -72,6 +73,12 @@ private:
     }
 
     /** A guitar and a drum kit, two bars, so a render has something to do. */
+    static QByteArray contentsOf(const QString &path)
+    {
+        QFile file(path);
+        return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+    }
+
     static Score twoTracks()
     {
         Score score;
@@ -219,6 +226,70 @@ private Q_SLOTS:
                      qPrintable(file.path + QStringLiteral(" is silent")));
             QVERIFY(file.seconds > 3.5);    // eight quarters at 120, plus the tail
         }
+    }
+
+    /**
+     * A dry stem is the part before its amplifier, and only where there is one.
+     *
+     * The claim being tested is identity, not merely difference: the dry file
+     * must be what the renderer would have written with no chain at all, or it
+     * is not a dry stem, it is a quieter wet one. A part with no chain gets no
+     * dry file, because that would be the same samples under two names.
+     */
+    void writesADryStemBesideAnEffectedOne()
+    {
+        if (Render::findSoundFont().isEmpty()) {
+            QSKIP("no SoundFont on this machine; install fluid-soundfont-gm");
+        }
+        const QList<Lv2::Description> plugins = Lv2::installed();
+        QString uri;
+        for (const Lv2::Description &plugin : plugins) {
+            if (plugin.name.contains(QStringLiteral("mplifier"))) {
+                uri = plugin.uri;
+                break;
+            }
+        }
+        if (uri.isEmpty()) {
+            QSKIP("no amplifier plugin on this machine");
+        }
+
+        const Score score = twoTracks();
+        const QList<int> order = Timeline::playedOrder(score);
+        Render::Options options;
+        options.tailSeconds = 0.5;
+
+        // Once with no chain at all, to have something to be identical to.
+        QString why;
+        QVERIFY2(Render::stems(score, order, path(QStringLiteral("plain")), options, &why),
+                 qPrintable(why));
+
+        options.effects.insert(0, {uri});
+        options.dryStems = true;
+        QList<Render::Written> written;
+        QVERIFY2(Render::stems(score, order, path(QStringLiteral("wetdry")), options, &why,
+                               &written),
+                 qPrintable(why));
+
+        // Two tracks, one dry copy, and the mix -- and the wet stems keep the
+        // names they always had, so the list does not shift under anybody.
+        QCOMPARE(written.size(), 4);
+        QVERIFY(written.at(0).path.endsWith(QStringLiteral("00-Guitar.wav")));
+        QVERIFY(written.at(1).path.endsWith(QStringLiteral("01-Drums.wav")));
+        QVERIFY(written.at(2).path.endsWith(QStringLiteral("00-Guitar-dry.wav")));
+        QVERIFY(written.at(3).path.endsWith(QStringLiteral("mix.wav")));
+        // The part without a chain has no dry file of its own.
+        QVERIFY(!QFile::exists(path(QStringLiteral("wetdry"))
+                               + QStringLiteral("/01-Drums-dry.wav")));
+
+        const QByteArray dry = contentsOf(path(QStringLiteral("wetdry"))
+                                          + QStringLiteral("/00-Guitar-dry.wav"));
+        const QByteArray plain = contentsOf(path(QStringLiteral("plain"))
+                                            + QStringLiteral("/00-Guitar.wav"));
+        const QByteArray wet = contentsOf(path(QStringLiteral("wetdry"))
+                                          + QStringLiteral("/00-Guitar.wav"));
+        QVERIFY(!dry.isEmpty());
+        QCOMPARE(dry, plain);       //< the same performance, before the amplifier
+        QVERIFY(dry != wet);        //< and the amplifier did something
     }
 
     /**

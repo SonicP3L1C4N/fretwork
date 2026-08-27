@@ -70,6 +70,21 @@ struct Options {
         float value = 0;
     };
     QList<Knob> knobs;
+
+    /**
+     * Write each effected part a second time, before its chain.
+     *
+     * The stem as the instrument played it, beside the stem as the amplifier
+     * finished it. A wet stem is a decision already taken: it cannot be
+     * reamped, and an amplifier chosen against a rough mix on one evening is
+     * not always the one that survives the mix on another. The dry file is
+     * what makes that reversible.
+     *
+     * Only for parts that have a chain. A part without one would be written
+     * twice under two names with the same samples in both, which is not a
+     * choice offered to anybody -- it is a second copy.
+     */
+    bool dryStems = false;
 };
 
 /** A General MIDI SoundFont on this machine, or empty if there is none. */

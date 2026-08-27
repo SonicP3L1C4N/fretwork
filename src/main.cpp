@@ -425,13 +425,14 @@ bool renderAudio(QTextStream &out, QTextStream &error, const Score &score,
                  const QList<int> &order, const QString &directory,
                  const QString &soundFont, bool click, const QHash<int, QString> &samplers,
                  const QHash<int, QStringList> &effects, const QStringList &knobs,
-                 const QStringList &voicings)
+                 const QStringList &voicings, bool dry)
 {
     Render::Options options;
     options.soundFont = soundFont;
     options.click = click;
     options.samplers = samplers;
     options.effects = effects;
+    options.dryStems = dry;
     int ignored = 0;
     options.knobs = knobsFrom<Render::Options::Knob>(knobs, error, &ignored);
     options.knobs += knobsForVoicings<Render::Options::Knob>(voicings, effects, out, error,
@@ -900,6 +901,10 @@ int main(int argc, char *argv[])
                                        "track:plugin:name=value; repeatable"),
                                   i18n("0:0:Drive=0.8"));
     parser.addOption(knob);
+    const QCommandLineOption dryStems(
+        QStringLiteral("dry"),
+        i18n("Write each effected part a second time, before its chain"));
+    parser.addOption(dryStems);
     const QCommandLineOption voicing(
         QStringLiteral("voicing"),
         i18n("Set a plugin in a chain to a guitarix preset, as track:plugin=name"),
@@ -1124,7 +1129,8 @@ int main(int argc, char *argv[])
         if (parser.isSet(render)) {
             if (!renderAudio(out, error, score, order, parser.value(render),
                              parser.value(soundFont), parser.isSet(clicking), samplers, effects,
-                             parser.values(knob), parser.values(voicing))) {
+                             parser.values(knob), parser.values(voicing),
+                             parser.isSet(dryStems))) {
                 ++failures;
             }
         }

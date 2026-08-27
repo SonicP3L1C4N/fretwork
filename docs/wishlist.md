@@ -81,9 +81,11 @@ P4 in the plan is three items. These are the rest of that thought.
   string and the sixth should not sit in the same place, and the score knows
   which string it was even though the SFZ does not.
 
-- **A dry stem beside the wet one.** Write the unprocessed track alongside the
-  processed one, so a mix can be redone in a DAW without re-rendering from the
-  score. Follows directly from one synth per track, and is close to free.
+- **A dry pair on the live ports, not only in a render.** `--render --dry`
+  writes the unprocessed part beside the processed one, which covers reamping
+  from a rendered folder. The ports are still wet-only: a DAW recording live
+  gets the amplifier baked in, and a second pair of ports per track would be
+  the same idea where it is most useful.
 
 - **A transport that does not need JACK.** Driving the graph's transport goes
   through PipeWire's JACK implementation, loaded at runtime, because PipeWire
