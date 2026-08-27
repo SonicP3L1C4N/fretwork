@@ -179,7 +179,8 @@ void Session::rebuildPlayer()
     }
 
     Player::Options options;
-    options.perTrackPorts = m_ports;
+    options.perTrackPorts = m_ports || m_following;
+    options.followTransport = m_following;
     auto player = std::make_unique<Player>(m_editor.score(), m_order, options);
     if (!player->isValid()) {
         setStatus(player->error());
@@ -313,6 +314,31 @@ void Session::setCurrentTrack(int track)
     Q_EMIT currentTrackChanged();
 }
 
+bool Session::isFollowing() const
+{
+    return m_following;
+}
+
+void Session::setFollowing(bool on)
+{
+    if (m_following == on) {
+        return;
+    }
+    stop();
+    m_following = on;
+    // Following needs the ports, so asking for one asks for the other. Turning
+    // it off leaves them open: somebody who wanted ports and then stopped
+    // following did not ask to have the ports taken away.
+    if (on) {
+        m_ports = true;
+    }
+    rebuildPlayer();
+    setStatus(on ? i18n("Following the graph — it rolls when the graph does")
+                 : QString());
+    Q_EMIT portsChanged();
+    Q_EMIT playingChanged();
+}
+
 bool Session::isPortsOn() const
 {
     return m_ports;
@@ -390,7 +416,9 @@ bool Session::isPlaying() const
 
 bool Session::canPlay() const
 {
-    return m_player && m_player->isValid();
+    // Not while following: the transport belongs to the graph then, and a play
+    // button that did nothing would be worse than one that says it cannot.
+    return m_player && m_player->isValid() && !m_following;
 }
 
 double Session::position() const

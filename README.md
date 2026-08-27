@@ -394,6 +394,26 @@ The node keeps processing whether or not anything is linked to it. A graph does
 not schedule a node with nothing attached, and a transport that would not start
 until a DAW had been wired up would look broken rather than patient.
 
+**And it follows the graph's transport**, with `--follow` or the switch under
+the ports, so the program recording the stems is the one that starts them:
+
+```
+$ fretwork "Cold Shot.gp" --play --follow
+  5 pairs of ports in the graph — link them and record
+  following the graph's transport — it rolls when the graph does
+```
+
+Press play in the DAW and Fretwork rolls from the same place in the piece;
+drag the playhead and it goes there, because anything that is not the next
+block along is treated as a seek and every synth is repositioned. Its own
+play button is disabled while this is on: the transport belongs to the graph
+then, and a button that did nothing would be worse than one that says it
+cannot.
+
+It follows and does not drive. Starting Fretwork does not start the DAW —
+that is the other direction and a different piece of work, and the one worth
+having first is the one where the recorder is in charge.
+
 **It shuffles.** Guitar Pro records a triplet feel per bar, and a score that
 has one is not a score with a missing ornament — played evenly, a shuffle is
 the wrong music, and the kind of wrong that sounds like a decision. Fretwork
@@ -473,7 +493,7 @@ GPL — the reasoning for every line of that is in
 | **P1** | Headless converter: importers, model, technique translation, stem export. No window | **done** — the program is useful with no window |
 | **P2** | The player: tab rendering, transport, mixer, live playback | **done** |
 | **P3** | The editor | **done** — caret, fret entry, marks, transposition, beats, durations, bars, selection, copy and paste, undo, saving, tempo, time signature, sections, tuning, capo, parts, and a new score |
-| P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | **begun** — every part is a pair of ports in the audio graph |
+| P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | **begun** — every part is a pair of ports in the graph, and the graph's transport starts them |
 | P5 | Standard notation, PDF, MusicXML, GP6 | |
 
 P1 is the one that matters: at the end of it the program is useful with no user

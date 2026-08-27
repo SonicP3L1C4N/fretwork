@@ -56,6 +56,17 @@ public:
          * and the whole reason the ports are one node is that there is one.
          */
         bool perTrackPorts = false;
+
+        /**
+         * Take the transport from the graph rather than from this program.
+         *
+         * With the ports open, the thing recording them is usually the thing
+         * that should decide when to roll: press play in the DAW and the
+         * stems arrive from the same place in the piece, every take. Only
+         * meaningful with `perTrackPorts`, since it is the graph's transport
+         * that is being followed and only the ported output can see it.
+         */
+        bool followTransport = false;
     };
 
     Player(const Score &score, const QList<int> &order, const Options &options);
@@ -72,6 +83,12 @@ public:
 
     /** How many port pairs are in the graph; zero where there are none. */
     int portCount() const;
+
+    /** Whether the transport is the graph's rather than this program's. */
+    bool isFollowing() const;
+
+    /** Whether the graph has actually given a position to follow yet. */
+    bool hasGraphTransport() const;
 
     // ---- transport, all callable from any thread ----
 
@@ -130,11 +147,15 @@ private:
                             int outputCount, float *outputs[]);
     void mix(int frames, float *left, float *right);
 
-    static void portCallback(void *data, int frames, float *const *left,
-                             float *const *right);
+    static void portCallback(void *data, int frames, const PortedOutput::Transport &transport,
+                             float *const *left, float *const *right);
 
     /** Fills one buffer pair per track rather than one pair for all of them. */
-    void spread(int frames, float *const *left, float *const *right);
+    void spread(int frames, const PortedOutput::Transport &transport, float *const *left,
+                float *const *right);
+
+    /** Moves the transport to where the graph says it is, seeking if it jumped. */
+    qint64 followed(const PortedOutput::Transport &transport, int frames);
 
     /** Where the transport is now, and where it will be after `frames`. */
     qint64 advance(int frames);
@@ -165,6 +186,7 @@ private:
     std::atomic<qint64> m_position{0};
     std::atomic<qint64> m_seekTo{-1};
     std::atomic<int> m_soloCount{0};
+    std::atomic<bool> m_graphTransport{false};
 
     qint64 m_length = 0;
 };

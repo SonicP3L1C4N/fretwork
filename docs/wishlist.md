@@ -72,9 +72,11 @@ P4 in the plan is three items. These are the rest of that thought.
   processed one, so a mix can be redone in a DAW without re-rendering from the
   score. Follows directly from one synth per track, and is close to free.
 
-- **Transport sync.** JACK transport or MIDI clock, so Fretwork and the DAW
-  agree about where bar 40 is. The ports exist now, which is what made this
-  worth wanting: a DAW can record the stems but has to start them by hand.
+- **Driving the transport, not only following it.** Fretwork follows the
+  graph, so a DAW starts it and says where in the piece it is. The other
+  direction -- pressing play in Fretwork and having the DAW roll -- needs this
+  program to be the one that owns the transport, which is a different thing to
+  be and worth wanting only once somebody wants it.
 
 - **Importing the RSE mixer state.** Open question in the architecture rather
   than a decided wish: the effects a `.gp` names are Arobas's and cannot be

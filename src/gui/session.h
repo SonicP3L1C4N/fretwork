@@ -115,6 +115,14 @@ class Session : public QObject
     /** How many pairs are in the graph; zero when the ports are off. */
     Q_PROPERTY(int portCount READ portCount NOTIFY portsChanged)
 
+    /**
+     * Take the transport from the graph, so a DAW starts and locates it.
+     *
+     * Turning it on opens the ports, because it is the graph's transport that
+     * is being followed and only the ported output can see one.
+     */
+    Q_PROPERTY(bool following READ isFollowing WRITE setFollowing NOTIFY portsChanged)
+
     Q_PROPERTY(bool playing READ isPlaying NOTIFY playingChanged)
     Q_PROPERTY(bool canPlay READ canPlay NOTIFY scoreChanged)
     Q_PROPERTY(double position READ position NOTIFY positionChanged)
@@ -196,6 +204,9 @@ public:
     int caretBar() const;
     int currentTrack() const;
     void setCurrentTrack(int track);
+
+    bool isFollowing() const;
+    void setFollowing(bool on);
 
     bool isPortsOn() const;
     void setPortsOn(bool on);
@@ -378,6 +389,7 @@ private:
     int m_currentTrack = 0;
     bool m_click = false;
     bool m_ports = false;
+    bool m_following = false;
     double m_clickGain = 1.0;
     int m_currentBar = -1;
     bool m_wasPlaying = false;

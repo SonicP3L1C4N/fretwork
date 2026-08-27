@@ -286,12 +286,14 @@ bool drawTab(QTextStream &out, QTextStream &error, const Score &score, int track
  */
 bool playScore(QTextStream &out, QTextStream &error, const Score &score,
                const QList<int> &order, const QString &soundFont, const QString &driver,
-               const QStringList &solo, const QStringList &mute, bool click, bool ports)
+               const QStringList &solo, const QStringList &mute, bool click, bool ports,
+               bool follow)
 {
     Player::Options options;
     options.soundFont = soundFont;
     options.audioDriver = driver;
-    options.perTrackPorts = ports;
+    options.perTrackPorts = ports || follow;
+    options.followTransport = follow;
 
     Player player(score, order, options);
     if (!player.isValid()) {
@@ -317,6 +319,11 @@ bool playScore(QTextStream &out, QTextStream &error, const Score &score,
         out << i18n("  %1 pairs of ports in the graph — link them and record\n",
                     QString::number(player.portCount()));
     }
+    if (player.isFollowing()) {
+        // Said before it looks like nothing is happening: a follower sits
+        // still until whatever it is following starts.
+        out << i18n("  following the graph's transport — it rolls when the graph does\n");
+    }
     out << QStringLiteral("  playing %1 through %2 — %3%4\n")
                .arg(clock(player.lengthSeconds()), player.driverName(),
                     heard.size() == player.trackCount()
@@ -333,7 +340,9 @@ bool playScore(QTextStream &out, QTextStream &error, const Score &score,
         out << QStringLiteral("\r  %1 / %2   ")
                    .arg(clock(player.positionSeconds()), clock(player.lengthSeconds()));
         out.flush();
-        if (player.hasFinished()) {
+        // A follower has no end of its own: the piece is over when whatever
+        // it is following says so, and until then it waits at the last bar.
+        if (player.hasFinished() && !player.isFollowing()) {
             loop.quit();
         }
     });
@@ -618,6 +627,10 @@ int main(int argc, char *argv[])
                                      i18n("Give every track a pair of ports in the audio "
                                           "graph, for a DAW to record"));
     parser.addOption(porting);
+    const QCommandLineOption following(QStringLiteral("follow"),
+                                       i18n("Take the transport from the audio graph, so "
+                                            "a DAW starts and locates it; implies --ports"));
+    parser.addOption(following);
     const QCommandLineOption saving(QStringLiteral("save"),
                                     i18n("Convert to a Fretwork score"), i18n("file.fw"));
     parser.addOption(saving);
@@ -734,7 +747,7 @@ int main(int argc, char *argv[])
             if (!playScore(out, error, score, order, parser.value(soundFont),
                            parser.value(audioDriver), parser.values(soloed),
                            parser.values(muted), parser.isSet(clicking),
-                           parser.isSet(porting))) {
+                           parser.isSet(porting), parser.isSet(following))) {
                 ++failures;
             }
         }

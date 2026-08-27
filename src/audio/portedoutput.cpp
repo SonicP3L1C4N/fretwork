@@ -101,7 +101,23 @@ void onProcess(void *data, struct spa_io_position *position)
         self->right[size_t(pair)] = toRight ? toRight : self->spare.data();
     }
 
-    self->process(self->data, frames, self->left.data(), self->right.data());
+    // Where the graph's transport is, worked out the way PipeWire describes
+    // it: running time is the clock less the offset, and the segment maps that
+    // onto a position somebody's timeline agrees with.
+    PortedOutput::Transport transport;
+    transport.rolling = position->state == SPA_IO_POSITION_STATE_RUNNING;
+    if (position->n_segments > 0) {
+        const spa_io_segment &segment = position->segments[0];
+        const bool positioned = (segment.flags & SPA_IO_SEGMENT_FLAG_NO_POSITION) == 0;
+        if (positioned) {
+            const int64_t running = int64_t(position->clock.position) - position->offset;
+            const double along = double(running - int64_t(segment.start)) * segment.rate;
+            transport.at = qint64(segment.position) + qint64(along);
+            transport.known = transport.at >= 0;
+        }
+    }
+
+    self->process(self->data, frames, transport, self->left.data(), self->right.data());
 }
 
 const pw_filter_events &filterEvents()

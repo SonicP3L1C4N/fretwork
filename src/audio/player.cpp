@@ -324,6 +324,16 @@ int Player::portCount() const
     return m_ports ? m_ports->pairCount() : 0;
 }
 
+bool Player::isFollowing() const
+{
+    return m_options.followTransport && m_ports != nullptr;
+}
+
+bool Player::hasGraphTransport() const
+{
+    return m_graphTransport.load(std::memory_order_relaxed);
+}
+
 bool Player::isAudible(int track) const
 {
     if (track < 0 || track >= trackCount()) {
@@ -335,9 +345,44 @@ bool Player::isAudible(int track) const
     return !isMuted(track);
 }
 
-void Player::portCallback(void *data, int frames, float *const *left, float *const *right)
+void Player::portCallback(void *data, int frames, const PortedOutput::Transport &transport,
+                          float *const *left, float *const *right)
 {
-    static_cast<Player *>(data)->spread(frames, left, right);
+    static_cast<Player *>(data)->spread(frames, transport, left, right);
+}
+
+/**
+ * Where the graph says the transport is, taken as this program's own.
+ *
+ * A jump is the case that matters. Somebody dragging the playhead in a DAW
+ * moves the position by a lot in one cycle, and a synth whose event cursor
+ * stayed where it was would play the wrong part of the piece from then on --
+ * so anything that is not the next block along is a seek. Seeking is safe
+ * here: it silences and repositions a cursor and allocates nothing, which is
+ * the rule everything in this callback lives by.
+ */
+qint64 Player::followed(const PortedOutput::Transport &transport, int frames)
+{
+    const qint64 was = m_position.load(std::memory_order_relaxed);
+    const qint64 now = transport.at;
+
+    // A block's worth of slack either way, because the graph's idea of a
+    // cycle and ours are the same length but need not be exactly in step.
+    if (now < was || now > was + qint64(frames) * 2) {
+        for (auto &channel : m_channels) {
+            channel->synth->seek(now);
+        }
+        if (m_click) {
+            m_click->synth->seek(now);
+        }
+    }
+    m_position.store(now, std::memory_order_release);
+
+    // The graph decides when it is over, not the length of the score: a DAW
+    // rolling past the end of a piece is a DAW recording silence on purpose.
+    m_playing.store(transport.rolling, std::memory_order_release);
+    m_finished.store(false, std::memory_order_release);
+    return transport.rolling ? now : -1;
 }
 
 /**
@@ -352,9 +397,13 @@ void Player::portCallback(void *data, int frames, float *const *left, float *con
  * otherwise get audio the person at the mixer believes they turned off, which
  * is worse than a silent take because it is a surprise later.
  */
-void Player::spread(int frames, float *const *left, float *const *right)
+void Player::spread(int frames, const PortedOutput::Transport &transport,
+                    float *const *left, float *const *right)
 {
-    const qint64 at = advance(0);
+    const bool following = m_options.followTransport && transport.known;
+    m_graphTransport.store(transport.known, std::memory_order_relaxed);
+
+    const qint64 at = following ? followed(transport, frames) : advance(0);
     if (at < 0) {
         // Not playing: the ports still have to be given silence, or they hold
         // whatever the graph left in them and buzz.
@@ -396,7 +445,11 @@ void Player::spread(int frames, float *const *left, float *const *right)
         }
     }
 
-    advance(frames);
+    // Following, the graph moves the transport on and telling it where we
+    // think we are would be arguing with it.
+    if (!following) {
+        advance(frames);
+    }
 }
 
 /**

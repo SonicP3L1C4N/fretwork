@@ -1364,6 +1364,35 @@ Kirigami.ApplicationWindow {
                             }
                         }
 
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Kirigami.Units.smallSpacing
+
+                            QQC2.Label {
+                                Layout.fillWidth: true
+                                text: i18n("Follow the graph")
+                                color: session.following ? Ink.accentDeep : Ink.ink
+                                font.weight: session.following ? Font.DemiBold : Font.Normal
+                            }
+
+                            MixerButton {
+                                text: i18n("On")
+                                checked: session.following
+                                QQC2.ToolTip.text:
+                                    i18n("The DAW starts it and says where in the piece it is")
+                                onToggled: session.following = checked
+                            }
+                        }
+
+                        QQC2.Label {
+                            Layout.fillWidth: true
+                            visible: session.following
+                            text: i18n("The transport is the graph's while this is on.")
+                            color: Ink.quiet
+                            wrapMode: Text.WordWrap
+                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                        }
+
                         QQC2.Label {
                             Layout.fillWidth: true
                             Layout.topMargin: Kirigami.Units.largeSpacing

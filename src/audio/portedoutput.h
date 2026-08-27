@@ -55,12 +55,30 @@ public:
     };
 
     /**
+     * Where the graph's own transport is, if it has one.
+     *
+     * PipeWire carries a transport for the whole graph, and a DAW running
+     * under it drives one -- so a player that reads this can be started,
+     * stopped and located by the program recording it, instead of being
+     * pressed play on by hand at roughly the right moment.
+     */
+    struct Transport {
+        /** False where the graph gives no usable position, and nothing should follow. */
+        bool known = false;
+        /** Whether the graph's transport is rolling. */
+        bool rolling = false;
+        /** Samples from the graph's zero, which is a DAW's start of project. */
+        qint64 at = 0;
+    };
+
+    /**
      * Called from the audio thread with a buffer per port pair.
      *
      * `left` and `right` hold `Options::ports.size()` pointers each, in the
      * order the ports were named.
      */
-    using Process = void (*)(void *data, int frames, float *const *left, float *const *right);
+    using Process = void (*)(void *data, int frames, const Transport &transport,
+                             float *const *left, float *const *right);
 
     PortedOutput(const Options &options, Process process, void *data);
     ~PortedOutput();
