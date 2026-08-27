@@ -399,6 +399,11 @@ bool Player::isFollowing() const
     return m_options.followTransport && m_ports != nullptr;
 }
 
+int Player::portLinkCount() const
+{
+    return m_ports ? m_ports->linkCount() : 0;
+}
+
 bool Player::hasGraphTransport() const
 {
     return m_graphTransport.load(std::memory_order_relaxed);

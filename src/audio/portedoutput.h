@@ -45,11 +45,19 @@ public:
         int sampleRate = 48000;
 
         /**
-         * Whether to ask the graph to plug this in to the speakers.
+         * Whether to plug this in to the speakers ourselves.
          *
          * On, so that playing with ports open still makes a noise: a transport
          * that went silent because the audio had become more useful would be a
-         * poor trade. A DAW links what it wants regardless.
+         * poor trade, and it is exactly what happened the first time this
+         * shipped.
+         *
+         * Ourselves, because nothing else will. A session manager patches a
+         * stream with a channel layout it recognises; a node with ten ports
+         * named after parts of a song is a JACK client as far as any of them
+         * are concerned, and the convention for those is that a human patches
+         * it. Setting node.autoconnect makes no difference, and neither does
+         * claiming to be a playback stream -- both were tried.
          */
         bool autoConnect = true;
     };
@@ -91,6 +99,9 @@ public:
 
     /** How many stereo pairs are in the graph. */
     int pairCount() const;
+
+    /** How many links to the speakers were made; zero means patch it yourself. */
+    int linkCount() const;
 
     /**
      * What the audio thread and the rest of the class share.

@@ -549,6 +549,16 @@ void Session::setSamplerHere(const QString &path)
     Q_EMIT samplersChanged();
 }
 
+int Session::portLinks() const
+{
+    return m_player ? m_player->portLinkCount() : 0;
+}
+
+bool Session::isGraphRolling() const
+{
+    return m_player && m_player->isPlaying();
+}
+
 bool Session::isFollowing() const
 {
     return m_following;
@@ -603,8 +613,11 @@ void Session::setPortsOn(bool on)
         setStatus(i18n("The ports could not be opened, so the sound is going out the "
                        "usual way"));
     } else {
-        setStatus(on ? i18n("%1 pairs of ports in the graph — link them and record",
-                            QString::number(portCount()))
+        setStatus(on ? (portLinks() > 0
+                            ? i18n("%1 pairs of ports, and the speakers are plugged in",
+                                   QString::number(portCount()))
+                            : i18n("%1 pairs of ports — nothing is linked to them yet",
+                                   QString::number(portCount())))
                      : QString());
     }
     Q_EMIT portsChanged();

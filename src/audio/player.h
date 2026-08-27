@@ -137,6 +137,9 @@ public:
     /** Whether the graph has actually given a position to follow yet. */
     bool hasGraphTransport() const;
 
+    /** How many ports were plugged into the speakers; zero means patch them. */
+    int portLinkCount() const;
+
     // ---- transport, all callable from any thread ----
 
     void play();

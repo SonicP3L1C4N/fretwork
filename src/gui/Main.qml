@@ -1681,11 +1681,26 @@ Kirigami.ApplicationWindow {
                             }
                         }
 
+                        // Said out loud, because both of these were silence
+                        // with no explanation the first time somebody used
+                        // them: ports nothing is listening to, and a follower
+                        // with nothing to follow.
+                        QQC2.Label {
+                            Layout.fillWidth: true
+                            visible: session.ports && session.portLinks === 0
+                            text: i18n("Nothing is linked to the ports, so nothing comes out of the speakers.")
+                            color: Ink.accentDeep
+                            wrapMode: Text.WordWrap
+                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                        }
+
                         QQC2.Label {
                             Layout.fillWidth: true
                             visible: session.following
-                            text: i18n("The transport is the graph's while this is on.")
-                            color: Ink.quiet
+                            text: session.graphRolling
+                                ? i18n("The graph is rolling; the transport is its own.")
+                                : i18n("Waiting for the graph to roll — press play in the DAW, not here.")
+                            color: session.graphRolling ? Ink.quiet : Ink.accentDeep
                             wrapMode: Text.WordWrap
                             font.pointSize: Kirigami.Theme.smallFont.pointSize
                         }

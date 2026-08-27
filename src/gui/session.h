@@ -159,6 +159,17 @@ class Session : public QObject
      */
     Q_PROPERTY(bool following READ isFollowing WRITE setFollowing NOTIFY portsChanged)
 
+    /**
+     * Whether the ports reached the speakers, and whether the graph is rolling.
+     *
+     * Both exist because both went wrong in use. Ports that nothing links are
+     * a piece playing silently; following with nothing to follow is a piece
+     * not playing at all. Neither says anything about itself unless asked, so
+     * the window asks.
+     */
+    Q_PROPERTY(int portLinks READ portLinks NOTIFY playingChanged)
+    Q_PROPERTY(bool graphRolling READ isGraphRolling NOTIFY playingChanged)
+
     Q_PROPERTY(bool playing READ isPlaying NOTIFY playingChanged)
     Q_PROPERTY(bool canPlay READ canPlay NOTIFY scoreChanged)
     Q_PROPERTY(double position READ position NOTIFY positionChanged)
@@ -284,6 +295,8 @@ public:
 
     bool isFollowing() const;
     void setFollowing(bool on);
+    int portLinks() const;
+    bool isGraphRolling() const;
 
     bool isPortsOn() const;
     void setPortsOn(bool on);

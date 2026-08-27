@@ -487,6 +487,15 @@ time it is, which is also what a hardware multitrack interface looks like from
 the other end of a cable. The fader and the mute reach the ports, so what a DAW
 records is what the mixer says.
 
+It plugs itself into the speakers. Nothing else will: a session manager
+patches a stream with a channel layout it recognises, and a node with ten
+ports named after parts of a song is a JACK client as far as any of them are
+concerned — the convention for those is that a human patches it, which meant
+turning the ports on made the piece play silently. Fretwork asks the graph
+which sink the desktop is using and links every part's pair to it, so the mix
+still comes out while a DAW records the parts separately. Where it cannot, the
+mixer says so rather than leaving somebody wondering.
+
 The node keeps processing whether or not anything is linked to it. A graph does
 not schedule a node with nothing attached, and a transport that would not start
 until a DAW had been wired up would look broken rather than patient.
@@ -500,7 +509,10 @@ $ fretwork "Cold Shot.gp" --play --follow
   following the graph's transport — it rolls when the graph does
 ```
 
-Press play in the DAW and Fretwork rolls from the same place in the piece;
+While this is on the mixer says whether the graph is rolling, because a
+follower with nothing to follow is a piece that does not play and says nothing
+about why. Press play in the DAW and Fretwork rolls from the same place in the
+piece;
 drag the playhead and it goes there, because anything that is not the next
 block along is treated as a seek and every synth is repositioned. Its own
 play button is disabled while this is on: the transport belongs to the graph
