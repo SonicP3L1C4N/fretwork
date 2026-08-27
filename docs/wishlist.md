@@ -72,15 +72,9 @@ P4 in the plan is three items. These are the rest of that thought.
   processed one, so a mix can be redone in a DAW without re-rendering from the
   score. Follows directly from one synth per track, and is close to free.
 
-- **Live per-track PipeWire ports.** Expose each track as its own graph node so
-  Ardour or Reaper can record Fretwork's stems as they play, rather than
-  importing WAVs afterwards. This is the item that would make the project's
-  premise true *outside* its own window, and is probably the single highest
-  value thing on this page.
-
 - **Transport sync.** JACK transport or MIDI clock, so Fretwork and the DAW
-  agree about where bar 40 is. Pointless without the ports above; obvious with
-  them.
+  agree about where bar 40 is. The ports exist now, which is what made this
+  worth wanting: a DAW can record the stems but has to start them by hand.
 
 - **Importing the RSE mixer state.** Open question in the architecture rather
   than a decided wish: the effects a `.gp` names are Arobas's and cannot be

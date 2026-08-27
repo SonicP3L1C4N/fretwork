@@ -1326,6 +1326,44 @@ Kirigami.ApplicationWindow {
                             }
                         }
 
+                        /**
+                         * Every part as a pair of ports in the graph.
+                         *
+                         * In the mixer because that is where this program says
+                         * what goes where. It is the point of a synth per
+                         * track made true outside this window: a DAW links to
+                         * these and records the stems as they play, instead of
+                         * importing files written after the fact.
+                         */
+                        Kirigami.Separator {
+                            Layout.fillWidth: true
+                            Layout.topMargin: Kirigami.Units.smallSpacing
+                            color: Ink.rule
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Kirigami.Units.smallSpacing
+
+                            QQC2.Label {
+                                Layout.fillWidth: true
+                                text: session.ports
+                                    ? i18n("Ports — %1 pairs",
+                                           session.portCount)
+                                    : i18n("Ports")
+                                color: session.ports ? Ink.accentDeep : Ink.ink
+                                font.weight: session.ports ? Font.DemiBold : Font.Normal
+                            }
+
+                            MixerButton {
+                                text: i18n("On")
+                                checked: session.ports
+                                QQC2.ToolTip.text:
+                                    i18n("A pair of ports per part, for a DAW to record")
+                                onToggled: session.ports = checked
+                            }
+                        }
+
                         QQC2.Label {
                             Layout.fillWidth: true
                             Layout.topMargin: Kirigami.Units.largeSpacing

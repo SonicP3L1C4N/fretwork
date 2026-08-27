@@ -15,6 +15,7 @@ add_library(fretworkcore STATIC
     audio/player.cpp
     audio/audioinput.cpp
     audio/pitchdetector.cpp
+    audio/portedoutput.cpp
     audio/tuner.cpp
     audio/wav.cpp
     format/fwformat.cpp

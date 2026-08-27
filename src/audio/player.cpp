@@ -122,6 +122,27 @@ Player::Player(const Score &score, const QList<int> &order, const Options &optio
 
     initialisePipeWire();
 
+    if (m_options.perTrackPorts) {
+        // One node with a pair of ports per part, and the click after them:
+        // one callback, one position, one answer to what time it is.
+        PortedOutput::Options ports;
+        ports.sampleRate = m_options.sampleRate;
+        for (const Track &track : score.tracks) {
+            ports.ports.append(track.name);
+        }
+        if (m_click) {
+            ports.ports.append(QStringLiteral("Click"));
+        }
+        m_ports = std::make_unique<PortedOutput>(ports, &Player::portCallback, this);
+        if (!m_ports->isValid()) {
+            m_error = m_ports->error();
+            m_ports.reset();
+            return;
+        }
+        m_driverName = QStringLiteral("pipewire ports");
+        return;
+    }
+
     // A settings object of its own: these configure the output device, not a
     // synth, and FluidSynth reads them when the driver is created.
     m_driverSettings = new_fluid_settings();
@@ -159,7 +180,9 @@ Player::~Player()
 
 bool Player::isValid() const
 {
-    return m_driver && m_error.isEmpty();
+    // Either way out counts: with ports there is no FluidSynth driver at all,
+    // because the ports are the output rather than something beside it.
+    return (m_driver || m_ports) && m_error.isEmpty();
 }
 
 QString Player::error() const
@@ -296,6 +319,11 @@ float Player::clickGain() const
     return m_click ? m_click->gain.load(std::memory_order_acquire) : 0.0f;
 }
 
+int Player::portCount() const
+{
+    return m_ports ? m_ports->pairCount() : 0;
+}
+
 bool Player::isAudible(int track) const
 {
     if (track < 0 || track >= trackCount()) {
@@ -305,6 +333,105 @@ bool Player::isAudible(int track) const
         return isSolo(track);
     }
     return !isMuted(track);
+}
+
+void Player::portCallback(void *data, int frames, float *const *left, float *const *right)
+{
+    static_cast<Player *>(data)->spread(frames, left, right);
+}
+
+/**
+ * A pair of buffers per track, instead of one pair for all of them.
+ *
+ * The same engine and the same clock as `mix`: one position, advanced once,
+ * every synth asked for the same block. What is different is only where the
+ * audio lands -- and that a track's own gain is applied to its own port, so
+ * what a DAW records is what the mixer says, fader included.
+ *
+ * Mute and solo still silence a port. A DAW recording a muted track would
+ * otherwise get audio the person at the mixer believes they turned off, which
+ * is worse than a silent take because it is a surprise later.
+ */
+void Player::spread(int frames, float *const *left, float *const *right)
+{
+    const qint64 at = advance(0);
+    if (at < 0) {
+        // Not playing: the ports still have to be given silence, or they hold
+        // whatever the graph left in them and buzz.
+        for (int pair = 0; pair < int(m_channels.size()) + (m_ports ? 1 : 0); ++pair) {
+            std::fill_n(left[pair], frames, 0.0f);
+            std::fill_n(right[pair], frames, 0.0f);
+        }
+        return;
+    }
+
+    const bool soloing = m_soloCount.load(std::memory_order_relaxed) > 0;
+    for (size_t index = 0; index < m_channels.size(); ++index) {
+        Channel &channel = *m_channels[index];
+        channel.synth->fill(left[index], right[index], frames, at);
+
+        const bool audible = soloing ? channel.solo.load(std::memory_order_relaxed)
+                                     : !channel.muted.load(std::memory_order_relaxed);
+        const float gain =
+            audible ? channel.gain.load(std::memory_order_relaxed) : 0.0f;
+        if (gain != 1.0f) {
+            for (int frame = 0; frame < frames; ++frame) {
+                left[index][frame] *= gain;
+                right[index][frame] *= gain;
+            }
+        }
+    }
+
+    if (m_click) {
+        const size_t index = m_channels.size();
+        m_click->synth->fill(left[index], right[index], frames, at);
+        const float gain = m_clickEnabled.load(std::memory_order_relaxed)
+            ? m_click->gain.load(std::memory_order_relaxed)
+            : 0.0f;
+        if (gain != 1.0f) {
+            for (int frame = 0; frame < frames; ++frame) {
+                left[index][frame] *= gain;
+                right[index][frame] *= gain;
+            }
+        }
+    }
+
+    advance(frames);
+}
+
+/**
+ * Where the transport is, and moving it on.
+ *
+ * Called with zero to ask and with a block to move: the two outputs need the
+ * same answer to "what time is it" and the same rule for running off the end,
+ * and two copies of that rule would eventually disagree about where a piece
+ * stops. Returns -1 where nothing should be played at all.
+ */
+qint64 Player::advance(int frames)
+{
+    if (frames == 0) {
+        const qint64 seek = m_seekTo.exchange(-1, std::memory_order_acquire);
+        if (seek >= 0) {
+            for (auto &channel : m_channels) {
+                channel->synth->seek(seek);
+            }
+            if (m_click) {
+                m_click->synth->seek(seek);
+            }
+            m_position.store(seek, std::memory_order_release);
+        }
+        return m_playing.load(std::memory_order_acquire)
+            ? m_position.load(std::memory_order_relaxed)
+            : -1;
+    }
+
+    const qint64 at = m_position.load(std::memory_order_relaxed) + frames;
+    m_position.store(at, std::memory_order_release);
+    if (at >= m_length) {
+        m_playing.store(false, std::memory_order_release);
+        m_finished.store(true, std::memory_order_release);
+    }
+    return at;
 }
 
 int Player::fillCallback(void *data, int frames, int, float *[], int outputCount,

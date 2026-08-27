@@ -363,6 +363,37 @@ once, so the *MIDI* writer says what it gave up:
 Audio rendering has no such limit, because nothing is shared: that compromise
 is a property of the MIDI file format, not of the program.
 
+**Every part is a pair of ports**, which is the point of a synth per track made
+true outside this window. Until now the only way to get a stem anywhere else
+was to render a WAV and import it; with `--ports`, or the switch at the foot of
+the mixer, a DAW links to these and records them as they play:
+
+```
+$ fretwork "Cold Shot.gp" --play --ports
+  5 pairs of ports in the graph — link them and record
+  playing 4:04 through pipewire ports — all tracks
+
+$ pw-link -o | grep Fretwork
+Fretwork:01_Vocals_FL
+Fretwork:02_Stevie_Ray_Vaughan_FL
+Fretwork:03_Tommy_Shannon_FL
+Fretwork:04_Chris_Whipper_Layton_FL
+Fretwork:05_Click_FL
+  ...
+```
+
+One node with many ports rather than a node per part. A node per part would be
+a clock per part — PipeWire drives each stream's callback on its own, and eight
+callbacks filling eight synths from eight ideas of "now" is eight things to
+drift apart. One filter has one callback, one position and one answer to what
+time it is, which is also what a hardware multitrack interface looks like from
+the other end of a cable. The fader and the mute reach the ports, so what a DAW
+records is what the mixer says.
+
+The node keeps processing whether or not anything is linked to it. A graph does
+not schedule a node with nothing attached, and a transport that would not start
+until a DAW had been wired up would look broken rather than patient.
+
 **It shuffles.** Guitar Pro records a triplet feel per bar, and a score that
 has one is not a score with a missing ornament — played evenly, a shuffle is
 the wrong music, and the kind of wrong that sounds like a decision. Fretwork
@@ -442,7 +473,7 @@ GPL — the reasoning for every line of that is in
 | **P1** | Headless converter: importers, model, technique translation, stem export. No window | **done** — the program is useful with no window |
 | **P2** | The player: tab rendering, transport, mixer, live playback | **done** |
 | **P3** | The editor | **done** — caret, fret entry, marks, transposition, beats, durations, bars, selection, copy and paste, undo, saving, tempo, time signature, sections, tuning, capo, parts, and a new score |
-| P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | |
+| P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | **begun** — every part is a pair of ports in the audio graph |
 | P5 | Standard notation, PDF, MusicXML, GP6 | |
 
 P1 is the one that matters: at the end of it the program is useful with no user

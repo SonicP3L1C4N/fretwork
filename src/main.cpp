@@ -286,11 +286,12 @@ bool drawTab(QTextStream &out, QTextStream &error, const Score &score, int track
  */
 bool playScore(QTextStream &out, QTextStream &error, const Score &score,
                const QList<int> &order, const QString &soundFont, const QString &driver,
-               const QStringList &solo, const QStringList &mute, bool click)
+               const QStringList &solo, const QStringList &mute, bool click, bool ports)
 {
     Player::Options options;
     options.soundFont = soundFont;
     options.audioDriver = driver;
+    options.perTrackPorts = ports;
 
     Player player(score, order, options);
     if (!player.isValid()) {
@@ -311,6 +312,10 @@ bool playScore(QTextStream &out, QTextStream &error, const Score &score,
         if (player.isAudible(index)) {
             heard.append(score.tracks.at(index).name);
         }
+    }
+    if (player.portCount() > 0) {
+        out << i18n("  %1 pairs of ports in the graph — link them and record\n",
+                    QString::number(player.portCount()));
     }
     out << QStringLiteral("  playing %1 through %2 — %3%4\n")
                .arg(clock(player.lengthSeconds()), player.driverName(),
@@ -609,6 +614,10 @@ int main(int argc, char *argv[])
                                               "through; \"file\" writes to disk instead"),
                                          i18n("name"));
     parser.addOption(audioDriver);
+    const QCommandLineOption porting(QStringLiteral("ports"),
+                                     i18n("Give every track a pair of ports in the audio "
+                                          "graph, for a DAW to record"));
+    parser.addOption(porting);
     const QCommandLineOption saving(QStringLiteral("save"),
                                     i18n("Convert to a Fretwork score"), i18n("file.fw"));
     parser.addOption(saving);
@@ -724,7 +733,8 @@ int main(int argc, char *argv[])
         if (parser.isSet(playing)) {
             if (!playScore(out, error, score, order, parser.value(soundFont),
                            parser.value(audioDriver), parser.values(soloed),
-                           parser.values(muted), parser.isSet(clicking))) {
+                           parser.values(muted), parser.isSet(clicking),
+                           parser.isSet(porting))) {
                 ++failures;
             }
         }

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "score.h"
+#include "portedoutput.h"
 #include "tracksynth.h"
 
 #include <QList>
@@ -44,6 +45,17 @@ public:
         int sampleRate = 48000;
         int periodFrames = 512;
         double gain = 0.4;
+
+        /**
+         * Give every track a pair of ports in the audio graph.
+         *
+         * The point of a synth per track, made true outside this window: a DAW
+         * links to these and records the stems as they play, instead of
+         * importing WAVs written after the fact. It replaces the ordinary
+         * output rather than joining it -- two ways out would be two clocks,
+         * and the whole reason the ports are one node is that there is one.
+         */
+        bool perTrackPorts = false;
     };
 
     Player(const Score &score, const QList<int> &order, const Options &options);
@@ -57,6 +69,9 @@ public:
 
     /** Which audio driver actually opened, once one has. */
     QString driverName() const;
+
+    /** How many port pairs are in the graph; zero where there are none. */
+    int portCount() const;
 
     // ---- transport, all callable from any thread ----
 
@@ -115,6 +130,15 @@ private:
                             int outputCount, float *outputs[]);
     void mix(int frames, float *left, float *right);
 
+    static void portCallback(void *data, int frames, float *const *left,
+                             float *const *right);
+
+    /** Fills one buffer pair per track rather than one pair for all of them. */
+    void spread(int frames, float *const *left, float *const *right);
+
+    /** Where the transport is now, and where it will be after `frames`. */
+    qint64 advance(int frames);
+
     struct Channel {
         std::unique_ptr<TrackSynth> synth;
         std::atomic<bool> muted{false};
@@ -134,6 +158,7 @@ private:
 
     fluid_settings_t *m_driverSettings = nullptr;
     fluid_audio_driver_t *m_driver = nullptr;
+    std::unique_ptr<PortedOutput> m_ports;
 
     std::atomic<bool> m_playing{false};
     std::atomic<bool> m_finished{false};

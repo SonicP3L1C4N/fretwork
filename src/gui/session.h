@@ -102,6 +102,19 @@ class Session : public QObject
     Q_PROPERTY(bool click READ isClickOn WRITE setClickOn NOTIFY clickChanged)
     Q_PROPERTY(double clickGain READ clickGain WRITE setClickGain NOTIFY clickChanged)
 
+    /**
+     * Every part as a pair of ports in the audio graph, for a DAW to record.
+     *
+     * Rebuilds the player, because it is a different way out rather than a
+     * setting on the one there is -- and stops the transport first, since a
+     * piece that carried on playing through having its output replaced would
+     * be playing through a gap.
+     */
+    Q_PROPERTY(bool ports READ isPortsOn WRITE setPortsOn NOTIFY portsChanged)
+
+    /** How many pairs are in the graph; zero when the ports are off. */
+    Q_PROPERTY(int portCount READ portCount NOTIFY portsChanged)
+
     Q_PROPERTY(bool playing READ isPlaying NOTIFY playingChanged)
     Q_PROPERTY(bool canPlay READ canPlay NOTIFY scoreChanged)
     Q_PROPERTY(double position READ position NOTIFY positionChanged)
@@ -183,6 +196,10 @@ public:
     int caretBar() const;
     int currentTrack() const;
     void setCurrentTrack(int track);
+
+    bool isPortsOn() const;
+    void setPortsOn(bool on);
+    int portCount() const;
 
     bool isClickOn() const;
     void setClickOn(bool on);
@@ -338,6 +355,7 @@ Q_SIGNALS:
     void currentTrackChanged();
     void playingChanged();
     void clickChanged();
+    void portsChanged();
     void positionChanged();
     void layoutChanged();
     void mixerChanged();
@@ -359,6 +377,7 @@ private:
     qreal m_width = 900;
     int m_currentTrack = 0;
     bool m_click = false;
+    bool m_ports = false;
     double m_clickGain = 1.0;
     int m_currentBar = -1;
     bool m_wasPlaying = false;

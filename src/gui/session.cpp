@@ -179,6 +179,7 @@ void Session::rebuildPlayer()
     }
 
     Player::Options options;
+    options.perTrackPorts = m_ports;
     auto player = std::make_unique<Player>(m_editor.score(), m_order, options);
     if (!player->isValid()) {
         setStatus(player->error());
@@ -310,6 +311,42 @@ void Session::setCurrentTrack(int track)
 
     rebuildLayout();
     Q_EMIT currentTrackChanged();
+}
+
+bool Session::isPortsOn() const
+{
+    return m_ports;
+}
+
+int Session::portCount() const
+{
+    return m_player ? m_player->portCount() : 0;
+}
+
+void Session::setPortsOn(bool on)
+{
+    if (m_ports == on) {
+        return;
+    }
+    // Stopped first: the output is being replaced, not adjusted, and a piece
+    // that carried on through that would be carrying on through a gap.
+    stop();
+    m_ports = on;
+    rebuildPlayer();
+
+    if (on && portCount() == 0) {
+        // It did not open. Back to the ordinary way out rather than leaving
+        // somebody with a transport that will not play.
+        m_ports = false;
+        rebuildPlayer();
+        setStatus(i18n("The ports could not be opened, so the sound is going out the "
+                       "usual way"));
+    } else {
+        setStatus(on ? i18n("%1 pairs of ports in the graph — link them and record",
+                            QString::number(portCount()))
+                     : QString());
+    }
+    Q_EMIT portsChanged();
 }
 
 bool Session::isClickOn() const
