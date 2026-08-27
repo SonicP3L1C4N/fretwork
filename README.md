@@ -168,6 +168,28 @@ a player looks for.
 attached to a bug report can be understood by looking at it. Every score in the
 test corpus survives import, save and reopen describing exactly the same music.
 
+The command line converts too, which is also the only way to look at what a
+`.fw` is without opening a window:
+
+```
+$ fretwork "Slomosa-Horses.gp" --save Horses.fw
+  Horses.fw                     Fretwork 1
+
+$ fretwork Horses.fw --info
+  ...
+  format  Fretwork 1
+```
+
+It says which version of the format it is, and the reader checks. The number
+moves only when something an older reader would get wrong has changed —
+adding an optional key is not that, because unknown keys are ignored and
+missing ones default to what a blank would mean, so a file with more in it
+than a reader knows about opens with whatever the reader understands. When the
+number *has* moved, an older Fretwork refuses the file by name and number
+rather than reading as far as it goes: getting some of it would be getting
+some of it wrong. Files carry the build that wrote them, too, which is the
+first thing worth knowing about one that arrives attached to a bug report.
+
 A `.fw` holds *Fretwork's* model, not everything a `.gp` contained: lyrics,
 chord diagrams and Guitar Pro's own effects are read past on import and are not
 there to write out. And Fretwork deliberately **cannot write `.gp`** — reading a

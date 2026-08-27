@@ -5,6 +5,8 @@
 #include "gpif.h"
 #include "zipreader.h"
 
+#include <KZip>
+
 #include <QDir>
 #include <QFile>
 #include <QJsonDocument>
@@ -418,6 +420,106 @@ private Q_SLOTS:
             QCOMPARE(describe(reopened), describe(imported));
         }
     }
+
+    // ---- the version on the tin ----
+
+    /** Repacks a file with a manifest of our choosing, or with none at all. */
+    static bool repack(const QString &file, const QJsonObject *manifest,
+                       const QByteArray &document = QByteArray())
+    {
+        QByteArray score = document;
+        if (score.isNull()) {
+            score = Zip::readEntry(file, QStringLiteral("score.json"));
+            if (score.isNull()) {
+                return false;
+            }
+        }
+        QFile::remove(file);
+        KZip archive(file);
+        if (!archive.open(QIODevice::WriteOnly)) {
+            return false;
+        }
+        bool ok = true;
+        if (manifest) {
+            ok = archive.writeFile(QStringLiteral("manifest.json"),
+                                   QJsonDocument(*manifest).toJson());
+        }
+        ok = ok && archive.writeFile(QStringLiteral("score.json"), score);
+        archive.close();
+        return ok;
+    }
+
+    static QJsonObject manifestOf(int format)
+    {
+        QJsonObject object;
+        object.insert(QStringLiteral("format"), format);
+        object.insert(QStringLiteral("application"), QStringLiteral("Fretwork"));
+        return object;
+    }
+
+    void saysWhichFormatAndWhichBuildWroteIt()
+    {
+        const QString file = path(QStringLiteral("stamped.fw"));
+        QVERIFY(Fw::write(awkward(), file));
+
+        const QJsonObject manifest =
+            QJsonDocument::fromJson(Zip::readEntry(file, QStringLiteral("manifest.json")))
+                .object();
+        QCOMPARE(manifest.value(QStringLiteral("format")).toInt(), Fw::FormatVersion);
+        QCOMPARE(manifest.value(QStringLiteral("application")).toString(),
+                 QStringLiteral("Fretwork"));
+        // Which build wrote it, which is the first thing worth knowing about a
+        // file that arrives attached to a bug report.
+        QVERIFY(!manifest.value(QStringLiteral("wroteWith")).toString().isEmpty());
+        QCOMPARE(Fw::versionOf(file), Fw::FormatVersion);
+    }
+
+    void refusesAFileFromTheFuture()
+    {
+        const QString file = path(QStringLiteral("newer.fw"));
+        QVERIFY(Fw::write(awkward(), file));
+        const QJsonObject newer = manifestOf(Fw::FormatVersion + 1);
+        QVERIFY(repack(file, &newer));
+        QCOMPARE(Fw::versionOf(file), Fw::FormatVersion + 1);
+
+        // Refused by name and number rather than read as far as it goes: the
+        // number only moves when something an older reader would get wrong has
+        // changed, so getting some of it is getting some of it wrong.
+        QString why;
+        const Score back = Fw::read(file, &why);
+        QVERIFY(back.isEmpty());
+        QVERIFY2(why.contains(QString::number(Fw::FormatVersion + 1)), qPrintable(why));
+        QVERIFY2(why.contains(QLatin1String("newer Fretwork")), qPrintable(why));
+    }
+
+    void readsAFileWithNoManifestAsTheVersionItCouldHaveBeen()
+    {
+        // Every .fw this program has written has one. A file without is
+        // hand-made or repacked, and the friendlier reading of a missing
+        // number is the number that was current when it could have been made.
+        const QString file = path(QStringLiteral("bare.fw"));
+        QVERIFY(Fw::write(awkward(), file));
+        QVERIFY(repack(file, nullptr));
+
+        QCOMPARE(Fw::versionOf(file), 1);
+        QString why;
+        const Score back = Fw::read(file, &why);
+        QVERIFY2(!back.isEmpty(), qPrintable(why));
+        QCOMPARE(describe(back), describe(awkward()));
+    }
+
+    void saysSoWhenTheDocumentIsNotJson()
+    {
+        const QString file = path(QStringLiteral("broken.fw"));
+        QVERIFY(Fw::write(awkward(), file));
+        const QJsonObject current = manifestOf(Fw::FormatVersion);
+        QVERIFY(repack(file, &current, QByteArrayLiteral("{ not json at all")));
+
+        QString why;
+        QVERIFY(Fw::read(file, &why).isEmpty());
+        QVERIFY2(why.contains(QLatin1String("score.json")), qPrintable(why));
+    }
+
 };
 
 QTEST_GUILESS_MAIN(FwFormatTest)

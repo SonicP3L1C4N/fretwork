@@ -185,11 +185,6 @@ edits it cannot yet make.
 
 - **ASCII tab out.** The format forums still use, and about a day's work.
 
-- **`.fw` versioning and migration.** Not a feature, a debt: the format will
-  change, old files have to keep opening, and a version field plus a migration
-  path is cheap now and expensive after the first person other than the author
-  has files.
-
 ## On the page
 
 - **Standard notation.** P5, and stated in the architecture as possibly never.

@@ -25,6 +25,10 @@ add_library(fretworkcore STATIC
     playback/timeline.cpp
 )
 
+# The version, so that a saved file can say which build wrote it. The window
+# and the command line already had this; the format needs it too.
+target_compile_definitions(fretworkcore PRIVATE FRETWORK_VERSION="${PROJECT_VERSION}")
+
 target_include_directories(fretworkcore PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/model
     ${CMAKE_CURRENT_SOURCE_DIR}/import

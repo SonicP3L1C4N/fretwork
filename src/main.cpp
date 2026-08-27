@@ -609,6 +609,9 @@ int main(int argc, char *argv[])
                                               "through; \"file\" writes to disk instead"),
                                          i18n("name"));
     parser.addOption(audioDriver);
+    const QCommandLineOption saving(QStringLiteral("save"),
+                                    i18n("Convert to a Fretwork score"), i18n("file.fw"));
+    parser.addOption(saving);
     const QCommandLineOption clicking(QStringLiteral("click"),
                                      i18n("Count it out: a metronome on every beat, "
                                           "played live or written as a stem of its own"));
@@ -644,7 +647,7 @@ int main(int argc, char *argv[])
     // nothing in particular, it is an application and opens a window.
     const bool asked = parser.isSet(info) || parser.isSet(midi) || parser.isSet(stems)
         || parser.isSet(render) || parser.isSet(pdf) || parser.isSet(png)
-        || parser.isSet(playing) || parser.isSet(tune);
+        || parser.isSet(playing) || parser.isSet(tune) || parser.isSet(saving);
     if (!asked) {
         QQuickStyle::setStyle(QStringLiteral("org.kde.desktop"));
         QQmlApplicationEngine engine;
@@ -698,6 +701,13 @@ int main(int argc, char *argv[])
         const QList<int> order = Timeline::playedOrder(score, !parser.isSet(asNotated));
         describe(out, score, order);
 
+        // For one of ours, which version of the format it is. A file attached
+        // to a bug report should not need unzipping to answer that.
+        if (Fw::looksLikeOurs(path)) {
+            out << QStringLiteral("  format  %1\n")
+                       .arg(i18n("Fretwork %1", QString::number(Fw::versionOf(path))));
+        }
+
         if (parser.isSet(midi) || parser.isSet(stems)) {
             if (!writeMidi(out, error, score, order, path, parser.value(midi),
                            parser.value(stems))) {
@@ -715,6 +725,18 @@ int main(int argc, char *argv[])
             if (!playScore(out, error, score, order, parser.value(soundFont),
                            parser.value(audioDriver), parser.values(soloed),
                            parser.values(muted), parser.isSet(clicking))) {
+                ++failures;
+            }
+        }
+        if (parser.isSet(saving)) {
+            QString why;
+            if (Fw::write(score, parser.value(saving), &why)) {
+                out << QStringLiteral("  %1  %2\n")
+                           .arg(QFileInfo(parser.value(saving)).fileName(), -28)
+                           .arg(i18n("Fretwork %1",
+                                     QString::number(Fw::FormatVersion)));
+            } else {
+                error << QStringLiteral("fretwork: %1\n").arg(why);
                 ++failures;
             }
         }

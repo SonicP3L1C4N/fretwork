@@ -210,7 +210,35 @@ QByteArray manifest()
     QJsonObject object;
     object.insert(QStringLiteral("format"), Fw::FormatVersion);
     object.insert(QStringLiteral("application"), QStringLiteral("Fretwork"));
+    // Which build wrote it, which is the first thing worth knowing about a
+    // file that has arrived attached to a bug report.
+    object.insert(QStringLiteral("wroteWith"), QStringLiteral(FRETWORK_VERSION));
     return QJsonDocument(object).toJson(QJsonDocument::Indented);
+}
+
+/**
+ * Brings a document forward from the version that wrote it.
+ *
+ * One step at a time and in order, so that a file two versions behind is
+ * carried through the same code a file one version behind is -- a migration
+ * that jumped straight to the present would be a second description of every
+ * change, and the one nobody ran would be the wrong one.
+ *
+ * There is one version, so there is nothing to do yet. The loop is here rather
+ * than waiting to be written because the moment it is needed is the moment
+ * somebody already has files, and that is the wrong moment to be designing
+ * where the code goes.
+ */
+void migrate(QJsonObject &document, int from)
+{
+    for (int version = from; version < Fw::FormatVersion; ++version) {
+        switch (version) {
+        // case 1: turn a version-one document into a version-two one, here.
+        default:
+            break;
+        }
+    }
+    Q_UNUSED(document);
 }
 
 QByteArray encode(const Score &score)
@@ -449,8 +477,32 @@ bool Fw::write(const Score &score, const QString &path, QString *error)
     return true;
 }
 
+int Fw::versionOf(const QString &path)
+{
+    const QByteArray json = Zip::readEntry(path, ManifestEntry);
+    if (json.isNull()) {
+        return 1;
+    }
+    const QJsonObject object = QJsonDocument::fromJson(json).object();
+    const QJsonValue format = object.value(QStringLiteral("format"));
+    return format.isDouble() ? format.toInt() : 1;
+}
+
 Score Fw::read(const QString &path, QString *error)
 {
+    // Before the document, because a document from the future is one this
+    // reader would misunderstand rather than one it would fail to parse.
+    const int version = versionOf(path);
+    if (version > FormatVersion) {
+        if (error) {
+            *error = QStringLiteral("this file is Fretwork format %1 and this program "
+                                    "understands up to %2: it needs a newer Fretwork")
+                         .arg(version)
+                         .arg(FormatVersion);
+        }
+        return {};
+    }
+
     QString why;
     const QByteArray json = Zip::readEntry(path, ScoreEntry, &why);
     if (json.isNull()) {
@@ -461,5 +513,17 @@ Score Fw::read(const QString &path, QString *error)
         }
         return {};
     }
-    return decode(json, error);
+    QJsonParseError parsed;
+    QJsonDocument document = QJsonDocument::fromJson(json, &parsed);
+    if (parsed.error != QJsonParseError::NoError || !document.isObject()) {
+        if (error) {
+            *error = QStringLiteral("score.json is not readable JSON: %1")
+                         .arg(parsed.errorString());
+        }
+        return {};
+    }
+
+    QJsonObject root = document.object();
+    migrate(root, version);
+    return decode(QJsonDocument(root).toJson(QJsonDocument::Compact), error);
 }
