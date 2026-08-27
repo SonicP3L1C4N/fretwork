@@ -578,7 +578,10 @@ void Session::setFollowing(bool on)
         m_ports = true;
     }
     rebuildPlayer();
-    setStatus(on ? i18n("Following the graph — it rolls when the graph does")
+    setStatus(on ? (m_player && m_player->canDriveTransport()
+                        ? i18n("Following the graph — and able to start it, so play still "
+                               "works here")
+                        : i18n("Following the graph — it rolls when the graph does"))
                  : QString());
     Q_EMIT portsChanged();
     Q_EMIT playingChanged();
@@ -664,9 +667,11 @@ bool Session::isPlaying() const
 
 bool Session::canPlay() const
 {
-    // Not while following: the transport belongs to the graph then, and a play
-    // button that did nothing would be worse than one that says it cannot.
-    return m_player && m_player->isValid() && !m_following;
+    // Following, the transport belongs to the graph -- but pressing play can
+    // still start the graph's, where there is a way to. Only where there is
+    // not does the button go dead, because then it really could do nothing.
+    return m_player && m_player->isValid()
+        && (!m_following || m_player->canDriveTransport());
 }
 
 double Session::position() const

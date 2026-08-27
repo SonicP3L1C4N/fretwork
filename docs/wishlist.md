@@ -80,11 +80,10 @@ P4 in the plan is three items. These are the rest of that thought.
   processed one, so a mix can be redone in a DAW without re-rendering from the
   score. Follows directly from one synth per track, and is close to free.
 
-- **Driving the transport, not only following it.** Fretwork follows the
-  graph, so a DAW starts it and says where in the piece it is. The other
-  direction -- pressing play in Fretwork and having the DAW roll -- needs this
-  program to be the one that owns the transport, which is a different thing to
-  be and worth wanting only once somebody wants it.
+- **A transport that does not need JACK.** Driving the graph's transport goes
+  through PipeWire's JACK implementation, loaded at runtime, because PipeWire
+  has no other public way for a client to set one. If it ever grows one, this
+  becomes a few lines and one fewer library to find.
 
 - **Importing the RSE mixer state.** Open question in the architecture rather
   than a decided wish: the effects a `.gp` names are Arobas's and cannot be

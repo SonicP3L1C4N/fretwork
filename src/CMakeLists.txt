@@ -14,6 +14,7 @@ add_library(fretworkcore STATIC
     audio/tracksynth.cpp
     audio/player.cpp
     audio/audioinput.cpp
+    audio/jacktransport.cpp
     audio/lv2chain.cpp
     audio/pitchdetector.cpp
     audio/portedoutput.cpp

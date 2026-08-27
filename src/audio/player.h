@@ -4,6 +4,7 @@
 #pragma once
 
 #include "score.h"
+#include "jacktransport.h"
 #include "lv2chain.h"
 #include "portedoutput.h"
 #include "synth.h"
@@ -140,6 +141,18 @@ public:
     /** How many ports were plugged into the speakers; zero means patch them. */
     int portLinkCount() const;
 
+    /**
+     * Whether this can start the transport it is following.
+     *
+     * Following without it is a program waiting for something that may never
+     * come: Reaper reads the transport and cannot set it, so unless Fretwork
+     * can press play, nobody can.
+     */
+    bool canDriveTransport() const;
+
+    /** What it is driving the transport through, for a window to say. */
+    QString transportDriver() const;
+
     // ---- transport, all callable from any thread ----
 
     void play();
@@ -231,6 +244,7 @@ private:
     fluid_settings_t *m_driverSettings = nullptr;
     fluid_audio_driver_t *m_driver = nullptr;
     std::unique_ptr<PortedOutput> m_ports;
+    std::unique_ptr<JackTransport> m_transport;
 
     std::atomic<bool> m_playing{false};
     std::atomic<bool> m_finished{false};

@@ -46,6 +46,22 @@
 namespace
 {
 /**
+ * Ctrl-C, caught rather than obeyed.
+ *
+ * Two things here run until they are stopped: the tuner, and playback that is
+ * following a transport of somebody else's. Both leave something behind if
+ * they are killed rather than asked to stop -- a terminal holding a
+ * half-written line, or a transport still rolling with nothing playing. One
+ * flag, checked on the same timer as everything else.
+ */
+volatile std::sig_atomic_t interrupted = 0;
+
+void onInterrupt(int)
+{
+    interrupted = 1;
+}
+
+/**
  * `--sfz 1=guitar.sfz`, repeated, into a table by track number.
  *
  * By track rather than for all of them, because a library exists for the
@@ -411,7 +427,11 @@ bool playScore(QTextStream &out, QTextStream &error, const Score &score,
     if (player.isFollowing()) {
         // Said before it looks like nothing is happening: a follower sits
         // still until whatever it is following starts.
-        out << i18n("  following the graph's transport — it rolls when the graph does\n");
+        out << (player.canDriveTransport()
+                    ? i18n("  following the graph's transport, and able to start it — "
+                           "anything else following rolls too\n")
+                    : i18n("  following the graph's transport — it rolls when the graph "
+                           "does, and nothing here can start it\n"));
     }
     out << QStringLiteral("  playing %1 through %2 — %3%4\n")
                .arg(clock(player.lengthSeconds()), player.driverName(),
@@ -421,11 +441,27 @@ bool playScore(QTextStream &out, QTextStream &error, const Score &score,
                     click ? i18n(", with a click") : QString());
     out.flush();
 
+    // From the beginning. The shared transport is wherever somebody last left
+    // it, and "play this file" from a command line means the file rather than
+    // the middle of it -- which is not the same as the window's play button,
+    // where carrying on from the playhead is exactly what is wanted.
+    player.seekSeconds(0);
     player.play();
+
+    // Ctrl-C, caught rather than obeyed. A follower has no end of its own, so
+    // this is the only way out of one -- and going out through the door rather
+    // than through the wall is what lets the player stop a transport it
+    // started on the way past.
+    interrupted = 0;
+    std::signal(SIGINT, onInterrupt);
 
     QEventLoop loop;
     QTimer ticker;
     QObject::connect(&ticker, &QTimer::timeout, [&] {
+        if (interrupted) {
+            loop.quit();
+            return;
+        }
         out << QStringLiteral("\r  %1 / %2   ")
                    .arg(clock(player.positionSeconds()), clock(player.lengthSeconds()));
         out.flush();
@@ -437,6 +473,7 @@ bool playScore(QTextStream &out, QTextStream &error, const Score &score,
     });
     ticker.start(200);
     loop.exec();
+    std::signal(SIGINT, SIG_DFL);
 
     out << "\n";
     return true;
@@ -444,21 +481,6 @@ bool playScore(QTextStream &out, QTextStream &error, const Score &score,
 
 namespace
 {
-/**
- * Ctrl-C, caught rather than obeyed.
- *
- * The tuner is the first thing in the program that runs until it is stopped,
- * and a terminal left holding a half-written line with no newline on it is a
- * terminal somebody has to press return in. One flag, checked on the same
- * timer as everything else.
- */
-volatile std::sig_atomic_t interrupted = 0;
-
-void onInterrupt(int)
-{
-    interrupted = 1;
-}
-
 /**
  * The needle: fifty cents either side of the mark.
  *

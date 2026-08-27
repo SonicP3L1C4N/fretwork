@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
+#include "jacktransport.h"
 #include "lv2chain.h"
 
 #include <QTest>
@@ -172,6 +173,22 @@ private Q_SLOTS:
             return;
         }
         QSKIP("no LV2 plugin with a control installed on this machine");
+    }
+
+    // ---- driving the graph's transport ----
+
+    void findsATransportOrSaysWhyNot()
+    {
+        // Machine-dependent like the plugins above: what this asserts is that
+        // it is never ambiguous. Either there is a transport to drive and it
+        // says which library answered, or there is not and it says so. A
+        // silent nothing would be a play button that does nothing.
+        const JackTransport transport;
+        if (transport.isValid()) {
+            QVERIFY2(!transport.library().isEmpty(), "drove a transport from nowhere");
+        } else {
+            QVERIFY2(!transport.error().isEmpty(), "no transport and no reason given");
+        }
     }
 };
 

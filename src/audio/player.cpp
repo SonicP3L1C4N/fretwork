@@ -184,6 +184,15 @@ Player::Player(const Score &score, const QList<int> &order, const Options &optio
             return;
         }
         m_driverName = QStringLiteral("pipewire ports");
+
+        // Following without being able to start it is waiting for a DAW that
+        // cannot oblige, so a follower reaches for the transport as well.
+        if (m_options.followTransport) {
+            m_transport = std::make_unique<JackTransport>();
+            if (!m_transport->isValid()) {
+                m_transport.reset();
+            }
+        }
         return;
     }
 
@@ -249,16 +258,33 @@ void Player::play()
     if (m_finished.load(std::memory_order_relaxed)) {
         seekSeconds(0);
     }
+    // Following, the transport is the graph's -- so pressing play here starts
+    // the graph's, and this program hears about it the same way anything else
+    // in the graph does. Setting our own flag as well would be this program
+    // rolling while the graph had not agreed to yet.
+    if (m_transport) {
+        m_transport->start();
+        return;
+    }
     m_playing.store(true, std::memory_order_release);
 }
 
 void Player::pause()
 {
+    if (m_transport) {
+        m_transport->stop();
+        return;
+    }
     m_playing.store(false, std::memory_order_release);
 }
 
 void Player::stop()
 {
+    if (m_transport) {
+        m_transport->stop();
+        m_transport->locate(0);
+        return;
+    }
     m_playing.store(false, std::memory_order_release);
     seekSeconds(0);
 }
@@ -277,6 +303,12 @@ void Player::seekSeconds(double seconds)
 {
     const qint64 sample =
         std::clamp<qint64>(qint64(seconds * m_options.sampleRate), 0, m_length);
+    // The graph's playhead, where there is one to move: everything following
+    // it goes to the same place, which is the point of following it.
+    if (m_transport) {
+        m_transport->locate(sample);
+        return;
+    }
     // Handed to the audio thread rather than done here: two threads calling
     // into one synth is exactly the race this design exists to avoid.
     m_finished.store(false, std::memory_order_relaxed);
@@ -402,6 +434,16 @@ bool Player::isFollowing() const
 int Player::portLinkCount() const
 {
     return m_ports ? m_ports->linkCount() : 0;
+}
+
+bool Player::canDriveTransport() const
+{
+    return m_transport != nullptr;
+}
+
+QString Player::transportDriver() const
+{
+    return m_transport ? m_transport->library() : QString();
 }
 
 bool Player::hasGraphTransport() const

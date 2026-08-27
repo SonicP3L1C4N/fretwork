@@ -519,9 +519,22 @@ play button is disabled while this is on: the transport belongs to the graph
 then, and a button that did nothing would be worse than one that says it
 cannot.
 
-It follows and does not drive. Starting Fretwork does not start the DAW —
-that is the other direction and a different piece of work, and the one worth
-having first is the one where the recorder is in charge.
+**And it drives**, which turned out to be the direction that matters. Reaper on
+Linux references `jack_transport_query` and none of `start`, `stop` or
+`locate`: it can follow a transport and cannot set one. The obvious
+arrangement — press play in the DAW, the stems roll — is not available on this
+desktop at all, so the program that presses play has to be this one. Press play
+in Fretwork and the graph's transport rolls; anything set to follow it rolls
+too, and Fretwork follows its own transport like any other client. Its stop
+puts the transport back, and quitting stops a transport it started rather than
+leaving it running with nothing playing.
+
+Through JACK, because PipeWire offers no other way: the position comes from the
+driver node, and the only public route to changing it is the JACK API, which
+PipeWire implements so that programs like this one work. The library is loaded
+at runtime and PipeWire's copy is preferred, because the loader would otherwise
+hand over the real JACK's — a library for talking to a server that is not
+running, whose failure is a timeout rather than an error.
 
 **It shuffles.** Guitar Pro records a triplet feel per bar, and a score that
 has one is not a score with a missing ornament — played evenly, a shuffle is
