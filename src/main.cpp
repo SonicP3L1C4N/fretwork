@@ -23,6 +23,8 @@
 
 #include <QCommandLineParser>
 #include <QApplication>
+#include <QFont>
+#include <QFontDatabase>
 #include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -827,6 +829,29 @@ int main(int argc, char *argv[])
         icon = QIcon(QStringLiteral(":/sc-apps-io.github.sonicp3l1c4n.fretwork.svg"));
     }
     QGuiApplication::setWindowIcon(icon);
+
+    // The chrome's typeface, from the copy compiled in. Loaded before anything
+    // draws, because a window that starts in a fallback and changes font once
+    // the real one arrives is a window that flickers on every launch.
+    //
+    // Registered rather than asked for: Source Serif 4 is packaged nowhere
+    // this program can rely on, and a design that reads as a design only when
+    // the user happens to have the font is not a design.
+    for (const QLatin1String style : {QLatin1String("Regular"), QLatin1String("Semibold"),
+                                      QLatin1String("It"), QLatin1String("SemiboldIt")}) {
+        const QString path = QStringLiteral(":/fonts/SourceSerif4-%1.ttf").arg(style);
+        if (QFontDatabase::addApplicationFont(path) < 0) {
+            qWarning("could not load %s; the chrome will fall back to the system font",
+                     qPrintable(path));
+        }
+    }
+
+    // The family, and only the family. The size stays whatever the desktop
+    // says a user interface font is, because a design measured in pixels is a
+    // design that ignores anybody who asked for larger text.
+    QFont chrome = QGuiApplication::font();
+    chrome.setFamily(QStringLiteral("Source Serif 4"));
+    QGuiApplication::setFont(chrome);
 
     KAboutData about(QStringLiteral("fretwork"),
                      i18n("Fretwork"),

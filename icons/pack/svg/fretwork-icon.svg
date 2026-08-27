@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="512" height="512" role="img" aria-label="Fretwork — pick with lowercase f knocked out">
+  <defs>
+    
+    <clipPath id="pick"><path d="M64 8 C96 8 120 24 120 48 C120 80 82 116 64 124 C46 116 8 80 8 48 C8 24 32 8 64 8 Z"></path></clipPath>
+  </defs>
+  <polygon points="8,8 76,8 54,124 8,124" clip-path="url(#pick)" fill="#201e1d"></polygon>
+  <polygon points="76,8 120,8 120,124 54,124" clip-path="url(#pick)" fill="#d6006c"></polygon>
+  <text x="62" y="102" text-anchor="middle" font-size="124" font-style="italic" font-weight="600" font-family="'Source Serif 4',serif" fill="#f3f2f2" clip-path="url(#pick)">f</text>
+</svg>

@@ -88,6 +88,27 @@ qt_add_resources(fretwork "appicon"
           ${CMAKE_SOURCE_DIR}/icons/instrument-drums.svg
           ${CMAKE_SOURCE_DIR}/icons/instrument-keys.svg
           ${CMAKE_SOURCE_DIR}/icons/instrument-note.svg
+          # The same badges in paper, for the panels that are drawn on ink: a
+          # disc the colour of the chrome is a hole in it.
+          ${CMAKE_SOURCE_DIR}/icons/instrument-guitar-paper.svg
+          ${CMAKE_SOURCE_DIR}/icons/instrument-bass-paper.svg
+          ${CMAKE_SOURCE_DIR}/icons/instrument-drums-paper.svg
+          ${CMAKE_SOURCE_DIR}/icons/instrument-keys-paper.svg
+          ${CMAKE_SOURCE_DIR}/icons/instrument-note-paper.svg
+)
+
+# The chrome's typeface, compiled in for the same reason the icon is: a font
+# the program depends on and does not carry is a font that is missing on
+# somebody else's machine, and the window would fall back to a sans without
+# saying so. Vendored unmodified under the SIL Open Font License, whose terms
+# travel with it in fonts/LICENSE.md.
+qt_add_resources(fretwork "chromefont"
+    PREFIX "/fonts"
+    BASE ${CMAKE_SOURCE_DIR}/fonts
+    FILES ${CMAKE_SOURCE_DIR}/fonts/SourceSerif4-Regular.ttf
+          ${CMAKE_SOURCE_DIR}/fonts/SourceSerif4-Semibold.ttf
+          ${CMAKE_SOURCE_DIR}/fonts/SourceSerif4-It.ttf
+          ${CMAKE_SOURCE_DIR}/fonts/SourceSerif4-SemiboldIt.ttf
 )
 
 # Aliased to the root of the module: without this the type is registered under

@@ -53,6 +53,7 @@ Wayland, PipeWire 1.6.2.
 | Audio I/O | PipeWire native, JACK fallback | 1.6.2 | The target machine already runs a pro-audio PipeWire profile |
 | Audio files | libsndfile | 1.2.2 | Stem export |
 | Containers | our own central-directory reader, on zlib | zlib 1.3 | Neither KArchive nor a local-header reader opens a Guitar Pro 8.1.4 file — see [gpif-format.md](gpif-format.md#the-container-changed-in-814) |
+| Chrome typeface | Source Serif 4, vendored | 4.005, SIL OFL | The window's design is drawn in it, and it is packaged nowhere this program can rely on — a design that reads as a design only when the user happens to have the font is not a design. Four static styles, ~900 KB, registered at startup from the binary. The score is **not** set in it: fret numbers are read at a glance on a music stand and every tablature ever printed sets them without serifs, so `tabpainter` asks the desktop for its own sans by name |
 | Notation font | Bravura (SMuFL) | vendored, SIL OFL | Only when standard notation arrives; tab needs almost none of it |
 | Tests | Qt Test + a file corpus | — | The corpus is the specification |
 
@@ -194,6 +195,20 @@ rewrite.
 **Real-time discipline.** No allocation, no locks, no logging, no file I/O in
 the audio callback. The UI edits a document; the engine is handed an immutable
 timeline snapshot through a lock-free ring buffer and swaps it in at a bar line.
+
+### 4a. The window's own drawings
+
+The application icon and the instrument badges are generated from a design pack
+in `icons/pack` by `icons/from-pack.py`, rather than used as delivered, and the
+reason is worth recording because it will happen again. **QtSvg ignores
+`clip-path`.** A clipped shape is drawn unclipped: the icon comes out as two
+rectangles instead of a plectrum, and a badge's fret dots run off the edge of
+its disc. `mask` is supported, and a clip is a mask of one white shape, so the
+script rewrites every one. It also replaces the `<text>` that sets the icon's
+`f` with the path of that glyph, taken from the vendored font — an icon that
+depends on a font installed on the viewer's machine is an icon that is
+sometimes a different letter. Every generated file is proved by rendering it
+through Qt, which is the renderer that has to draw it.
 
 ### 5. Rendering
 

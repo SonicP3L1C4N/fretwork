@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <defs>
+    <mask id="bassbp"><rect width="24" height="24" fill="#fff"></rect><g transform="rotate(15 12 12)" fill="#000">
+    <path d="M10.1 15 L9.85 5.4 C9.8 3.8 10.9 2.7 12.3 2.9 C13.5 3.1 14.2 4 14.3 5.1 C14.4 6.1 13.9 6.8 14.1 7.7 C14.5 9.2 16.4 9.9 16.8 11.6 C17.1 13 15.9 13.7 15.3 14.3 C15 14.6 14.8 14.8 14.7 15 Z"></path>
+    <rect x="10.15" y="15" width="3.9" height="10"></rect>
+    <circle cx="9" cy="6.6" r="0.7"></circle><circle cx="8.95" cy="8.6" r="0.7"></circle><circle cx="8.95" cy="10.6" r="0.7"></circle><circle cx="9.05" cy="12.6" r="0.7"></circle>
+  </g></mask>
+    <clipPath id="bassbpc"><circle cx="12" cy="12" r="10.5"></circle></clipPath>
+  </defs>
+  <circle cx="12" cy="12" r="10.5" fill="#f3f2f2" mask="url(#bassbp)"></circle>
+  <g fill="#f3f2f2" clip-path="url(#bassbpc)"><g transform="rotate(15 12 12)" fill="#f3f2f2"><circle cx="10.95" cy="6.60" r="0.95"></circle><circle cx="11.05" cy="8.60" r="0.95"></circle><circle cx="11.15" cy="10.60" r="0.95"></circle><circle cx="11.25" cy="12.60" r="0.95"></circle><rect x="9.95" y="14.85" width="4.3" height="0.75"></rect>
+    <rect x="10.15" y="18" width="3.9" height="0.6"></rect>
+    <rect x="10.15" y="21.4" width="3.9" height="0.6"></rect></g></g>
+</svg>

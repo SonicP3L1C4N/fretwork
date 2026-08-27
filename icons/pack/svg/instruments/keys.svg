@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <defs>
+    <mask id="keysb"><rect width="24" height="24" fill="#fff"></rect><rect x="0" y="10.4" width="24" height="14" fill="#000"></rect></mask>
+    <clipPath id="keysbc"><circle cx="12" cy="12" r="10.5"></circle></clipPath>
+  </defs>
+  <circle cx="12" cy="12" r="10.5" fill="#201e1d" mask="url(#keysb)"></circle>
+  <g fill="#201e1d" clip-path="url(#keysbc)"><rect x="4.55" y="10.4" width="0.7" height="12.5"></rect><rect x="7.15" y="10.4" width="0.7" height="12.5"></rect><rect x="9.75" y="10.4" width="0.7" height="12.5"></rect><rect x="12.35" y="10.4" width="0.7" height="12.5"></rect><rect x="14.95" y="10.4" width="0.7" height="12.5"></rect><rect x="17.55" y="10.4" width="0.7" height="12.5"></rect><rect x="20.15" y="10.4" width="0.7" height="12.5"></rect><rect x="6.50" y="10.4" width="2" height="4.4"></rect><rect x="9.10" y="10.4" width="2" height="4.4"></rect><rect x="14.30" y="10.4" width="2" height="4.4"></rect><rect x="16.90" y="10.4" width="2" height="4.4"></rect></g>
+</svg>

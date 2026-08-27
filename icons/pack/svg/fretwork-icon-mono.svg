@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="512" height="512" role="img" aria-label="Fretwork — single-ink pick with lowercase f knocked out">
+  <defs>
+    
+    <clipPath id="pickm"><path d="M64 8 C96 8 120 24 120 48 C120 80 82 116 64 124 C46 116 8 80 8 48 C8 24 32 8 64 8 Z"></path></clipPath>
+  </defs>
+  <path d="M64 8 C96 8 120 24 120 48 C120 80 82 116 64 124 C46 116 8 80 8 48 C8 24 32 8 64 8 Z" fill="#201e1d"></path>
+  <text x="62" y="102" text-anchor="middle" font-size="124" font-style="italic" font-weight="600" font-family="'Source Serif 4',serif" fill="#f3f2f2" clip-path="url(#pickm)">f</text>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <defs>
+    <mask id="drumsb"><rect width="24" height="24" fill="#fff"></rect><g transform="rotate(26 12 12)" fill="#000">
+    <g transform="translate(-2.1,-1.5)"><path d="M11.1 27 L11.32 9.2 C11.36 8.2 11.5 7.4 11.72 6.9 L12.28 6.9 C12.5 7.4 12.64 8.2 12.68 9.2 L12.9 27 C12.9 27.6 11.1 27.6 11.1 27 Z"></path><ellipse cx="12" cy="5.75" rx="0.95" ry="1.28"></ellipse></g>
+    <g transform="translate(2.1,1.7)"><path d="M11.1 23 L11.32 9.2 C11.36 8.2 11.5 7.4 11.72 6.9 L12.28 6.9 C12.5 7.4 12.64 8.2 12.68 9.2 L12.9 23 C12.9 23.6 11.1 23.6 11.1 23 Z"></path><ellipse cx="12" cy="5.75" rx="0.95" ry="1.28"></ellipse></g>
+  </g></mask>
+    <clipPath id="drumsbc"><circle cx="12" cy="12" r="10.5"></circle></clipPath>
+  </defs>
+  <circle cx="12" cy="12" r="10.5" fill="#201e1d" mask="url(#drumsb)"></circle>
+  <g fill="#201e1d" clip-path="url(#drumsbc)"></g>
+</svg>

@@ -5,6 +5,7 @@
 #include "notename.h"
 
 #include <QFont>
+#include <QFontDatabase>
 #include <QPainter>
 #include <QPdfWriter>
 
@@ -12,9 +13,17 @@
 
 namespace
 {
+/**
+ * The page's typeface, which is the desktop's and not the window's.
+ *
+ * Asked for by name rather than taken from `QFont()`, which is the application
+ * font and is now a serif: the chrome wears Source Serif 4 and the score does
+ * not. A fret number is a number to be read at a glance on a music stand, and
+ * every tablature ever printed sets them without serifs.
+ */
 QFont sansOf(qreal size, bool bold = false, bool italic = false)
 {
-    QFont font;
+    QFont font(QFontDatabase::systemFont(QFontDatabase::GeneralFont));
     font.setPointSizeF(size);
     font.setBold(bold);
     font.setItalic(italic);

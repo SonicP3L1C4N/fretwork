@@ -1,8 +1,17 @@
+<!-- Not from the pack: it has a guitar, a bass, a kit and a keyboard, and a
+     score is entitled to contain a saxophone. Drawn in the same badge as those
+     four so that the odd one out does not look like a mistake. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-  <g fill="none" stroke="#f3f2f2" stroke-width="1.7" stroke-linecap="round">
-    <line x1="12.1" y1="16.4" x2="12.1" y2="4.4"></line>
-    <path d="M12.1 4.4 C15.6 5.4 17.8 7.6 17.2 11"></path>
-  </g>
-  <ellipse cx="8.6" cy="17.2" rx="3.6" ry="2.9" fill="#f3f2f2"
-           transform="rotate(-18 8.6 17.2)"></ellipse>
+  <defs>
+    <mask id="noteb">
+      <rect width="24" height="24" fill="#fff"/>
+      <g fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round">
+        <line x1="12.1" y1="16.4" x2="12.1" y2="4.4"/>
+        <path d="M12.1 4.4 C15.6 5.4 17.8 7.6 17.2 11"/>
+      </g>
+      <ellipse cx="8.6" cy="17.2" rx="3.6" ry="2.9" fill="#000"
+               transform="rotate(-18 8.6 17.2)"/>
+    </mask>
+  </defs>
+  <circle cx="12" cy="12" r="10.5" fill="#201e1d" mask="url(#noteb)"/>
 </svg>
