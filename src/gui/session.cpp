@@ -255,6 +255,16 @@ QVariantList Session::stringPitches(int track) const
     return pitches;
 }
 
+bool Session::hasSections() const
+{
+    for (const MasterBar &bar : m_editor.score().masterBars) {
+        if (!bar.section.isEmpty()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 int Session::trackCount() const
 {
     return int(m_editor.score().tracks.size());

@@ -1033,6 +1033,8 @@ Kirigami.ApplicationWindow {
          * again when it is finished with.
          */
         Rectangle {
+            id: tunerPanel
+
             Layout.fillWidth: true
             Layout.preferredHeight: Kirigami.Units.gridUnit * 6
             visible: panels.tuner
@@ -1262,16 +1264,80 @@ Kirigami.ApplicationWindow {
         }
 
         /**
-         * Every bar of the piece, in a row.
+         * Every bar of the piece, in a grid.
          *
          * A score is read a line at a time and navigated a bar at a time, and
          * until now the only way to reach bar 96 was to scroll to it. The bar
          * being played is lit in the same colour the page lights it, so this
          * says where the music is as well as where you are.
+         *
+         * It wraps. A row of two hundred boxes runs off the side of any window
+         * ever made and turns finding a bar back into scrolling for it, so the
+         * strip lays them out in as many columns as the window is wide enough
+         * for and as many rows as that takes. The columns are the width the
+         * window divides into rather than a fixed size, because a grid with a
+         * ragged right edge reads as a mistake, and because the point of a
+         * grid is that bar 96 is somewhere a person can aim at.
+         *
+         * It grows to fit the score and stops at a third of the window: a
+         * hundred-and-seventy-six-bar piece would otherwise push the music it
+         * is a map of off the screen entirely.
          */
         Rectangle {
+            id: barPanel
+
+            readonly property int cushion: Kirigami.Units.largeSpacing * 2
+            readonly property int inset: Kirigami.Units.largeSpacing * 2
+
+            /** The narrowest a bar box may be before a column is dropped. */
+            readonly property int narrowest: Ink.barBoxWidth + Kirigami.Units.smallSpacing
+
+            /**
+             * The width the boxes get, which is not the width of the panel.
+             *
+             * A gutter is kept on the right whether or not there is a scroll
+             * bar in it. Working out whether one is needed would mean knowing
+             * how many rows there are, which needs the number of columns,
+             * which needs this width -- a circle -- and a bar drawn over the
+             * last column of every row is worse than a gutter that is
+             * sometimes empty.
+             */
+            readonly property int usable:
+                Math.max(narrowest, width - inset * 2 - Kirigami.Units.gridUnit)
+            readonly property int columns: Math.max(1, Math.floor(usable / narrowest))
+            readonly property int sectionLine:
+                session.hasSections ? Kirigami.Units.gridUnit : 0
+            readonly property int cellHeight:
+                Ink.barBoxHeight + Kirigami.Units.smallSpacing + sectionLine
+
+            // Worked out from the count rather than read off the view: asking
+            // the grid how tall its contents are, while the grid is as tall as
+            // this, is a question that answers itself in a circle.
+            readonly property int rows: Math.max(1, Math.ceil(session.barCount / columns))
+            /**
+             * How much of the window the map may take.
+             *
+             * The two panels along the bottom share a budget rather than each
+             * taking a share of the window: a third for the bars and a band
+             * for the tuner leaves the music they are both about as a minority
+             * of the screen, which is the wrong way round. Whatever the tuner
+             * is using comes off this, so opening it shortens the grid instead
+             * of squeezing the page.
+             */
+            readonly property real ceiling: Math.max(
+                cellHeight,
+                root.height * 0.3
+                    - (tunerPanel.visible ? tunerPanel.Layout.preferredHeight : 0))
+
+            // Whole rows only. A row cut through the middle by the bottom of
+            // the panel looks like a rendering fault rather than like there
+            // being more to scroll to.
+            readonly property int shownRows:
+                Math.max(1, Math.min(rows, Math.floor(ceiling / cellHeight)))
+
             Layout.fillWidth: true
-            Layout.preferredHeight: Ink.barBoxHeight + Kirigami.Units.largeSpacing * 2
+            Layout.preferredHeight: barPanel.shownRows * barPanel.cellHeight
+                                    + barPanel.cushion
             visible: panels.bars && session.hasScore
             color: Ink.panelDeep
 
@@ -1282,21 +1348,33 @@ Kirigami.ApplicationWindow {
                 color: Ink.rule
             }
 
-            ListView {
-                id: barStrip
+            GridView {
+                id: barGrid
 
                 property int lit: -1
 
+                readonly property int sectionLine: barPanel.sectionLine
+
                 anchors.fill: parent
-                anchors.leftMargin: Kirigami.Units.largeSpacing * 2
-                anchors.rightMargin: Kirigami.Units.largeSpacing * 2
-                orientation: ListView.Horizontal
-                spacing: Kirigami.Units.smallSpacing
+                anchors.margins: barPanel.cushion / 2
+                anchors.leftMargin: barPanel.inset
+                anchors.rightMargin: barPanel.inset
+
+                // Whole pixels, or the last column in every row is a fraction
+                // narrower than the rest and the grid looks bent.
+                cellWidth: Math.floor(barPanel.usable / barPanel.columns)
+                cellHeight: barPanel.cellHeight
+
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
                 model: session.barCount
 
-                delegate: RowLayout {
+                QQC2.ScrollBar.vertical: QQC2.ScrollBar {
+                    policy: barGrid.contentHeight > barGrid.height
+                        ? QQC2.ScrollBar.AsNeeded : QQC2.ScrollBar.AlwaysOff
+                }
+
+                delegate: Item {
                     id: barCell
                     required property int index
 
@@ -1304,53 +1382,64 @@ Kirigami.ApplicationWindow {
                     property bool playing: index === session.currentBar
                     property bool atCaret: index === session.caretBar
 
-                    height: barStrip.height
-                    spacing: Kirigami.Units.smallSpacing
+                    width: barGrid.cellWidth
+                    height: barGrid.cellHeight
 
-                    // Where the score names a section, its name goes in front
-                    // of the bar it starts: a strip of numbers with no words in
-                    // it is a ruler rather than a map.
-                    QQC2.Label {
-                        Layout.leftMargin: Kirigami.Units.smallSpacing
-                        visible: barCell.section.length > 0
-                        text: barCell.section
-                        color: Ink.quiet
-                        font.pointSize: Kirigami.Theme.smallFont.pointSize
-                        font.weight: Font.DemiBold
-                        verticalAlignment: Text.AlignVCenter
-                    }
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: Kirigami.Units.smallSpacing / 2
+                        spacing: 0
 
-                    Rectangle {
-                        Layout.preferredWidth: Ink.barBoxWidth
-                        Layout.preferredHeight: Ink.barBoxHeight
-                        Layout.alignment: Qt.AlignVCenter
-                        radius: Ink.radius
-                        color: barCell.playing ? Ink.accent
-                             : (barCell.atCaret ? Ink.accentTint
-                             : (barMouse.containsMouse ? Ink.rule : Ink.paper))
-                        border.width: 1
-                        border.color: barCell.atCaret && !barCell.playing ? Ink.accent : Ink.rule
-
+                        // Where the score names a section, its name sits over
+                        // the bar it starts: a strip of numbers with no words
+                        // in it is a ruler rather than a map. Above rather
+                        // than beside it now, because a name of its own width
+                        // in front of a box would put every column after it
+                        // out of line.
                         QQC2.Label {
-                            anchors.centerIn: parent
-                            text: barCell.index + 1
-                            color: barCell.playing ? Ink.paper
-                                 : (barCell.atCaret ? Ink.accentDeep : Ink.ink)
-                            font.weight: barCell.playing || barCell.atCaret
-                                ? Font.DemiBold : Font.Normal
-                            font.features: ({ "tnum": 1 })
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: barGrid.sectionLine
+                            visible: barGrid.sectionLine > 0
+                            text: barCell.section
+                            elide: Text.ElideRight
+                            color: Ink.quiet
+                            verticalAlignment: Text.AlignVCenter
+                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                            font.weight: Font.DemiBold
                         }
 
-                        MouseArea {
-                            id: barMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                session.goToBar(barCell.index)
-                                // Jumping to a bar is usually the first half of
-                                // writing something in it.
-                                view.forceActiveFocus()
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            radius: Ink.radius
+                            color: barCell.playing ? Ink.accent
+                                 : (barCell.atCaret ? Ink.accentTint
+                                 : (barMouse.containsMouse ? Ink.rule : Ink.paper))
+                            border.width: 1
+                            border.color: barCell.atCaret && !barCell.playing
+                                ? Ink.accent : Ink.rule
+
+                            QQC2.Label {
+                                anchors.centerIn: parent
+                                text: barCell.index + 1
+                                color: barCell.playing ? Ink.paper
+                                     : (barCell.atCaret ? Ink.accentDeep : Ink.ink)
+                                font.weight: barCell.playing || barCell.atCaret
+                                    ? Font.DemiBold : Font.Normal
+                                font.features: ({ "tnum": 1 })
+                            }
+
+                            MouseArea {
+                                id: barMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    session.goToBar(barCell.index)
+                                    // Jumping to a bar is usually the first
+                                    // half of writing something in it.
+                                    view.forceActiveFocus()
+                                }
                             }
                         }
                     }
@@ -1363,17 +1452,17 @@ Kirigami.ApplicationWindow {
                     target: session
 
                     function onPositionChanged() {
-                        if (session.playing && session.currentBar !== barStrip.lit) {
-                            barStrip.lit = session.currentBar
-                            if (barStrip.lit >= 0) {
-                                barStrip.positionViewAtIndex(barStrip.lit, ListView.Contain)
+                        if (session.playing && session.currentBar !== barGrid.lit) {
+                            barGrid.lit = session.currentBar
+                            if (barGrid.lit >= 0) {
+                                barGrid.positionViewAtIndex(barGrid.lit, GridView.Contain)
                             }
                         }
                     }
 
                     function onCursorMoved() {
                         if (!session.playing && session.caretBar >= 0) {
-                            barStrip.positionViewAtIndex(session.caretBar, ListView.Contain)
+                            barGrid.positionViewAtIndex(session.caretBar, GridView.Contain)
                         }
                     }
                 }

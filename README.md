@@ -35,9 +35,16 @@ played lit up as it goes.
 
 Every track is a row down the left with a drawing of what it is — a guitar, a
 bass, a drum kit — opposite the mixer, which says what it sounds like. Every
-bar of the piece is a box along the bottom, with the section names in among the
-numbers: click one and the caret and the playhead both go there, and while it
-plays the strip follows the music.
+bar of the piece is a box in a grid along the bottom, with the section names
+over the bars they start: click one and the caret and the playhead both go
+there, and while it plays the grid follows the music.
+
+The grid wraps. A row of two hundred boxes runs off the side of any window ever
+made and turns finding a bar back into scrolling for it, so the bars are laid
+out in as many columns as the window is wide enough for, in whole rows, growing
+to fit the score and stopping at a third of the window — a hundred and
+seventy-six bars would otherwise push the music it is a map of off the screen.
+Resize the window and the columns are recounted.
 
 Every track has a synthesiser of its own, so the **S** and **M** buttons take
 effect while it plays — no re-render, no bounce. The view follows the playhead

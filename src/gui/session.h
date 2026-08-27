@@ -86,6 +86,16 @@ class Session : public QObject
 
     /** How many bars the score has, and which one the caret is in. */
     Q_PROPERTY(int barCount READ barCount NOTIFY scoreChanged)
+
+    /**
+     * Whether the score names any of its sections at all.
+     *
+     * Asked once so that the bar strip can decide whether to keep a line free
+     * for section names in every cell of its grid. Most scores name a few and
+     * some name none, and reserving the room unconditionally would cost a row
+     * of pixels per row of bars to hold nothing.
+     */
+    Q_PROPERTY(bool hasSections READ hasSections NOTIFY scoreChanged)
     Q_PROPERTY(int caretBar READ caretBar NOTIFY cursorMoved)
 
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY historyChanged)
@@ -127,6 +137,7 @@ public:
     QStringList trackIcons() const;
     int trackCount() const;
     int barCount() const;
+    bool hasSections() const;
     int caretBar() const;
     int currentTrack() const;
     void setCurrentTrack(int track);
