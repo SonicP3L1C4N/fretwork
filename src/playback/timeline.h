@@ -224,11 +224,20 @@ double seconds(const Score &score, const QList<int> &order);
 int barAt(const Score &score, const QList<int> &order, const Clock &clock, double seconds);
 
 /**
- * When a pass through the played order begins, in seconds.
+ * When a pass through the played order begins, in quarters.
  *
- * The other direction of `barAt`, and indexed the same way: a pass rather than
- * a bar, because a bar inside a repeat happens more than once and "when does
- * bar 12 start" has as many answers as there are times through it.
+ * Indexed by pass rather than by bar, because a bar inside a repeat happens
+ * more than once and "when does bar 12 start" has as many answers as there are
+ * times through it.
+ */
+Rational quartersAtPass(const Score &score, const QList<int> &order, int pass);
+
+/**
+ * The same moment in seconds, which is what a transport is measured in.
+ *
+ * The other direction of `barAt`. Built on `quartersAtPass` rather than
+ * walking the bars a second time: two ways of adding up where a bar begins
+ * would eventually disagree, and the one nobody was watching would be wrong.
  */
 double secondsAtPass(const Score &score, const QList<int> &order, const Clock &clock,
                      int pass);

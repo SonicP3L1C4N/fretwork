@@ -59,6 +59,18 @@ class Session : public QObject
     Q_PROPERTY(bool tempoWrittenHere READ tempoWrittenHere NOTIFY cursorMoved)
 
     /**
+     * What a musician would call that speed: "Andante", "Allegro".
+     *
+     * Beside the number rather than instead of it, because the two say
+     * different things. 150 is a setting on a metronome; Allegro is what the
+     * piece is, and it is the half a player recognises before reading the
+     * digits. The boundaries are the conventional ones and are approximate in
+     * every book that prints them, which is why this is a word and never a
+     * thing to set the tempo from.
+     */
+    Q_PROPERTY(QString tempoTermHere READ tempoTermHere NOTIFY cursorMoved)
+
+    /**
      * The current track's instrument: how it is tuned and where its capo is.
      *
      * The tuning reads as names rather than numbers -- "E2 A2 D3 G3 B3 E4" --
@@ -131,10 +143,33 @@ class Session : public QObject
     /** Where the caret is, for the status bar: "Bar 4 · string 3 · quaver". */
     Q_PROPERTY(QString caretText READ caretText NOTIFY cursorMoved)
 
+    /**
+     * How many beats the caret's bar is counted in.
+     *
+     * The beat a musician counts, which is not always the one the denominator
+     * names: 6/8 is two beats of three quavers and not six of one. The same
+     * rule the metronome plays by, asked here so that a window can draw what
+     * it is about to hear.
+     */
+    Q_PROPERTY(int beatsHere READ beatsHere NOTIFY cursorMoved)
+
+    /**
+     * Which of those beats is sounding, counted from nought; -1 when none is.
+     *
+     * The click made visible. A count-in is on the wishlist and this is not
+     * one -- it says where in the bar the music has got to, which is the thing
+     * a player glancing up from the neck wants and cannot get from a number of
+     * seconds.
+     */
+    Q_PROPERTY(int beatNow READ beatNow NOTIFY positionChanged)
+
     Q_PROPERTY(QStringList trackNames READ trackNames NOTIFY scoreChanged)
 
     /** One icon name per track, by what the instrument is. */
     Q_PROPERTY(QStringList trackIcons READ trackIcons NOTIFY scoreChanged)
+
+    /** The badge of the part on the page, in the tone the dark panels want. */
+    Q_PROPERTY(QString trackIconHereOnInk READ trackIconHereOnInk NOTIFY currentTrackChanged)
     Q_PROPERTY(int trackCount READ trackCount NOTIFY scoreChanged)
     Q_PROPERTY(int currentTrack READ currentTrack WRITE setCurrentTrack NOTIFY currentTrackChanged)
 
@@ -251,6 +286,15 @@ public:
     Q_INVOKABLE void setEffectControl(int stage, int index, double value);
 
     /**
+     * What a part is played through, in a few words: "GxAmp \u00b7 GxCabinet".
+     *
+     * For the mixer, which shows every part at once and has room for a line
+     * rather than a chain. Empty where a part has no effects on it, so that
+     * the strips of the parts that do are the ones that say anything.
+     */
+    Q_INVOKABLE QString effectsSummary(int track) const;
+
+    /**
      * The rig a window was opened with, applied in one go.
      *
      * `fretwork FILE.gp --sfz 0=… --lv2 0=…` opens the window with that part
@@ -305,9 +349,13 @@ public:
     bool hasScore() const;
     QString status() const;
     QString caretText() const;
+    QString tempoTermHere() const;
+    int beatsHere() const;
+    int beatNow() const;
 
     QStringList trackNames() const;
     QStringList trackIcons() const;
+    QString trackIconHereOnInk() const;
     int trackCount() const;
     int barCount() const;
     bool hasSections() const;

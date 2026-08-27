@@ -791,8 +791,7 @@ QList<Timeline::Message> Timeline::messagesFor(const Score &score, int trackInde
 }
 
 
-double Timeline::secondsAtPass(const Score &score, const QList<int> &order,
-                               const Clock &clock, int pass)
+Rational Timeline::quartersAtPass(const Score &score, const QList<int> &order, int pass)
 {
     // Walked rather than searched, and for the same reason barAt walks: a
     // score is a few hundred bars, and two ways of adding them up would
@@ -801,7 +800,13 @@ double Timeline::secondsAtPass(const Score &score, const QList<int> &order,
     for (int index = 0; index < order.size() && index < pass; ++index) {
         position += score.masterBars.at(order.at(index)).length();
     }
-    return clock.secondsAt(position);
+    return position;
+}
+
+double Timeline::secondsAtPass(const Score &score, const QList<int> &order,
+                               const Clock &clock, int pass)
+{
+    return clock.secondsAt(quartersAtPass(score, order, pass));
 }
 
 int Timeline::barAt(const Score &score, const QList<int> &order, const Clock &clock,

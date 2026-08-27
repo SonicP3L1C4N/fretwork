@@ -49,6 +49,14 @@ QtObject {
     readonly property int grip: 14                  //< every slider's handle
     readonly property int mixerWidth: 290
     readonly property int tracksWidth: 240         //< the list of parts, opposite it
-    readonly property int barBoxWidth: 42          //< one bar in the strip along the bottom
-    readonly property int barBoxHeight: 32
+
+    /**
+     * The typeface the chrome is set in, and the score is not.
+     *
+     * Named here rather than asked for at each label because it is applied
+     * once, to the application font, in `main.cpp` -- this is what the window
+     * uses on the few occasions it has to say the name out loud, and the one
+     * place to change if it is ever swapped.
+     */
+    readonly property string chromeFamily: "Source Serif 4"
 }

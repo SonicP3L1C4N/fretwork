@@ -95,24 +95,33 @@ namespace
  * tab. Anything unrecognised gets a note, which says "a part" and does not
  * claim to know which.
  */
-QString iconFor(const Track &track)
+QString iconFor(const Track &track, bool onInk = false)
 {
+    // The same badge in two tones. Every one of them is a filled disc, so the
+    // ink version is a hole in a panel the colour of ink -- which is what the
+    // effects deck is drawn on.
+    const QString tone = onInk ? QStringLiteral("-paper") : QString();
+    const auto badge = [&tone](const char *name) {
+        return QStringLiteral("qrc:/instrument-%1%2.svg")
+            .arg(QLatin1String(name), tone);
+    };
+
     if (track.isPercussion()) {
-        return QStringLiteral("qrc:/instrument-drums.svg");
+        return badge("drums");
     }
     const QString kind = track.instrumentType.toLower();
     if (kind.contains(QLatin1String("bass"))) {
-        return QStringLiteral("qrc:/instrument-bass.svg");
+        return badge("bass");
     }
     if (kind.contains(QLatin1String("guitar")) || kind.contains(QLatin1String("ukulele"))
         || kind.contains(QLatin1String("banjo")) || kind.contains(QLatin1String("mandolin"))) {
-        return QStringLiteral("qrc:/instrument-guitar.svg");
+        return badge("guitar");
     }
     if (kind.contains(QLatin1String("piano")) || kind.contains(QLatin1String("synth"))
         || kind.contains(QLatin1String("organ")) || kind.contains(QLatin1String("keyboard"))) {
-        return QStringLiteral("qrc:/instrument-keys.svg");
+        return badge("keys");
     }
-    return QStringLiteral("qrc:/instrument-note.svg");
+    return badge("note");
 }
 }
 
@@ -763,6 +772,14 @@ QStringList Session::trackIcons() const
     return icons;
 }
 
+QString Session::trackIconHereOnInk() const
+{
+    if (m_currentTrack < 0 || m_currentTrack >= m_editor.score().tracks.size()) {
+        return QString();
+    }
+    return iconFor(m_editor.score().tracks.at(m_currentTrack), true);
+}
+
 int Session::barCount() const
 {
     return int(m_editor.score().masterBars.size());
@@ -1053,6 +1070,87 @@ void Session::setTimeHere(const QString &signature)
     case Editor::Edit::Nothing:
         break;
     }
+}
+
+
+/**
+ * The word for a speed, from the table every metronome prints on its side.
+ *
+ * The boundaries differ by a few beats between one book and the next and are
+ * given here as the widely printed ones. Deliberately one-way: a term is a
+ * description of a number and never a way to set it, because "Allegro" is a
+ * range and a tempo is a value.
+ */
+QString Session::tempoTermHere() const
+{
+    const double beats = tempoHere();
+    if (beats < 25) return i18nc("tempo", "Larghissimo");
+    if (beats < 45) return i18nc("tempo", "Grave");
+    if (beats < 60) return i18nc("tempo", "Largo");
+    if (beats < 66) return i18nc("tempo", "Larghetto");
+    if (beats < 76) return i18nc("tempo", "Adagio");
+    if (beats < 92) return i18nc("tempo", "Andante");
+    if (beats < 120) return i18nc("tempo", "Moderato");
+    if (beats < 156) return i18nc("tempo", "Allegro");
+    if (beats < 176) return i18nc("tempo", "Vivace");
+    if (beats < 200) return i18nc("tempo", "Presto");
+    return i18nc("tempo", "Prestissimo");
+}
+
+int Session::beatsHere() const
+{
+    if (!hasScore()) {
+        return 0;
+    }
+    const MasterBar &bar = m_editor.score().masterBars.at(m_editor.cursor().bar);
+    const Rational beat = Timeline::beatOf(bar);
+    if (!(Rational(0) < beat)) {
+        return 0;
+    }
+    // Rounded rather than truncated: a bar whose length is not a whole number
+    // of beats -- an incomplete one, which this program marks rather than
+    // corrects -- still has a number of beats somebody counts it in.
+    return std::max(1, int(std::lround(bar.length().toDouble() / beat.toDouble())));
+}
+
+int Session::beatNow() const
+{
+    if (!m_player || !m_clock || !hasScore() || !m_player->isPlaying()) {
+        return -1;
+    }
+    const double seconds = m_player->positionSeconds();
+    const int pass = Timeline::barAt(m_editor.score(), m_order, *m_clock, seconds);
+    if (pass < 0) {
+        return -1;
+    }
+    const MasterBar &bar = m_editor.score().masterBars.at(m_order.at(pass));
+    const Rational beat = Timeline::beatOf(bar);
+    if (!(Rational(0) < beat)) {
+        return -1;
+    }
+
+    // Each beat asked of the clock rather than the elapsed time divided by
+    // one: a tempo may change inside a bar, and the clock is the only thing
+    // that knows where the beats land when it does. A bar is a dozen beats at
+    // the outside, so this is a walk of a dozen.
+    const Rational start = Timeline::quartersAtPass(m_editor.score(), m_order, pass);
+    int sounding = -1;
+    int index = 0;
+    for (Rational at; at < bar.length(); at += beat, ++index) {
+        if (seconds + 1e-6 >= m_clock->secondsAt(start + at)) {
+            sounding = index;
+        }
+    }
+    return sounding;
+}
+
+QString Session::effectsSummary(int track) const
+{
+    if (!m_player) {
+        return QString();
+    }
+    const QStringList names = m_player->effectsOn(track);
+    return names.join(QStringLiteral(" \u00b7 "));
 }
 
 QStringList Session::instrumentNames() const

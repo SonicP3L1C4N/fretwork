@@ -37,6 +37,16 @@ Kirigami.ApplicationWindow {
      */
     property int mixerRevision: 0
 
+    /**
+     * The same trick for the chains, which are not a model either.
+     *
+     * `chainHere` answers for the part on the page and `effectsSummary` for
+     * any of them, and neither is a property QML can watch per track. Bumping
+     * this is what re-reads them -- see the comma expressions below, which
+     * exist to declare a dependency QML cannot otherwise see.
+     */
+    property int effectsRevision: 0
+
     title: {
         if (!session.hasScore) {
             return i18n("Fretwork")
@@ -66,6 +76,9 @@ Kirigami.ApplicationWindow {
         property bool mixer: true
         property bool status: true
         property bool bars: true
+        // Off by default, like the tuner: a band of amplifier controls is not
+        // what somebody opening a tab to read it wants to see first.
+        property bool effects: false
         // Off by default, and not out of tidiness: this is the one panel that
         // opens an audio input, and a program that started listening to the
         // room because it was last left listening to the room would be a
@@ -100,6 +113,9 @@ Kirigami.ApplicationWindow {
         target: session
         function onMixerChanged() {
             root.mixerRevision++
+        }
+        function onEffectsChanged() {
+            root.effectsRevision++
         }
     }
 
@@ -360,6 +376,59 @@ Kirigami.ApplicationWindow {
                 elide: Text.ElideRight
                 font.weight: trackRow.current ? Font.DemiBold : Font.Normal
                 verticalAlignment: Text.AlignVCenter
+            }
+        }
+    }
+
+    /**
+     * A knob that turns, for a control on ink with a range and no names.
+     *
+     * A knob and not a slider, on the deck and nowhere else. Everywhere else
+     * in this window a level is a distance -- a fader, a seek bar, a gain --
+     * and a distance is the honest drawing of one. An amplifier's controls are
+     * not distances: nobody has ever seen a linear presence control, and the
+     * six of them belong in a block the eye reads as a front panel rather than
+     * in six rows of a list.
+     *
+     * Built on `Dial`, so dragging, the scroll wheel and the arrow keys all
+     * work without being written here; only the drawing is ours.
+     */
+    component InkKnob: QQC2.Dial {
+        id: inkKnob
+
+        implicitWidth: Kirigami.Units.gridUnit * 2.2
+        implicitHeight: implicitWidth
+        // Vertical, because a rotary drag on a control this size is a wrist
+        // movement nobody makes accurately and every plugin host gave up on.
+        inputMode: QQC2.Dial.Vertical
+        wheelEnabled: true
+        focusPolicy: Qt.NoFocus
+        hoverEnabled: true
+
+        background: Rectangle {
+            anchors.fill: parent
+            radius: width / 2
+            color: inkKnob.hovered || inkKnob.pressed ? Ink.line : Ink.well
+            border.width: 1
+            border.color: Ink.edge
+        }
+
+        handle: Item {
+            anchors.fill: parent
+
+            Rectangle {
+                x: parent.width / 2 - width / 2
+                y: parent.height * 0.13
+                width: 2
+                height: parent.height * 0.3
+                radius: 1
+                color: inkKnob.pressed ? Ink.accent : Ink.paper
+
+                transform: Rotation {
+                    origin.x: 1
+                    origin.y: inkKnob.height * 0.37
+                    angle: inkKnob.angle
+                }
             }
         }
     }
@@ -695,6 +764,13 @@ Kirigami.ApplicationWindow {
                 enabled: session.hasScore
                 checked: panels.mixer
                 onToggled: panels.mixer = checked
+            }
+
+            ChromeToggle {
+                text: i18n("Effects")
+                enabled: session.hasScore
+                checked: panels.effects
+                onToggled: panels.effects = checked
             }
 
             ChromeToggle {
@@ -1383,6 +1459,27 @@ Kirigami.ApplicationWindow {
                                     value: session.gain(index)
                                     onMoved: session.setGain(index, value)
                                 }
+
+                                /**
+                                 * What this part is played through, in a line.
+                                 *
+                                 * The mixer is the one panel that shows every
+                                 * part at once, and a chain is routing -- so
+                                 * this is where "which of these is the one
+                                 * going through the amplifier" gets answered
+                                 * without clicking through four parts to find
+                                 * out. The knobs are on the effects deck; this
+                                 * only says that there are some.
+                                 */
+                                QQC2.Label {
+                                    Layout.fillWidth: true
+                                    visible: text.length > 0
+                                    text: (root.effectsRevision,
+                                           session.effectsSummary(index))
+                                    elide: Text.ElideRight
+                                    color: Ink.quiet
+                                    font.pointSize: Kirigami.Theme.smallFont.pointSize
+                                }
                             }
                         }
 
@@ -1398,7 +1495,6 @@ Kirigami.ApplicationWindow {
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: Kirigami.Units.smallSpacing
-                            opacity: session.click ? 1.0 : 0.5
 
                             RowLayout {
                                 Layout.fillWidth: true
@@ -1419,264 +1515,140 @@ Kirigami.ApplicationWindow {
                                 }
                             }
 
-                            InkSlider {
+                            /**
+                             * How fast, what that is called, and what it is in.
+                             *
+                             * Large, because this is the number a player looks
+                             * up for and the toolbar's copy of it is a field
+                             * sized to be typed in rather than read across a
+                             * room. The word beside it is the half a musician
+                             * recognises before the digits: 150 is a setting,
+                             * Allegro is what the piece is.
+                             */
+                            RowLayout {
                                 Layout.fillWidth: true
-                                groove: Ink.rule
-                                from: 0
-                                to: 2
-                                value: session.clickGain
-                                onMoved: session.clickGain = value
-                            }
-                        }
+                                spacing: Kirigami.Units.smallSpacing
+                                visible: session.hasScore
 
-                        /**
-                         * The effects on the part that is on the page.
-                         *
-                         * In the mixer because a chain is routing, and between
-                         * the instrument and the fader is where an amplifier
-                         * stands. Added at the end and taken off the end: a
-                         * pedalboard is an order, and rearranging one by
-                         * dragging is a different feature from having one.
-                         */
-                        Kirigami.Separator {
-                            Layout.fillWidth: true
-                            Layout.topMargin: Kirigami.Units.smallSpacing
-                            color: Ink.rule
-                        }
+                                QQC2.Label {
+                                    text: Math.round(session.tempoHere)
+                                    color: Ink.ink
+                                    font.weight: Font.DemiBold
+                                    font.pointSize:
+                                        Kirigami.Theme.defaultFont.pointSize * 2.9
+                                    font.features: ({ "tnum": 1 })
+                                }
 
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: Kirigami.Units.smallSpacing
+                                QQC2.Label {
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignBaseline
+                                    text: session.tempoTermHere
+                                    color: Ink.quiet
+                                    elide: Text.ElideRight
+                                    font.italic: true
+                                }
 
-                            QQC2.Label {
-                                Layout.fillWidth: true
-                                text: session.effectsHere.length > 0
-                                    ? i18n("Effects on %1", session.trackNameHere)
-                                    : i18n("Effects")
-                                color: session.effectsHere.length > 0 ? Ink.accentDeep : Ink.ink
-                                elide: Text.ElideRight
-                                font.weight: session.effectsHere.length > 0
-                                    ? Font.DemiBold : Font.Normal
-                            }
-
-                            MixerButton {
-                                text: i18n("+")
-                                checkable: false
-                                QQC2.ToolTip.text: i18n("Put one on the end of the chain")
-                                onClicked: effectMenu.popup()
-
-                                QQC2.Menu {
-                                    id: effectMenu
-                                    Repeater {
-                                        model: session.availableEffects
-                                        delegate: QQC2.MenuItem {
-                                            required property var modelData
-                                            text: modelData.stereo
-                                                ? modelData.name
-                                                : i18n("%1 (mono)", modelData.name)
-                                            onTriggered: session.addEffect(modelData.uri)
-                                        }
-                                    }
+                                QQC2.Label {
+                                    Layout.alignment: Qt.AlignBaseline
+                                    text: session.timeHere
+                                    color: Ink.quiet
+                                    font.features: ({ "tnum": 1 })
                                 }
                             }
 
-                            MixerButton {
-                                text: i18n("\u2212")
-                                checkable: false
-                                litFill: Ink.ink
-                                QQC2.ToolTip.text: i18n("Take the last one off")
-                                onClicked: session.removeLastEffect()
-                            }
-                        }
-
-                        /**
-                         * The chain in order, and the knobs on each of them.
-                         *
-                         * Drawn from what the plugin says about itself: what a
-                         * control is called, what it may be, and whether it is
-                         * a switch or a list of named choices. A slider from
-                         * nought to eleven labelled nothing is a worse way to
-                         * ask which valve model somebody wants.
-                         *
-                         * Our own controls rather than the plugin's own
-                         * interface. Guitarix draws in GTK, this window is Qt
-                         * Quick on Wayland, and there is no embedding one in
-                         * the other that is not a second program in a second
-                         * window -- and this window is deliberately drawn
-                         * rather than styled, so a panel of somebody else's
-                         * widgets would look like somebody else's panel.
-                         */
-                        Repeater {
-                            model: session.chainHere
-
-                            delegate: ColumnLayout {
-                                id: stageRow
-                                required property var modelData
+                            /**
+                             * The bar being counted, as notes rather than as a
+                             * number.
+                             *
+                             * One glyph per beat the bar is counted in, which
+                             * is not always one per beat the denominator names
+                             * -- 6/8 is two beats of three quavers and shows
+                             * two. The first is printed in full ink because a
+                             * downbeat is the one everybody is listening for,
+                             * and the beat sounding takes the accent with a
+                             * dot under it, so a player glancing up from the
+                             * neck can see where in the bar the music is.
+                             */
+                            RowLayout {
+                                id: countedBeats
 
                                 Layout.fillWidth: true
-                                Layout.leftMargin: Kirigami.Units.smallSpacing
+                                Layout.topMargin: Kirigami.Units.smallSpacing
+                                visible: session.hasScore && session.beatsHere > 0
                                 spacing: 0
 
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    Layout.topMargin: Kirigami.Units.smallSpacing
-                                    spacing: Kirigami.Units.smallSpacing
+                                Repeater {
+                                    model: session.beatsHere
 
-                                    QQC2.Label {
+                                    delegate: Item {
+                                        id: beatCell
+                                        required property int index
+
+                                        readonly property bool downbeat: index === 0
+                                        readonly property bool sounding:
+                                            index === session.beatNow
+
                                         Layout.fillWidth: true
-                                        text: i18n("%1. %2", stageRow.modelData.stage + 1,
-                                                   stageRow.modelData.name)
-                                        elide: Text.ElideRight
-                                        color: Ink.ink
-                                        font.weight: Font.DemiBold
-                                        font.pointSize: Kirigami.Theme.smallFont.pointSize
-                                    }
+                                        implicitHeight: beatGlyph.implicitHeight
+                                                        + beatDot.height
+                                                        + Kirigami.Units.smallSpacing
 
-                                    /**
-                                     * Somebody else's ears, as a starting point.
-                                     *
-                                     * A chain at its defaults is an amplifier
-                                     * nobody has turned up. These are the
-                                     * guitarix factory presets, carrying the
-                                     * part of each that an amplifier can hold
-                                     * -- the valve, the tone stack, the
-                                     * cabinet and the levels. What they cannot
-                                     * carry goes to the status line, because a
-                                     * voicing missing its reverb is not the
-                                     * sound on the label and should not
-                                     * pretend to be.
-                                     */
-                                    MixerButton {
-                                        visible: session.voicings.length > 0
-                                        text: i18n("Voicing")
-                                        checkable: false
-                                        implicitWidth: Ink.control + Ink.smallControl
-                                        QQC2.ToolTip.text:
-                                            i18n("Set this plugin to a guitarix preset")
-                                        onClicked: voicingMenu.popup()
+                                        QQC2.Label {
+                                            id: beatGlyph
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                            anchors.top: parent.top
+                                            text: "\u2669"
+                                            color: beatCell.sounding ? Ink.accent
+                                                 : (beatCell.downbeat ? Ink.ink : Ink.staff)
+                                            font.pointSize:
+                                                Kirigami.Theme.defaultFont.pointSize
+                                                * (beatCell.downbeat ? 1.9 : 1.55)
+                                        }
 
-                                        QQC2.Menu {
-                                            id: voicingMenu
-                                            Repeater {
-                                                model: session.voicings
-                                                delegate: QQC2.MenuItem {
-                                                    required property var modelData
-                                                    text: i18n("%1  \u2014  %2",
-                                                               modelData.name, modelData.summary)
-                                                    enabled: modelData.amplified
-                                                    onTriggered: session.applyVoicing(
-                                                        stageRow.modelData.stage, modelData.name)
-                                                }
-                                            }
+                                        // The dot a conductor's hand makes at
+                                        // the bottom of a beat, and the only
+                                        // mark here that moves.
+                                        Rectangle {
+                                            id: beatDot
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                            anchors.top: beatGlyph.bottom
+                                            anchors.topMargin: Kirigami.Units.smallSpacing / 2
+                                            width: Kirigami.Units.smallSpacing
+                                            height: width
+                                            radius: width / 2
+                                            opacity: beatCell.sounding ? 1 : 0
+                                            color: Ink.accent
                                         }
                                     }
                                 }
+                            }
 
-                                Repeater {
-                                    model: stageRow.modelData.controls
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: Kirigami.Units.smallSpacing
+                                opacity: session.click ? 1.0 : 0.5
 
-                                    delegate: RowLayout {
-                                        id: knobRow
-                                        required property var modelData
+                                QQC2.Label {
+                                    text: i18n("gain")
+                                    color: Ink.quiet
+                                    font.pointSize: Kirigami.Theme.smallFont.pointSize
+                                }
 
-                                        Layout.fillWidth: true
-                                        spacing: Kirigami.Units.smallSpacing
+                                InkSlider {
+                                    id: clickGain
+                                    Layout.fillWidth: true
+                                    groove: Ink.rule
+                                    from: 0
+                                    to: 2
+                                    value: session.clickGain
+                                    onMoved: session.clickGain = value
+                                }
 
-                                        QQC2.Label {
-                                            Layout.preferredWidth:
-                                                Kirigami.Units.gridUnit * 5
-                                            text: knobRow.modelData.name
-                                            elide: Text.ElideRight
-                                            color: Ink.quiet
-                                            font.pointSize:
-                                                Kirigami.Theme.smallFont.pointSize
-                                        }
-
-                                        // A switch, a list, or a knob: three
-                                        // shapes because a plugin says which
-                                        // of the three each control is.
-                                        MixerButton {
-                                            visible: knobRow.modelData.toggled
-                                            text: i18n("On")
-                                            checked: knobRow.modelData.value > 0.5
-                                            onToggled: session.setEffectControl(
-                                                stageRow.modelData.stage,
-                                                knobRow.modelData.index,
-                                                checked ? 1 : 0)
-                                        }
-
-                                        // A button and a menu, not a combo
-                                        // box: the desktop style draws one of
-                                        // those out of the desktop's own
-                                        // colours, which is the lesson the
-                                        // track dropdown and the capo spinner
-                                        // both taught already.
-                                        MixerButton {
-                                            id: choiceButton
-                                            Layout.fillWidth: true
-                                            visible: !knobRow.modelData.toggled
-                                                     && knobRow.modelData.choices.length > 0
-                                            checkable: false
-                                            /**
-                                             * The name of the choice the value
-                                             * stands for -- found by the value,
-                                             * never by its place in the list.
-                                             * A plugin may number its choices
-                                             * 0, 2, 5, and lilv reports them in
-                                             * no particular order, so position
-                                             * is not an answer to "which one is
-                                             * this".
-                                             */
-                                            text: {
-                                                const names = knobRow.modelData.choices;
-                                                const values = knobRow.modelData.choiceValues;
-                                                if (!names || names.length === 0)
-                                                    return "";
-                                                let best = 0;
-                                                for (let i = 1; i < names.length; ++i) {
-                                                    if (Math.abs(values[i] - knobRow.modelData.value)
-                                                        < Math.abs(values[best]
-                                                                   - knobRow.modelData.value)) {
-                                                        best = i;
-                                                    }
-                                                }
-                                                return names[best];
-                                            }
-                                            onClicked: choiceMenu.popup()
-
-                                            QQC2.Menu {
-                                                id: choiceMenu
-                                                Repeater {
-                                                    model: knobRow.modelData.choices
-                                                    delegate: QQC2.MenuItem {
-                                                        required property int index
-                                                        required property string modelData
-                                                        text: modelData
-                                                        onTriggered:
-                                                            session.setEffectControl(
-                                                                stageRow.modelData.stage,
-                                                                knobRow.modelData.index,
-                                                                knobRow.modelData
-                                                                    .choiceValues[index])
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        InkSlider {
-                                            Layout.fillWidth: true
-                                            visible: !knobRow.modelData.toggled
-                                                     && knobRow.modelData.choices.length === 0
-                                            groove: Ink.rule
-                                            from: knobRow.modelData.minimum
-                                            to: knobRow.modelData.maximum
-                                            stepSize: knobRow.modelData.integer ? 1 : 0
-                                            value: knobRow.modelData.value
-                                            onMoved: session.setEffectControl(
-                                                stageRow.modelData.stage,
-                                                knobRow.modelData.index, value)
-                                        }
-                                    }
+                                QQC2.Label {
+                                    text: session.clickGain.toFixed(1)
+                                    color: Ink.quiet
+                                    font.pointSize: Kirigami.Theme.smallFont.pointSize
+                                    font.features: ({ "tnum": 1 })
                                 }
                             }
                         }
@@ -2032,81 +2004,552 @@ Kirigami.ApplicationWindow {
         }
 
         /**
-         * Every bar of the piece, in a grid.
+         * The effects deck: what the part goes through on its way out.
+         *
+         * Out of the mixer, where it used to be, and into a band of its own.
+         * A chain is a row of boxes with a cable between them and it was being
+         * drawn as a column of rows two hundred and ninety pixels wide -- six
+         * knobs of an amplifier stacked vertically, each with its name in a
+         * column beside it, which is a list of numbers rather than a front
+         * panel. The mixer keeps the one line that belongs to a mixer: which
+         * part is going through what.
+         *
+         * A band across the bottom for the same reason the tuner is one: it
+         * wants to be wide. The signal runs left to right, from the instrument
+         * through each plugin to the pair of ports at the end, because that is
+         * the order the sound goes in and the order somebody adding a pedal is
+         * thinking in.
+         *
+         * Drawn on ink rather than paper. Everything here is a piece of
+         * equipment rather than a piece of the document, and the page is the
+         * brightest thing in this window on purpose.
+         */
+        Rectangle {
+            id: deckPanel
+
+            Layout.fillWidth: true
+            /**
+             * As tall as the tallest thing on it, and no taller.
+             *
+             * A plugin has as many knobs as it has -- guitarix's amplifier has
+             * eight and a cabinet has three -- so a fixed height is either a
+             * band of empty ink or an amplifier with its bottom row cut off.
+             * Capped at two fifths of the window, because the score is what
+             * the window is for.
+             */
+            Layout.preferredHeight: Math.min(
+                root.height * 0.45,
+                deckHeader.implicitHeight + deckRow.implicitHeight
+                    + Kirigami.Units.largeSpacing * 3)
+            visible: panels.effects && session.hasScore
+            color: Ink.ink
+
+            Kirigami.Separator {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                color: Ink.line
+            }
+
+            ColumnLayout {
+                id: deckColumn
+
+                anchors.fill: parent
+                anchors.leftMargin: Kirigami.Units.largeSpacing * 2
+                anchors.rightMargin: Kirigami.Units.largeSpacing * 2
+                anchors.topMargin: Kirigami.Units.largeSpacing
+                anchors.bottomMargin: Kirigami.Units.largeSpacing
+                spacing: Kirigami.Units.largeSpacing
+
+                RowLayout {
+                    id: deckHeader
+
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.largeSpacing
+
+                    QQC2.Label {
+                        text: i18nc("the heading of the effects panel", "EFFECTS")
+                        color: Ink.faint
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                        font.letterSpacing: 2
+                    }
+
+                    // Whose chain it is, and how long it lasts. Said here
+                    // because a rig is not written into the score -- it names
+                    // plugins and paths that are facts about one machine --
+                    // and somebody who spent an evening on a sound should find
+                    // that out before they close the window rather than after.
+                    QQC2.Label {
+                        Layout.fillWidth: true
+                        text: i18n("%1 \u00b7 session only", session.trackNameHere)
+                        color: Ink.quiet
+                        elide: Text.ElideRight
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    }
+
+                    ChromeToggle {
+                        text: i18n("Add effect")
+                        checkable: false
+                        enabled: session.availableEffects.length > 0
+                        onClicked: deckMenu.popup()
+
+                        QQC2.Menu {
+                            id: deckMenu
+                            Repeater {
+                                model: session.availableEffects
+                                delegate: QQC2.MenuItem {
+                                    required property var modelData
+                                    text: modelData.stereo
+                                        ? modelData.name
+                                        : i18n("%1 (mono)", modelData.name)
+                                    onTriggered: session.addEffect(modelData.uri)
+                                }
+                            }
+                        }
+                    }
+
+                    ChromeToggle {
+                        text: i18n("Remove last")
+                        checkable: false
+                        enabled: (root.effectsRevision, session.effectsHere.length > 0)
+                        onClicked: session.removeLastEffect()
+                    }
+                }
+
+                /**
+                 * The chain itself, left to right, and scrolling where it is
+                 * longer than the window.
+                 *
+                 * Nothing is folded away or summarised. A pedalboard with the
+                 * third pedal's knobs hidden behind a disclosure triangle is a
+                 * pedalboard you cannot see, and seeing all of it at once is
+                 * the entire reason this is a band rather than a list.
+                 */
+                Flickable {
+                    id: deck
+
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    contentWidth: deckRow.implicitWidth
+                    contentHeight: deckRow.implicitHeight
+                    // Sideways by design; downwards only when the window is
+                    // too short for the amplifier, which the cap above allows.
+                    flickableDirection: Flickable.HorizontalAndVerticalFlick
+                    boundsBehavior: Flickable.StopAtBounds
+
+                    RowLayout {
+                        id: deckRow
+                        spacing: Kirigami.Units.largeSpacing
+
+                        // Where the sound comes from: the part's own badge,
+                        // and whether it is recordings or a programme.
+                        ColumnLayout {
+                            Layout.alignment: Qt.AlignTop
+                            Layout.topMargin: Kirigami.Units.gridUnit
+                            spacing: Kirigami.Units.smallSpacing / 2
+
+                            Kirigami.Icon {
+                                Layout.alignment: Qt.AlignHCenter
+                                source: session.trackIconHereOnInk
+                                implicitWidth: Kirigami.Units.iconSizes.medium
+                                implicitHeight: Kirigami.Units.iconSizes.medium
+                            }
+
+                            QQC2.Label {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: session.samplerHere.length > 0
+                                    ? i18nc("played from recordings", "SFZ")
+                                    : i18nc("played from a General MIDI patch", "GM")
+                                color: Ink.faint
+                                font.pointSize: Kirigami.Theme.smallFont.pointSize
+                                font.letterSpacing: 1
+                            }
+                        }
+
+                        QQC2.Label {
+                            Layout.alignment: Qt.AlignTop
+                            Layout.topMargin: Kirigami.Units.gridUnit * 2
+                            text: "\u2192"
+                            color: Ink.edge
+                            font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.4
+                        }
+
+                        Repeater {
+                            model: session.chainHere
+
+                            delegate: RowLayout {
+                                id: stageCard
+                                required property var modelData
+
+                                Layout.alignment: Qt.AlignTop
+                                spacing: Kirigami.Units.largeSpacing
+
+                                Rectangle {
+                                    // Top-aligned, so a three-knob cabinet
+                                    // sits level with the amplifier beside it
+                                    // rather than floating in the middle of
+                                    // its own height.
+                                    Layout.alignment: Qt.AlignTop
+                                    implicitWidth: stageBody.implicitWidth
+                                                   + Kirigami.Units.largeSpacing * 2
+                                    implicitHeight: stageBody.implicitHeight
+                                                    + Kirigami.Units.largeSpacing * 2
+                                    radius: Ink.radius
+                                    color: Ink.well
+                                    border.width: 1
+                                    border.color: Ink.line
+
+                                    ColumnLayout {
+                                        id: stageBody
+
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
+                                        anchors.top: parent.top
+                                        anchors.margins: Kirigami.Units.largeSpacing
+                                        spacing: Kirigami.Units.smallSpacing
+
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            spacing: Kirigami.Units.largeSpacing
+
+                                            QQC2.Label {
+                                                Layout.fillWidth: true
+                                                text: i18n("%1 \u00b7 %2",
+                                                           stageCard.modelData.stage + 1,
+                                                           stageCard.modelData.name)
+                                                color: Ink.paper
+                                                elide: Text.ElideRight
+                                                font.weight: Font.DemiBold
+                                            }
+
+                                            /**
+                                             * Somebody else's ears, as a
+                                             * starting point.
+                                             *
+                                             * A chain at its defaults is an
+                                             * amplifier nobody has turned up.
+                                             * These are the guitarix factory
+                                             * presets, carrying the part of
+                                             * each that an amplifier can hold
+                                             * -- the valve, the tone stack,
+                                             * the cabinet and the levels. What
+                                             * they cannot carry goes to the
+                                             * status line, because a voicing
+                                             * missing its reverb is not the
+                                             * sound on the label and should
+                                             * not pretend to be.
+                                             */
+                                            ChromeToggle {
+                                                visible: session.voicings.length > 0
+                                                text: i18n("Voicings\u2026")
+                                                checkable: false
+                                                implicitHeight: Ink.smallControl
+                                                onClicked: voicingMenu.popup()
+
+                                                QQC2.Menu {
+                                                    id: voicingMenu
+                                                    Repeater {
+                                                        model: session.voicings
+                                                        delegate: QQC2.MenuItem {
+                                                            required property var modelData
+                                                            text: i18n("%1  \u2014  %2",
+                                                                       modelData.name,
+                                                                       modelData.summary)
+                                                            enabled: modelData.amplified
+                                                            onTriggered: session.applyVoicing(
+                                                                stageCard.modelData.stage,
+                                                                modelData.name)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        /**
+                                         * The knobs, in a block rather than a
+                                         * column.
+                                         *
+                                         * Wrapped into rows of four, which is
+                                         * about the width of an amplifier: a
+                                         * plugin with a dozen controls in one
+                                         * line would push everything after it
+                                         * off the window, and one with three
+                                         * would leave a hole.
+                                         */
+                                        GridLayout {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            columns: 4
+                                            columnSpacing: Kirigami.Units.smallSpacing
+                                            rowSpacing: 0
+
+                                            Repeater {
+                                                model: stageCard.modelData.controls.filter(
+                                                    control => !control.toggled
+                                                        && control.choices.length === 0)
+
+                                                delegate: ColumnLayout {
+                                                    id: knobCell
+                                                    required property var modelData
+
+                                                    spacing: 0
+
+                                                    InkKnob {
+                                                        Layout.alignment: Qt.AlignHCenter
+                                                        from: knobCell.modelData.minimum
+                                                        to: knobCell.modelData.maximum
+                                                        stepSize: knobCell.modelData.integer
+                                                            ? 1 : 0
+                                                        value: knobCell.modelData.value
+                                                        onMoved: session.setEffectControl(
+                                                            stageCard.modelData.stage,
+                                                            knobCell.modelData.index, value)
+
+                                                        QQC2.ToolTip.text: i18n(
+                                                            "%1 \u2014 %2",
+                                                            knobCell.modelData.name,
+                                                            value.toFixed(2))
+                                                        QQC2.ToolTip.visible: hovered
+                                                        QQC2.ToolTip.delay:
+                                                            Kirigami.Units.toolTipDelay
+                                                    }
+
+                                                    // Elided rather than
+                                                    // wrapped: "DISTORTION" is
+                                                    // one word and a knob two
+                                                    // labels tall would set
+                                                    // every other knob on the
+                                                    // panel lower to match.
+                                                    // The full name and the
+                                                    // value are on the
+                                                    // tooltip.
+                                                    QQC2.Label {
+                                                        Layout.alignment: Qt.AlignHCenter
+                                                        Layout.maximumWidth:
+                                                            Kirigami.Units.gridUnit * 4
+                                                        text: knobCell.modelData.name.toUpperCase()
+                                                        color: Ink.faint
+                                                        elide: Text.ElideRight
+                                                        font.pointSize:
+                                                            Kirigami.Theme.smallFont.pointSize
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // The switches and the named choices,
+                                        // which are not knobs and should not
+                                        // be drawn as one: a valve model is a
+                                        // list of names, and a slider from
+                                        // nought to eleven labelled nothing is
+                                        // a worse way to ask which one.
+                                        Repeater {
+                                            model: stageCard.modelData.controls.filter(
+                                                control => control.toggled
+                                                    || control.choices.length > 0)
+
+                                            delegate: RowLayout {
+                                                id: pickRow
+                                                required property var modelData
+
+                                                Layout.fillWidth: true
+                                                spacing: Kirigami.Units.smallSpacing
+
+                                                QQC2.Label {
+                                                    Layout.preferredWidth:
+                                                        Kirigami.Units.gridUnit * 3.6
+                                                    text: pickRow.modelData.name
+                                                    color: Ink.faint
+                                                    elide: Text.ElideRight
+                                                    font.pointSize:
+                                                        Kirigami.Theme.smallFont.pointSize
+                                                }
+
+                                                ChromeToggle {
+                                                    visible: pickRow.modelData.toggled
+                                                    text: i18n("On")
+                                                    implicitHeight: Ink.smallControl
+                                                    checked: pickRow.modelData.value > 0.5
+                                                    onToggled: session.setEffectControl(
+                                                        stageCard.modelData.stage,
+                                                        pickRow.modelData.index,
+                                                        checked ? 1 : 0)
+                                                }
+
+                                                ChromeToggle {
+                                                    id: choiceButton
+                                                    Layout.fillWidth: true
+                                                    visible: !pickRow.modelData.toggled
+                                                    checkable: false
+                                                    implicitHeight: Ink.smallControl
+                                                    /**
+                                                     * The name of the choice
+                                                     * the value stands for --
+                                                     * found by the value,
+                                                     * never by its place in
+                                                     * the list. A plugin may
+                                                     * number its choices 0, 2,
+                                                     * 5, and lilv reports them
+                                                     * in no particular order,
+                                                     * so position is not an
+                                                     * answer to "which one is
+                                                     * this".
+                                                     */
+                                                    text: {
+                                                        const names = pickRow.modelData.choices;
+                                                        const values =
+                                                            pickRow.modelData.choiceValues;
+                                                        if (!names || names.length === 0)
+                                                            return "";
+                                                        let best = 0;
+                                                        for (let i = 1; i < names.length; ++i) {
+                                                            if (Math.abs(values[i]
+                                                                    - pickRow.modelData.value)
+                                                                < Math.abs(values[best]
+                                                                    - pickRow.modelData.value)) {
+                                                                best = i;
+                                                            }
+                                                        }
+                                                        return names[best];
+                                                    }
+                                                    onClicked: choiceMenu.popup()
+
+                                                    QQC2.Menu {
+                                                        id: choiceMenu
+                                                        Repeater {
+                                                            model: pickRow.modelData.choices
+                                                            delegate: QQC2.MenuItem {
+                                                                required property int index
+                                                                required property string modelData
+                                                                text: modelData
+                                                                onTriggered:
+                                                                    session.setEffectControl(
+                                                                        stageCard.modelData.stage,
+                                                                        pickRow.modelData.index,
+                                                                        pickRow.modelData
+                                                                            .choiceValues[index])
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                    }
+                                }
+
+                                QQC2.Label {
+                                    Layout.alignment: Qt.AlignTop
+                                    Layout.topMargin: Kirigami.Units.gridUnit * 2
+                                    text: "\u2192"
+                                    color: Ink.edge
+                                    font.pointSize:
+                                        Kirigami.Theme.defaultFont.pointSize * 1.4
+                                }
+                            }
+                        }
+
+                        // Where it comes out. Named rather than drawn, because
+                        // what happens after the chain is the fader and the
+                        // pair of ports, and both of those live elsewhere.
+                        QQC2.Label {
+                            Layout.alignment: Qt.AlignTop
+                            Layout.topMargin: Kirigami.Units.gridUnit * 2.1
+                            text: session.ports
+                                ? i18n("stem")
+                                : i18n("mix")
+                            color: Ink.faint
+                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                            font.letterSpacing: 1
+                        }
+
+                        Item { Layout.fillWidth: true }
+                    }
+                }
+
+                // An empty deck says what to do with it rather than nothing.
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignHCenter
+                    visible: (root.effectsRevision, session.chainHere.length === 0)
+                    text: session.availableEffects.length > 0
+                        ? i18n("Nothing on this part yet \u2014 the amplifier goes on here.")
+                        : i18n("No LV2 effects were found on this machine.")
+                    color: Ink.quiet
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+        }
+
+        /**
+         * Every bar of the piece, as a ruler.
          *
          * A score is read a line at a time and navigated a bar at a time, and
-         * until now the only way to reach bar 96 was to scroll to it. The bar
-         * being played is lit in the same colour the page lights it, so this
-         * says where the music is as well as where you are.
+         * a piece is a length of time laid out left to right -- which is what
+         * a ruler is a drawing of. Bar 96 is two thirds of the way along, and
+         * that is a thing to aim at rather than a thing to count to.
          *
-         * It wraps. A row of two hundred boxes runs off the side of any window
-         * ever made and turns finding a bar back into scrolling for it, so the
-         * strip lays them out in as many columns as the window is wide enough
-         * for and as many rows as that takes. The columns are the width the
-         * window divides into rather than a fixed size, because a grid with a
-         * ragged right edge reads as a mistake, and because the point of a
-         * grid is that bar 96 is somewhere a person can aim at.
+         * It replaces a grid of numbered boxes, which worked and cost too
+         * much: a hundred and seventy-six boxes at a legible size is four rows
+         * and a scrollbar, and the map of the music was taking a third of the
+         * window away from the music. A ruler says the same in one line.
          *
-         * It grows to fit the score and stops at a third of the window: a
-         * hundred-and-seventy-six-bar piece would otherwise push the music it
-         * is a map of off the screen entirely.
+         * The playhead rides above the line and the caret sits below it, so
+         * the two never cover each other -- they are usually in different
+         * places and occasionally in the same one, and that is exactly when
+         * both need reading.
          */
         Rectangle {
             id: barPanel
 
-            readonly property int cushion: Kirigami.Units.largeSpacing * 2
             readonly property int inset: Kirigami.Units.largeSpacing * 2
-
-            /** The narrowest a bar box may be before a column is dropped. */
-            readonly property int narrowest: Ink.barBoxWidth + Kirigami.Units.smallSpacing
+            readonly property int cushion: Kirigami.Units.largeSpacing
 
             /**
-             * The width the boxes get, which is not the width of the panel.
+             * The narrowest a bar may be and still be something to aim at.
              *
-             * A gutter is kept on the right whether or not there is a scroll
-             * bar in it. Working out whether one is needed would mean knowing
-             * how many rows there are, which needs the number of columns,
-             * which needs this width -- a circle -- and a bar drawn over the
-             * last column of every row is worse than a gutter that is
-             * sometimes empty.
+             * Below this the ruler scrolls instead of squeezing. A tick four
+             * pixels wide is a tick nobody can click, and a map you cannot
+             * point at is a picture.
              */
-            readonly property int usable:
-                Math.max(narrowest, width - inset * 2 - Kirigami.Units.gridUnit)
-            readonly property int columns: Math.max(1, Math.floor(usable / narrowest))
-            readonly property int sectionLine:
-                session.hasSections ? Kirigami.Units.gridUnit : 0
-            readonly property int cellHeight:
-                Ink.barBoxHeight + Kirigami.Units.smallSpacing + sectionLine
+            readonly property int narrowest: Math.round(Kirigami.Units.gridUnit * 0.75)
 
-            // Worked out from the count rather than read off the view: asking
-            // the grid how tall its contents are, while the grid is as tall as
-            // this, is a question that answers itself in a circle.
-            readonly property int rows: Math.max(1, Math.ceil(session.barCount / columns))
+            readonly property int usable: Math.max(narrowest, width - inset * 2)
+            readonly property real step: session.barCount > 0
+                ? Math.max(narrowest, usable / session.barCount)
+                : narrowest
+            readonly property real span: step * Math.max(1, session.barCount)
+
             /**
-             * How much of the window the map may take.
+             * How often a bar prints its number.
              *
-             * The two panels along the bottom share a budget rather than each
-             * taking a share of the window: a third for the bars and a band
-             * for the tuner leaves the music they are both about as a minority
-             * of the screen, which is the wrong way round. Whatever the tuner
-             * is using comes off this, so opening it shortens the grid instead
-             * of squeezing the page.
+             * Whatever keeps two numbers from touching, from every bar on a
+             * short piece to every sixty-fourth on a long one. Chosen from the
+             * width rather than fixed, because a rule that printed every
+             * fourth bar would print them on top of each other at eight pixels
+             * a bar and leave a bare line at eighty.
              */
-            readonly property real ceiling: Math.max(
-                cellHeight,
-                root.height * 0.3
-                    - (tunerPanel.visible ? tunerPanel.Layout.preferredHeight : 0))
+            readonly property int every: {
+                const wanted = Kirigami.Units.gridUnit * 2.75
+                const steps = [1, 2, 4, 8, 16, 32, 64]
+                for (let index = 0; index < steps.length; ++index) {
+                    if (steps[index] * step >= wanted) {
+                        return steps[index]
+                    }
+                }
+                return 64
+            }
 
-            // Whole rows only. A row cut through the middle by the bottom of
-            // the panel looks like a rendering fault rather than like there
-            // being more to scroll to.
-            readonly property int shownRows:
-                Math.max(1, Math.min(rows, Math.floor(ceiling / cellHeight)))
+            readonly property int nameRow: Kirigami.Units.gridUnit * 1.1
+            readonly property int tickRow: Kirigami.Units.gridUnit * 0.8
+            readonly property int numberRow: Kirigami.Units.gridUnit * 1.2
+            /** Kept whether or not there is a bar in it, so nothing jumps. */
+            readonly property int scrollRow: Kirigami.Units.smallSpacing * 2
 
             Layout.fillWidth: true
-            Layout.preferredHeight: barPanel.shownRows * barPanel.cellHeight
-                                    + barPanel.cushion + Ink.smallControl
-                                    + Kirigami.Units.smallSpacing
+            Layout.preferredHeight: cushion + Ink.smallControl + cushion
+                                    + nameRow + tickRow + numberRow + scrollRow
+                                    + cushion
             visible: panels.bars && session.hasScore
             color: Ink.panelDeep
 
@@ -2120,12 +2563,12 @@ Kirigami.ApplicationWindow {
             /**
              * What the bar the caret is in is called.
              *
-             * Over the grid rather than in the toolbar, because a section is a
-             * name given to a bar and this panel is the one about bars -- the
-             * names it sets are printed in the grid underneath it. The toolbar
-             * had it first and could not hold it: three fields about the
-             * caret's bar and every panel toggle is more than a window this
-             * size has room for on one line.
+             * Over the ruler rather than in the toolbar, because a section is
+             * a name given to a bar and this panel is the one about bars --
+             * the names it sets are printed along the ruler underneath it. The
+             * toolbar had it first and could not hold it: three fields about
+             * the caret's bar and every panel toggle is more than a window
+             * this size has room for on one line.
              */
             RowLayout {
                 id: sectionRow
@@ -2135,7 +2578,7 @@ Kirigami.ApplicationWindow {
                 anchors.top: parent.top
                 anchors.leftMargin: barPanel.inset
                 anchors.rightMargin: barPanel.inset
-                anchors.topMargin: barPanel.cushion / 2
+                anchors.topMargin: barPanel.cushion
                 height: Ink.smallControl
                 spacing: Kirigami.Units.smallSpacing
 
@@ -2178,98 +2621,139 @@ Kirigami.ApplicationWindow {
                 Item { Layout.fillWidth: true }
             }
 
-            GridView {
-                id: barGrid
-
-                property int lit: -1
-
-                readonly property int sectionLine: barPanel.sectionLine
+            Flickable {
+                id: ruler
 
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: sectionRow.bottom
-                anchors.bottom: parent.bottom
-                anchors.topMargin: Kirigami.Units.smallSpacing
-                anchors.bottomMargin: barPanel.cushion / 2
+                anchors.bottom: rulerBar.top
+                anchors.topMargin: barPanel.cushion
                 anchors.leftMargin: barPanel.inset
                 anchors.rightMargin: barPanel.inset
 
-                // Whole pixels, or the last column in every row is a fraction
-                // narrower than the rest and the grid looks bent.
-                cellWidth: Math.floor(barPanel.usable / barPanel.columns)
-                cellHeight: barPanel.cellHeight
-
                 clip: true
+                contentWidth: barPanel.span
+                contentHeight: height
+                flickableDirection: Flickable.HorizontalFlick
                 boundsBehavior: Flickable.StopAtBounds
-                model: session.barCount
 
-                QQC2.ScrollBar.vertical: QQC2.ScrollBar {
-                    policy: barGrid.contentHeight > barGrid.height
-                        ? QQC2.ScrollBar.AsNeeded : QQC2.ScrollBar.AlwaysOff
+                /** Puts a bar on screen without dragging the ruler about. */
+                function reveal(bar) {
+                    if (bar < 0 || contentWidth <= width) {
+                        return
+                    }
+                    const at = (bar + 0.5) * barPanel.step
+                    const edge = Kirigami.Units.gridUnit * 3
+                    if (at < contentX + edge) {
+                        contentX = Math.max(0, at - edge)
+                    } else if (at > contentX + width - edge) {
+                        contentX = Math.min(contentWidth - width, at - width + edge)
+                    }
                 }
 
-                delegate: Item {
-                    id: barCell
-                    required property int index
+                Item {
+                    id: rulerBody
 
-                    property string section: session.sectionAt(index)
-                    property bool playing: index === session.currentBar
-                    property bool atCaret: index === session.caretBar
+                    width: barPanel.span
+                    height: ruler.height
 
-                    width: barGrid.cellWidth
-                    height: barGrid.cellHeight
+                    /**
+                     * A mark kept inside the ruler rather than centred over
+                     * its bar wherever that falls.
+                     *
+                     * The first bar's middle is half a tick from the left
+                     * edge, which is less than half a lozenge: centred
+                     * honestly, the playhead at bar 1 is a shape with its left
+                     * third cut off.
+                     */
+                    function place(bar, width) {
+                        return Math.max(0, Math.min(rulerBody.width - width,
+                                                    xOf(bar) - width / 2))
+                    }
 
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: Kirigami.Units.smallSpacing / 2
-                        spacing: 0
+                    readonly property real lineY: barPanel.nameRow + barPanel.tickRow / 2
 
-                        // Where the score names a section, its name sits over
-                        // the bar it starts: a strip of numbers with no words
-                        // in it is a ruler rather than a map. Above rather
-                        // than beside it now, because a name of its own width
-                        // in front of a box would put every column after it
-                        // out of line.
-                        QQC2.Label {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: barGrid.sectionLine
-                            visible: barGrid.sectionLine > 0
-                            text: barCell.section
-                            elide: Text.ElideRight
-                            color: Ink.quiet
-                            verticalAlignment: Text.AlignVCenter
-                            font.pointSize: Kirigami.Theme.smallFont.pointSize
-                            font.weight: Font.DemiBold
-                        }
+                    /** Where the middle of a bar falls along the ruler. */
+                    function xOf(bar) {
+                        return (bar + 0.5) * barPanel.step
+                    }
 
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            radius: Ink.radius
-                            color: barCell.playing ? Ink.accent
-                                 : (barCell.atCaret ? Ink.accentTint
-                                 : (barMouse.containsMouse ? Ink.rule : Ink.paper))
-                            border.width: 1
-                            border.color: barCell.atCaret && !barCell.playing
-                                ? Ink.accent : Ink.rule
+                    // The line itself, which is what makes the ticks a ruler
+                    // rather than a row of marks.
+                    Rectangle {
+                        y: rulerBody.lineY
+                        width: rulerBody.width
+                        height: 1
+                        color: Ink.staff
+                    }
 
+                    Repeater {
+                        model: session.barCount
+
+                        delegate: Item {
+                            id: barTick
+                            required property int index
+
+                            readonly property string section: session.sectionAt(index)
+                            readonly property bool playing: index === session.currentBar
+                            readonly property bool atCaret: index === session.caretBar
+                            /** Numbered where the spacing allows, unless it says so itself. */
+                            readonly property bool numbered:
+                                index % barPanel.every === 0 && !playing && !atCaret
+
+                            x: index * barPanel.step
+                            width: barPanel.step
+                            height: rulerBody.height
+
+                            // Where the score names a section, its name sits
+                            // over the bar it starts: a line of numbers with
+                            // no words in it is a ruler rather than a map, and
+                            // the reason anybody looks for bar 96 is that it
+                            // is where the second chorus begins.
                             QQC2.Label {
-                                anchors.centerIn: parent
-                                text: barCell.index + 1
-                                color: barCell.playing ? Ink.paper
-                                     : (barCell.atCaret ? Ink.accentDeep : Ink.ink)
-                                font.weight: barCell.playing || barCell.atCaret
-                                    ? Font.DemiBold : Font.Normal
-                                font.features: ({ "tnum": 1 })
+                                visible: barTick.section.length > 0
+                                x: 0
+                                y: 0
+                                height: barPanel.nameRow
+                                text: barTick.section
+                                color: Ink.ink
+                                font.italic: true
+                                verticalAlignment: Text.AlignVCenter
                             }
 
+                            Rectangle {
+                                x: barPanel.step / 2
+                                y: rulerBody.lineY
+                                     - (barTick.section.length > 0 ? barPanel.tickRow / 2
+                                                                   : barPanel.tickRow / 4)
+                                width: 1
+                                height: barTick.section.length > 0
+                                    ? barPanel.tickRow : barPanel.tickRow / 2
+                                color: barTick.section.length > 0 ? Ink.quiet : Ink.staff
+                            }
+
+                            QQC2.Label {
+                                visible: barTick.numbered
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                y: rulerBody.lineY + barPanel.tickRow / 2
+                                height: barPanel.numberRow
+                                text: barTick.index + 1
+                                color: Ink.faint
+                                font.pointSize: Kirigami.Theme.smallFont.pointSize
+                                font.features: ({ "tnum": 1 })
+                                verticalAlignment: Text.AlignVCenter
+                            }
+
+                            // The whole column, so a bar is as easy to hit as
+                            // the ruler is tall rather than as easy to hit as
+                            // a one-pixel tick.
                             MouseArea {
-                                id: barMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
-                                    session.goToBar(barCell.index)
+                                    session.goToBar(barTick.index)
                                     // Jumping to a bar is usually the first
                                     // half of writing something in it.
                                     view.forceActiveFocus()
@@ -2277,28 +2761,132 @@ Kirigami.ApplicationWindow {
                             }
                         }
                     }
+
+                    /**
+                     * The bar being played, above the line.
+                     *
+                     * A lozenge rather than a line, because it carries its own
+                     * number: a playhead that says where it is saves looking
+                     * along the ruler to find out.
+                     */
+                    Rectangle {
+                        id: playhead
+
+                        visible: session.currentBar >= 0
+                        x: rulerBody.place(session.currentBar, width)
+                        y: rulerBody.lineY - height - 2
+                        width: Math.max(height, playheadLabel.implicitWidth
+                                                + Kirigami.Units.largeSpacing)
+                        height: Kirigami.Units.gridUnit * 1.15
+                        radius: height / 2
+                        color: Ink.accent
+
+                        QQC2.Label {
+                            id: playheadLabel
+                            anchors.centerIn: parent
+                            text: session.currentBar + 1
+                            color: Ink.paper
+                            font.weight: Font.DemiBold
+                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                            font.features: ({ "tnum": 1 })
+                        }
+                    }
+
+                    /** Where the caret is, below the line and in the numbers' row. */
+                    Rectangle {
+                        id: caretMark
+
+                        visible: session.caretBar >= 0
+                        x: rulerBody.place(session.caretBar, width)
+                        y: rulerBody.lineY + barPanel.tickRow / 2
+                        width: Math.max(height, caretLabel.implicitWidth
+                                                + Kirigami.Units.smallSpacing * 2)
+                        height: barPanel.numberRow
+                        radius: Ink.radius
+                        color: session.caretBar === session.currentBar
+                            ? Ink.accentTint : "transparent"
+                        border.width: 1.6
+                        border.color: Ink.accent
+
+                        QQC2.Label {
+                            id: caretLabel
+                            anchors.centerIn: parent
+                            text: session.caretBar + 1
+                            color: Ink.accentDeep
+                            font.weight: Font.DemiBold
+                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                            font.features: ({ "tnum": 1 })
+                        }
+                    }
                 }
 
                 // Following the music, and following the caret: both put a bar
-                // in view, and neither drags the strip about while the other is
-                // what somebody is watching.
+                // in view, and neither drags the ruler about while the other
+                // is what somebody is watching.
                 Connections {
                     target: session
 
                     function onPositionChanged() {
-                        if (session.playing && session.currentBar !== barGrid.lit) {
-                            barGrid.lit = session.currentBar
-                            if (barGrid.lit >= 0) {
-                                barGrid.positionViewAtIndex(barGrid.lit, GridView.Contain)
-                            }
+                        if (session.playing) {
+                            ruler.reveal(session.currentBar)
                         }
                     }
 
                     function onCursorMoved() {
-                        if (!session.playing && session.caretBar >= 0) {
-                            barGrid.positionViewAtIndex(session.caretBar, GridView.Contain)
+                        if (!session.playing) {
+                            ruler.reveal(session.caretBar)
                         }
                     }
+                }
+            }
+
+            /**
+             * How much of the piece is on screen, and where.
+             *
+             * Drawn rather than attached to the Flickable, for two reasons:
+             * an attached one is laid over the bottom of what it scrolls,
+             * which here is the row the bar numbers are printed in, and it
+             * comes out of the desktop's style in the desktop's colours --
+             * which is the thing this window is deliberately not doing.
+             */
+            Rectangle {
+                id: rulerBar
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.leftMargin: barPanel.inset
+                anchors.rightMargin: barPanel.inset
+                anchors.bottomMargin: barPanel.cushion
+                height: Kirigami.Units.smallSpacing
+                radius: height / 2
+                visible: ruler.contentWidth > ruler.width + 1
+                color: Ink.rule
+
+                Rectangle {
+                    x: parent.width * ruler.contentX / Math.max(1, ruler.contentWidth)
+                    width: Math.max(parent.height * 3,
+                                    parent.width * ruler.width
+                                        / Math.max(1, ruler.contentWidth))
+                    height: parent.height
+                    radius: parent.radius
+                    color: Ink.quiet
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.topMargin: -Kirigami.Units.smallSpacing
+                    anchors.bottomMargin: -Kirigami.Units.smallSpacing
+                    cursorShape: Qt.PointingHandCursor
+
+                    function scrollTo(x) {
+                        const fraction = Math.max(0, Math.min(1, x / width))
+                        ruler.contentX = Math.max(
+                            0, Math.min(ruler.contentWidth - ruler.width,
+                                        fraction * ruler.contentWidth - ruler.width / 2))
+                    }
+                    onPressed: mouse => scrollTo(mouse.x)
+                    onPositionChanged: mouse => { if (pressed) scrollTo(mouse.x) }
                 }
             }
         }
