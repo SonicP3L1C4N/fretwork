@@ -64,6 +64,21 @@ public:
          * when somebody adjusted a level.
          */
         QHash<int, QStringList> effects;
+
+        /**
+         * Knob settings to apply once the chains are built.
+         *
+         * `track`, which plugin along the chain, the name the plugin gives the
+         * control, and what to set it to. A chain at its defaults is an
+         * amplifier nobody has turned up.
+         */
+        struct Knob {
+            int track = 0;
+            int stage = 0;
+            QString symbol;
+            float value = 0;
+        };
+        QList<Knob> knobs;
         QString audioDriver;        //< empty means "pipewire if there is one"
         int sampleRate = 48000;
         int periodFrames = 512;
@@ -109,6 +124,12 @@ public:
 
     /** What a track's chain actually loaded, for a window to show. */
     QStringList effectsOn(int track) const;
+
+    /** Every plugin on a track and every knob on it, for a window to draw. */
+    QList<Lv2::Stage> chainOn(int track) const;
+
+    /** Turns one knob on a live chain, without rebuilding anything. */
+    void setEffectControl(int track, int stage, quint32 index, float value);
 
     /** Whether the transport is the graph's rather than this program's. */
     bool isFollowing() const;

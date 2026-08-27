@@ -61,6 +61,15 @@ struct Options {
 
     /** An LV2 chain per track, as plugin URIs in order, nearest the instrument first. */
     QHash<int, QStringList> effects;
+
+    /** Knob settings: track, which plugin along the chain, its name, its value. */
+    struct Knob {
+        int track = 0;
+        int stage = 0;
+        QString symbol;
+        float value = 0;
+    };
+    QList<Knob> knobs;
 };
 
 /** A General MIDI SoundFont on this machine, or empty if there is none. */

@@ -392,8 +392,31 @@ audio thread, which would have worked and would have been a lie about what the
 callback does.
 
 Mono plugins are instantiated twice, one per side, which is what every host
-does and what a player would do with two pedals. Control ports sit at the
-values the plugin says they should: the chain is not adjustable yet.
+does and what a player would do with two pedals.
+
+**And the knobs turn.** Every control a plugin declares is drawn in the mixer
+from what the plugin says about itself — its name, its range, and whether it is
+a knob, a switch or a list of named choices, because a slider from nought to
+eleven labelled nothing is a worse way to ask which valve model somebody wants.
+Turning one goes straight to the running chain: nothing is rebuilt and nothing
+stops. They are remembered across a rebuild too, because the player is rebuilt
+whenever a note is edited and an amplifier that reset itself every time
+somebody typed a fret would be an amplifier nobody could use.
+
+Our own controls rather than the plugin's own interface. Guitarix draws in GTK,
+this window is Qt Quick on Wayland, and there is no embedding one in the other
+that is not a second program in a second window — and this window is
+deliberately drawn rather than styled, so a panel of somebody else's widgets
+would look like somebody else's panel.
+
+From the command line the same knob is `--knob 0:0:Drive=8` — the track, which
+plugin along the chain, the name the plugin gives the control, and the value.
+Verbose, and every part of it is something the caller has to be able to say,
+because two amplifiers in one chain both have a Drive.
+
+A window opened with `--sfz` and `--lv2` comes up with that rig already on the
+part, rather than opening dry and asking somebody to rebuild by hand what they
+have just typed out.
 
 **A part can be played by recordings** rather than by a General MIDI
 programme. `--sfz 0=guitar.sfz` gives track 0 an SFZ instrument, and the parts

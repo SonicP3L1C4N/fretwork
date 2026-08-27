@@ -298,6 +298,79 @@ int countPorts(const LilvPlugin *plugin, const LilvNode *audio, const LilvNode *
     return found;
 }
 
+/**
+ * The knobs, as the plugin describes them.
+ *
+ * Read once at load, because it means parsing the plugin's own turtle and a
+ * window redrawing a panel should not do that.
+ */
+QList<Lv2::Control> readControls(const LilvPlugin *plugin, std::vector<float> &values)
+{
+    QList<Lv2::Control> controls;
+
+    LilvNode *controlPort = lilv_new_uri(world(), LV2_CORE__ControlPort);
+    LilvNode *inputPort = lilv_new_uri(world(), LV2_CORE__InputPort);
+    LilvNode *toggled = lilv_new_uri(world(), LV2_CORE__toggled);
+    LilvNode *integer = lilv_new_uri(world(), LV2_CORE__integer);
+    LilvNode *enumeration = lilv_new_uri(world(), LV2_CORE__enumeration);
+    LilvNode *logarithmic =
+        lilv_new_uri(world(), "http://lv2plug.in/ns/ext/port-props#logarithmic");
+
+    const uint32_t total = lilv_plugin_get_num_ports(plugin);
+    std::vector<float> minimums(total);
+    std::vector<float> maximums(total);
+    std::vector<float> defaults(total);
+    lilv_plugin_get_port_ranges_float(plugin, minimums.data(), maximums.data(),
+                                      defaults.data());
+
+    for (uint32_t index = 0; index < total; ++index) {
+        const LilvPort *port = lilv_plugin_get_port_by_index(plugin, index);
+        // Input controls only: an output control is a meter, and a meter with
+        // a slider on it is a lie about which way the information flows.
+        if (!lilv_port_is_a(plugin, port, controlPort)
+            || !lilv_port_is_a(plugin, port, inputPort)) {
+            continue;
+        }
+
+        Lv2::Control control;
+        control.index = index;
+        control.symbol =
+            QString::fromUtf8(lilv_node_as_string(lilv_port_get_symbol(plugin, port)));
+        if (LilvNode *name = lilv_port_get_name(plugin, port)) {
+            control.name = QString::fromUtf8(lilv_node_as_string(name));
+            lilv_node_free(name);
+        }
+        control.minimum = std::isnan(minimums[index]) ? 0.0f : minimums[index];
+        control.maximum = std::isnan(maximums[index]) ? 1.0f : maximums[index];
+        control.value = index < values.size() ? values[index] : 0.0f;
+        control.toggled = lilv_port_has_property(plugin, port, toggled);
+        control.integer = lilv_port_has_property(plugin, port, integer);
+        control.logarithmic = lilv_port_has_property(plugin, port, logarithmic);
+
+        if (lilv_port_has_property(plugin, port, enumeration)) {
+            if (LilvScalePoints *points = lilv_port_get_scale_points(plugin, port)) {
+                LILV_FOREACH (scale_points, iterator, points) {
+                    const LilvScalePoint *point = lilv_scale_points_get(points, iterator);
+                    control.choices.append(QString::fromUtf8(
+                        lilv_node_as_string(lilv_scale_point_get_label(point))));
+                    control.choiceValues.append(
+                        float(lilv_node_as_float(lilv_scale_point_get_value(point))));
+                }
+                lilv_scale_points_free(points);
+            }
+        }
+        controls.append(control);
+    }
+
+    lilv_node_free(controlPort);
+    lilv_node_free(inputPort);
+    lilv_node_free(toggled);
+    lilv_node_free(integer);
+    lilv_node_free(enumeration);
+    lilv_node_free(logarithmic);
+    return controls;
+}
+
 Lv2::Description describeOne(const LilvPlugin *plugin)
 {
     Lv2::Description described;
@@ -349,7 +422,7 @@ Lv2::Description Lv2::describe(const QString &uri)
 }
 
 /** One plugin in the chain, which may be two instances of a mono one. */
-struct Stage {
+struct Hosted {
     QString uri;
     QString name;
     LilvInstance *left = nullptr;
@@ -362,12 +435,15 @@ struct Stage {
     /** Port indices, found once: the callback must not go looking. */
     std::vector<uint32_t> audioIn;
     std::vector<uint32_t> audioOut;
+
+    /** What the knobs are, read from the plugin's own description. */
+    QList<Lv2::Control> described;
 };
 
 struct Lv2::Chain::Private {
     Options options;
     QString error;
-    std::vector<Stage> stages;
+    std::vector<Hosted> stages;
 
     /** Scratch for a mono plugin's one output, sized once. */
     std::vector<float> spare;
@@ -439,7 +515,7 @@ Lv2::Chain::Chain(const QStringList &uris, const Options &options)
             break;
         }
 
-        Stage stage;
+        Hosted stage;
         stage.uri = uri;
         stage.name = described.name;
 
@@ -511,6 +587,7 @@ Lv2::Chain::Chain(const QStringList &uris, const Options &options)
             }
         }
 
+        stage.described = readControls(plugin, stage.controls);
         d->stages.push_back(std::move(stage));
     }
 
@@ -522,7 +599,7 @@ Lv2::Chain::Chain(const QStringList &uris, const Options &options)
         d->stages.clear();
         return;
     }
-    for (Stage &stage : d->stages) {
+    for (Hosted &stage : d->stages) {
         lilv_instance_activate(stage.left);
         if (stage.right) {
             lilv_instance_activate(stage.right);
@@ -532,7 +609,7 @@ Lv2::Chain::Chain(const QStringList &uris, const Options &options)
 
 Lv2::Chain::~Chain()
 {
-    for (Stage &stage : d->stages) {
+    for (Hosted &stage : d->stages) {
         if (stage.left) {
             lilv_instance_deactivate(stage.left);
             lilv_instance_free(stage.left);
@@ -557,10 +634,58 @@ QString Lv2::Chain::error() const
 QStringList Lv2::Chain::loaded() const
 {
     QStringList names;
-    for (const Stage &stage : d->stages) {
+    for (const Hosted &stage : d->stages) {
         names.append(stage.name);
     }
     return names;
+}
+
+QList<Lv2::Stage> Lv2::Chain::stages() const
+{
+    QList<Stage> described;
+    for (const Hosted &hosted : d->stages) {
+        Stage stage;
+        stage.uri = hosted.uri;
+        stage.name = hosted.name;
+        stage.controls = hosted.described;
+        // The value a knob is at now, rather than the one it started at.
+        for (Control &control : stage.controls) {
+            if (control.index < hosted.controls.size()) {
+                control.value = hosted.controls[control.index];
+            }
+        }
+        described.append(stage);
+    }
+    return described;
+}
+
+void Lv2::Chain::setControl(int stage, uint32_t index, float value)
+{
+    if (stage < 0 || stage >= int(d->stages.size())) {
+        return;
+    }
+    Hosted &hosted = d->stages[size_t(stage)];
+    if (index >= hosted.controls.size()) {
+        return;
+    }
+    // Straight into the float the plugin reads. Both instances of a mono
+    // plugin are connected to the same one, so a stereo pair cannot drift
+    // apart into two different settings of the same knob.
+    hosted.controls[index] = value;
+}
+
+bool Lv2::Chain::setControl(int stage, const QString &symbol, float value)
+{
+    if (stage < 0 || stage >= int(d->stages.size())) {
+        return false;
+    }
+    for (const Control &control : d->stages[size_t(stage)].described) {
+        if (control.symbol == symbol) {
+            setControl(stage, control.index, value);
+            return true;
+        }
+    }
+    return false;
 }
 
 void Lv2::Chain::process(float *left, float *right, int frames)
@@ -569,7 +694,7 @@ void Lv2::Chain::process(float *left, float *right, int frames)
         return;
     }
 
-    for (Stage &stage : d->stages) {
+    for (Hosted &stage : d->stages) {
         // In place: every plugin here has as many outputs as inputs, so the
         // block that came in is the block that goes out, and a chain of six
         // needs no buffer of its own.
@@ -631,6 +756,20 @@ QString Lv2::Chain::error() const
 QStringList Lv2::Chain::loaded() const
 {
     return {};
+}
+
+QList<Lv2::Stage> Lv2::Chain::stages() const
+{
+    return {};
+}
+
+void Lv2::Chain::setControl(int, uint32_t, float)
+{
+}
+
+bool Lv2::Chain::setControl(int, const QString &, float)
+{
+    return false;
 }
 
 void Lv2::Chain::process(float *, float *, int)

@@ -97,6 +97,15 @@ class Session : public QObject
      * about this machine.
      */
     Q_PROPERTY(QStringList effectsHere READ effectsHere NOTIFY effectsChanged)
+
+    /**
+     * The chain on the current part, with every knob on every plugin.
+     *
+     * Each entry is {name, index, controls}, and each control is what the
+     * plugin says about itself: what it is called, what it may be, whether it
+     * is a switch or a list, and where it is set now.
+     */
+    Q_PROPERTY(QVariantList chainHere READ chainHere NOTIFY effectsChanged)
     Q_PROPERTY(QVariantList availableEffects READ availableEffects NOTIFY effectsChanged)
 
     /** Everything a new part may be: names to show, and ids to ask for. */
@@ -210,6 +219,25 @@ public:
 
     /** What the current part's chain loaded, in order, by name. */
     QStringList effectsHere() const;
+    QVariantList chainHere() const;
+
+    /**
+     * Turns a knob on the part on the page, and remembers where it was left.
+     *
+     * Remembered because the player is rebuilt whenever a note is edited, and
+     * an amplifier that reset itself every time somebody typed a fret would
+     * be an amplifier nobody could use.
+     */
+    Q_INVOKABLE void setEffectControl(int stage, int index, double value);
+
+    /**
+     * The rig a window was opened with, applied in one go.
+     *
+     * `fretwork FILE.gp --sfz 0=… --lv2 0=…` opens the window with that part
+     * already sampled and amplified, instead of opening it dry and making
+     * somebody rebuild by hand what they just typed on a command line.
+     */
+    Q_INVOKABLE void applyRig(const QVariantMap &samplers, const QVariantMap &effects);
     QVariantList availableEffects() const;
 
     /** Puts a plugin on the end of the current part's chain. */
@@ -443,6 +471,7 @@ private:
     bool m_following = false;
     QHash<int, QString> m_samplers;
     QHash<int, QStringList> m_effects;
+    QHash<int, QHash<int, QHash<quint32, float>>> m_knobs;
     QList<Lv2::Description> m_plugins;
     QList<Sfz::Library> m_libraries;
     double m_clickGain = 1.0;

@@ -196,6 +196,20 @@ void Session::rebuildPlayer()
         return;
     }
     m_player = std::move(player);
+
+    // Whatever the knobs were left at. A new Player is what happens when a
+    // note is edited, and an amplifier that reset itself every time would be
+    // one nobody could use.
+    for (auto track = m_knobs.constBegin(); track != m_knobs.constEnd(); ++track) {
+        for (auto stage = track.value().constBegin(); stage != track.value().constEnd();
+             ++stage) {
+            for (auto knob = stage.value().constBegin(); knob != stage.value().constEnd();
+                 ++knob) {
+                m_player->setEffectControl(track.key(), stage.key(), knob.key(),
+                                           knob.value());
+            }
+        }
+    }
     // Whatever the mixer said before the player was rebuilt, it still says: a
     // new Player is an implementation detail of editing a note, and nothing a
     // person did to the click should be undone by one.
@@ -343,6 +357,70 @@ QString Session::samplerHere() const
 QStringList Session::effectsHere() const
 {
     return m_player ? m_player->effectsOn(m_currentTrack) : QStringList();
+}
+
+QVariantList Session::chainHere() const
+{
+    QVariantList chain;
+    if (!m_player) {
+        return chain;
+    }
+    const QList<Lv2::Stage> stages = m_player->chainOn(m_currentTrack);
+    for (int index = 0; index < stages.size(); ++index) {
+        QVariantList knobs;
+        for (const Lv2::Control &control : stages.at(index).controls) {
+            knobs.append(QVariantMap{
+                {QStringLiteral("index"), control.index},
+                {QStringLiteral("name"), control.name},
+                {QStringLiteral("value"), control.value},
+                {QStringLiteral("minimum"), control.minimum},
+                {QStringLiteral("maximum"), control.maximum},
+                {QStringLiteral("toggled"), control.toggled},
+                {QStringLiteral("integer"), control.integer},
+                {QStringLiteral("choices"), control.choices},
+            });
+        }
+        chain.append(QVariantMap{{QStringLiteral("name"), stages.at(index).name},
+                                 {QStringLiteral("stage"), index},
+                                 {QStringLiteral("controls"), knobs}});
+    }
+    return chain;
+}
+
+void Session::applyRig(const QVariantMap &samplers, const QVariantMap &effects)
+{
+    if (samplers.isEmpty() && effects.isEmpty()) {
+        return;
+    }
+    for (auto entry = samplers.constBegin(); entry != samplers.constEnd(); ++entry) {
+        m_samplers.insert(entry.key().toInt(), entry.value().toString());
+    }
+    for (auto entry = effects.constBegin(); entry != effects.constEnd(); ++entry) {
+        m_effects.insert(entry.key().toInt(), entry.value().toStringList());
+    }
+
+    rebuildPlayer();
+    if (!canPlay()) {
+        // Whatever was asked for would not load. Dry rather than unplayable,
+        // with the reason already in the status bar.
+        m_samplers.clear();
+        m_effects.clear();
+        rebuildPlayer();
+    }
+    Q_EMIT samplersChanged();
+    Q_EMIT effectsChanged();
+}
+
+void Session::setEffectControl(int stage, int index, double value)
+{
+    if (!m_player) {
+        return;
+    }
+    // Straight to the running chain: turning a knob must not rebuild anything,
+    // or every movement would silence the part for as long as a soundfont
+    // takes to load.
+    m_player->setEffectControl(m_currentTrack, stage, quint32(index), float(value));
+    m_knobs[m_currentTrack][stage].insert(quint32(index), float(value));
 }
 
 QVariantList Session::availableEffects() const

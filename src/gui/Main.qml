@@ -25,6 +25,10 @@ Kirigami.ApplicationWindow {
 
     property string initialFile: ""
 
+    /** A rig named on the command line: samples and effects, by track. */
+    property var initialSamplers: ({})
+    property var initialEffects: ({})
+
     /**
      * The mixer has no per-track model, because the player's state lives in
      * atomics that the audio thread reads. Bumping this on every change is
@@ -102,6 +106,7 @@ Kirigami.ApplicationWindow {
     Component.onCompleted: {
         if (initialFile.length > 0) {
             session.open(initialFile)
+            session.applyRig(initialSamplers, initialEffects)
         }
     }
 
@@ -1484,20 +1489,137 @@ Kirigami.ApplicationWindow {
                             }
                         }
 
-                        // The chain in order, which is the only thing about a
-                        // pedalboard that cannot be guessed from its parts.
+                        /**
+                         * The chain in order, and the knobs on each of them.
+                         *
+                         * Drawn from what the plugin says about itself: what a
+                         * control is called, what it may be, and whether it is
+                         * a switch or a list of named choices. A slider from
+                         * nought to eleven labelled nothing is a worse way to
+                         * ask which valve model somebody wants.
+                         *
+                         * Our own controls rather than the plugin's own
+                         * interface. Guitarix draws in GTK, this window is Qt
+                         * Quick on Wayland, and there is no embedding one in
+                         * the other that is not a second program in a second
+                         * window -- and this window is deliberately drawn
+                         * rather than styled, so a panel of somebody else's
+                         * widgets would look like somebody else's panel.
+                         */
                         Repeater {
-                            model: session.effectsHere
-                            delegate: QQC2.Label {
-                                required property int index
-                                required property string modelData
+                            model: session.chainHere
+
+                            delegate: ColumnLayout {
+                                id: stageRow
+                                required property var modelData
 
                                 Layout.fillWidth: true
-                                Layout.leftMargin: Kirigami.Units.largeSpacing
-                                text: i18n("%1. %2", index + 1, modelData)
-                                elide: Text.ElideRight
-                                color: Ink.quiet
-                                font.pointSize: Kirigami.Theme.smallFont.pointSize
+                                Layout.leftMargin: Kirigami.Units.smallSpacing
+                                spacing: 0
+
+                                QQC2.Label {
+                                    Layout.fillWidth: true
+                                    Layout.topMargin: Kirigami.Units.smallSpacing
+                                    text: i18n("%1. %2", stageRow.modelData.stage + 1,
+                                               stageRow.modelData.name)
+                                    elide: Text.ElideRight
+                                    color: Ink.ink
+                                    font.weight: Font.DemiBold
+                                    font.pointSize: Kirigami.Theme.smallFont.pointSize
+                                }
+
+                                Repeater {
+                                    model: stageRow.modelData.controls
+
+                                    delegate: RowLayout {
+                                        id: knobRow
+                                        required property var modelData
+
+                                        Layout.fillWidth: true
+                                        spacing: Kirigami.Units.smallSpacing
+
+                                        QQC2.Label {
+                                            Layout.preferredWidth:
+                                                Kirigami.Units.gridUnit * 5
+                                            text: knobRow.modelData.name
+                                            elide: Text.ElideRight
+                                            color: Ink.quiet
+                                            font.pointSize:
+                                                Kirigami.Theme.smallFont.pointSize
+                                        }
+
+                                        // A switch, a list, or a knob: three
+                                        // shapes because a plugin says which
+                                        // of the three each control is.
+                                        MixerButton {
+                                            visible: knobRow.modelData.toggled
+                                            text: i18n("On")
+                                            checked: knobRow.modelData.value > 0.5
+                                            onToggled: session.setEffectControl(
+                                                stageRow.modelData.stage,
+                                                knobRow.modelData.index,
+                                                checked ? 1 : 0)
+                                        }
+
+                                        // A button and a menu, not a combo
+                                        // box: the desktop style draws one of
+                                        // those out of the desktop's own
+                                        // colours, which is the lesson the
+                                        // track dropdown and the capo spinner
+                                        // both taught already.
+                                        QQC2.Button {
+                                            id: choiceButton
+                                            Layout.fillWidth: true
+                                            visible: !knobRow.modelData.toggled
+                                                     && knobRow.modelData.choices.length > 0
+                                            flat: true
+                                            text: knobRow.modelData.choices[
+                                                Math.max(0, Math.min(
+                                                    knobRow.modelData.choices.length - 1,
+                                                    Math.round(knobRow.modelData.value)))]
+                                            onClicked: choiceMenu.popup()
+
+                                            contentItem: QQC2.Label {
+                                                text: choiceButton.text
+                                                elide: Text.ElideRight
+                                                color: Ink.ink
+                                                font.pointSize:
+                                                    Kirigami.Theme.smallFont.pointSize
+                                            }
+
+                                            QQC2.Menu {
+                                                id: choiceMenu
+                                                Repeater {
+                                                    model: knobRow.modelData.choices
+                                                    delegate: QQC2.MenuItem {
+                                                        required property int index
+                                                        required property string modelData
+                                                        text: modelData
+                                                        onTriggered:
+                                                            session.setEffectControl(
+                                                                stageRow.modelData.stage,
+                                                                knobRow.modelData.index,
+                                                                index)
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        InkSlider {
+                                            Layout.fillWidth: true
+                                            visible: !knobRow.modelData.toggled
+                                                     && knobRow.modelData.choices.length === 0
+                                            groove: Ink.rule
+                                            from: knobRow.modelData.minimum
+                                            to: knobRow.modelData.maximum
+                                            stepSize: knobRow.modelData.integer ? 1 : 0
+                                            value: knobRow.modelData.value
+                                            onMoved: session.setEffectControl(
+                                                stageRow.modelData.stage,
+                                                knobRow.modelData.index, value)
+                                        }
+                                    }
+                                }
                             }
                         }
 

@@ -136,6 +136,16 @@ Player::Player(const Score &score, const QList<int> &order, const Options &optio
         lastEvent = std::max(lastEvent, channel->synth->lastEventSample());
         m_channels.push_back(std::move(channel));
     }
+    // The knobs, once every chain exists to have them.
+    for (const Options::Knob &knob : m_options.knobs) {
+        if (knob.track < 0 || knob.track >= int(m_channels.size())) {
+            continue;
+        }
+        if (Lv2::Chain *chain = m_channels[size_t(knob.track)]->chain.get()) {
+            chain->setControl(knob.stage, knob.symbol, knob.value);
+        }
+    }
+
     m_length = lastEvent + qint64(TailSeconds * m_options.sampleRate);
 
     // The click is a track like any other as far as the engine is concerned:
@@ -364,6 +374,24 @@ QStringList Player::effectsOn(int track) const
         return {};
     }
     return m_channels[size_t(track)]->chain->loaded();
+}
+
+QList<Lv2::Stage> Player::chainOn(int track) const
+{
+    if (track < 0 || track >= int(m_channels.size()) || !m_channels[size_t(track)]->chain) {
+        return {};
+    }
+    return m_channels[size_t(track)]->chain->stages();
+}
+
+void Player::setEffectControl(int track, int stage, quint32 index, float value)
+{
+    if (track < 0 || track >= int(m_channels.size())) {
+        return;
+    }
+    if (Lv2::Chain *chain = m_channels[size_t(track)]->chain.get()) {
+        chain->setControl(stage, index, value);
+    }
 }
 
 bool Player::isFollowing() const

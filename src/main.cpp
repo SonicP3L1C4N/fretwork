@@ -89,6 +89,38 @@ QHash<int, QStringList> effectsFrom(const QStringList &given, QTextStream &error
     return chains;
 }
 
+/**
+ * `--knob 0:1:Drive=0.8` into settings to apply once the chains are built.
+ *
+ * Track, which plugin along the chain, the name the plugin gives the control,
+ * and the value. Verbose, and every part of it is something the caller has to
+ * be able to say: two amplifiers in one chain both have a Drive.
+ */
+template<typename Knob>
+QList<Knob> knobsFrom(const QStringList &given, QTextStream &error, int *bad)
+{
+    QList<Knob> knobs;
+    static const QRegularExpression shape(
+        QStringLiteral("^(\\d+):(\\d+):([A-Za-z0-9_.]+)=(-?[0-9.]+)$"));
+    for (const QString &one : given) {
+        const QRegularExpressionMatch match = shape.match(one.trimmed());
+        if (!match.hasMatch()) {
+            error << QStringLiteral("fretwork: --knob wants track:plugin:name=value, as in "
+                                    "--knob 0:0:Drive=0.8, not \"%1\"\n")
+                         .arg(one);
+            ++*bad;
+            continue;
+        }
+        Knob knob;
+        knob.track = match.captured(1).toInt();
+        knob.stage = match.captured(2).toInt();
+        knob.symbol = match.captured(3);
+        knob.value = match.captured(4).toFloat();
+        knobs.append(knob);
+    }
+    return knobs;
+}
+
 QString clock(double seconds)
 {
     const int whole = int(seconds + 0.5);
@@ -250,13 +282,15 @@ bool writeMidi(QTextStream &out, QTextStream &error, const Score &score,
 bool renderAudio(QTextStream &out, QTextStream &error, const Score &score,
                  const QList<int> &order, const QString &directory,
                  const QString &soundFont, bool click, const QHash<int, QString> &samplers,
-                 const QHash<int, QStringList> &effects)
+                 const QHash<int, QStringList> &effects, const QStringList &knobs)
 {
     Render::Options options;
     options.soundFont = soundFont;
     options.click = click;
     options.samplers = samplers;
     options.effects = effects;
+    int ignored = 0;
+    options.knobs = knobsFrom<Render::Options::Knob>(knobs, error, &ignored);
     options.effects = effects;
 
     QString why;
@@ -338,7 +372,7 @@ bool playScore(QTextStream &out, QTextStream &error, const Score &score,
                const QList<int> &order, const QString &soundFont, const QString &driver,
                const QStringList &solo, const QStringList &mute, bool click, bool ports,
                bool follow, const QHash<int, QString> &samplers,
-               const QHash<int, QStringList> &effects)
+               const QHash<int, QStringList> &effects, const QStringList &knobs)
 {
     Player::Options options;
     options.soundFont = soundFont;
@@ -346,6 +380,9 @@ bool playScore(QTextStream &out, QTextStream &error, const Score &score,
     options.perTrackPorts = ports || follow;
     options.followTransport = follow;
     options.samplers = samplers;
+    options.effects = effects;
+    int ignoredKnobs = 0;
+    options.knobs = knobsFrom<Player::Options::Knob>(knobs, error, &ignoredKnobs);
 
     Player player(score, order, options);
     if (!player.isValid()) {
@@ -684,6 +721,11 @@ int main(int argc, char *argv[])
                                       "instrument first; repeatable"),
                                  i18n("track=uri,uri"));
     parser.addOption(lv2);
+    const QCommandLineOption knob(QStringLiteral("knob"),
+                                  i18n("Set one control on one plugin, as "
+                                       "track:plugin:name=value; repeatable"),
+                                  i18n("0:0:Drive=0.8"));
+    parser.addOption(knob);
     const QCommandLineOption listEffects(QStringLiteral("effects"),
                                          i18n("List the LV2 effects installed, and exit"));
     parser.addOption(listEffects);
@@ -744,6 +786,10 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    int failures = 0;
+    const QHash<int, QString> samplers = samplersFrom(parser.values(sfz), error, &failures);
+    const QHash<int, QStringList> effects = effectsFrom(parser.values(lv2), error, &failures);
+
     // Asked to produce something, this is a command line tool; asked for
     // nothing in particular, it is an application and opens a window.
     const bool asked = parser.isSet(info) || parser.isSet(midi) || parser.isSet(stems)
@@ -756,7 +802,20 @@ int main(int argc, char *argv[])
         // qt/qml, which is where the engine looks by default.
         engine.addImportPath(QStringLiteral(":/"));
         engine.rootContext()->setContextObject(new KLocalizedContext(&engine));
-        engine.setInitialProperties({{QStringLiteral("initialFile"), files.value(0)}});
+        // Whatever rig was named on the command line goes with it: opening a
+        // window dry after typing out a sampler and an amplifier would be
+        // making somebody say it twice.
+        QVariantMap samplerRig;
+        for (auto entry = samplers.constBegin(); entry != samplers.constEnd(); ++entry) {
+            samplerRig.insert(QString::number(entry.key()), entry.value());
+        }
+        QVariantMap effectRig;
+        for (auto entry = effects.constBegin(); entry != effects.constEnd(); ++entry) {
+            effectRig.insert(QString::number(entry.key()), entry.value());
+        }
+        engine.setInitialProperties({{QStringLiteral("initialFile"), files.value(0)},
+                                     {QStringLiteral("initialSamplers"), samplerRig},
+                                     {QStringLiteral("initialEffects"), effectRig}});
         engine.loadFromModule("org.kde.fretwork", "Main");
         if (engine.rootObjects().isEmpty()) {
             error << i18n("fretwork: the window could not be created\n");
@@ -781,10 +840,6 @@ int main(int argc, char *argv[])
         error << i18n("fretwork: name a .gp file to read\n");
         return 2;
     }
-
-    int failures = 0;
-    const QHash<int, QString> samplers = samplersFrom(parser.values(sfz), error, &failures);
-    const QHash<int, QStringList> effects = effectsFrom(parser.values(lv2), error, &failures);
 
     for (const QString &path : files) {
         QString why;
@@ -829,7 +884,8 @@ int main(int argc, char *argv[])
             if (!playScore(out, error, score, order, parser.value(soundFont),
                            parser.value(audioDriver), parser.values(soloed),
                            parser.values(muted), parser.isSet(clicking),
-                           parser.isSet(porting), parser.isSet(following), samplers, effects)) {
+                           parser.isSet(porting), parser.isSet(following), samplers, effects,
+                           parser.values(knob))) {
                 ++failures;
             }
         }
@@ -871,7 +927,8 @@ int main(int argc, char *argv[])
         }
         if (parser.isSet(render)) {
             if (!renderAudio(out, error, score, order, parser.value(render),
-                             parser.value(soundFont), parser.isSet(clicking), samplers, effects)) {
+                             parser.value(soundFont), parser.isSet(clicking), samplers, effects,
+                             parser.values(knob))) {
                 ++failures;
             }
         }

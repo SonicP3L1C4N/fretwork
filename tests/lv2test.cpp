@@ -113,6 +113,66 @@ private Q_SLOTS:
         chain.process(left.data(), right.data(), 4096);
         QCOMPARE(left.at(0), 0.5f);
     }
+
+    void readsTheKnobsAPluginSaysItHas()
+    {
+        const Lv2::Description plugin = any(1);
+        if (plugin.uri.isEmpty()) {
+            QSKIP("no mono LV2 plugin installed on this machine");
+        }
+        Lv2::Chain chain({plugin.uri}, {});
+        QVERIFY(chain.isValid());
+        // Held in a local. `stages()` hands back a list by value, and ranging
+        // over something reached through it destroys the list before the loop
+        // body runs -- which is a dangling reference and, here, a crash.
+        const QList<Lv2::Stage> stages = chain.stages();
+        QCOMPARE(stages.size(), 1);
+
+        for (const Lv2::Control &control : stages.first().controls) {
+            // Every knob has a name, a range that is a range, and a value
+            // inside it: a control starting outside its own bounds is a
+            // plugin about to be asked for something it cannot do.
+            QVERIFY(!control.name.isEmpty());
+            QVERIFY(control.maximum >= control.minimum);
+            QVERIFY(control.value >= control.minimum);
+            QVERIFY(control.value <= control.maximum);
+            QCOMPARE(control.choices.size(), control.choiceValues.size());
+        }
+    }
+
+    void turningAKnobSticks()
+    {
+        // Something with a knob to turn, whatever is installed.
+        for (const Lv2::Description &plugin : Lv2::installed()) {
+            Lv2::Chain chain({plugin.uri}, {});
+            if (!chain.isValid()) {
+                continue;
+            }
+            const QList<Lv2::Stage> stages = chain.stages();
+            if (stages.isEmpty() || stages.first().controls.isEmpty()) {
+                continue;
+            }
+            const Lv2::Control knob = stages.first().controls.first();
+            if (knob.maximum <= knob.minimum) {
+                continue;
+            }
+
+            const auto valueNow = [&chain] {
+                return chain.stages().first().controls.first().value;
+            };
+            const float wanted = knob.minimum + (knob.maximum - knob.minimum) * 0.75f;
+            chain.setControl(0, knob.index, wanted);
+            QCOMPARE(valueNow(), wanted);
+
+            // And by the name the plugin gives it, which is how a saved
+            // setting would have to find it again.
+            QVERIFY(chain.setControl(0, knob.symbol, knob.minimum));
+            QCOMPARE(valueNow(), knob.minimum);
+            QVERIFY(!chain.setControl(0, QStringLiteral("no_such_knob"), 1));
+            return;
+        }
+        QSKIP("no LV2 plugin with a control installed on this machine");
+    }
 };
 
 QTEST_GUILESS_MAIN(Lv2Test)

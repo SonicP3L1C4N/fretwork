@@ -133,6 +133,11 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
                 }
                 return false;
             }
+            for (const Options::Knob &knob : options.knobs) {
+                if (knob.track == index) {
+                    chain->setControl(knob.stage, knob.symbol, knob.value);
+                }
+            }
             chains.push_back(std::move(chain));
         } else {
             chains.push_back(nullptr);

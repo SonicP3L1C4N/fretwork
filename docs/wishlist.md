@@ -56,11 +56,15 @@ says it cannot play. Each of these closes one of those admissions.
 
 P4 in the plan is three items. These are the rest of that thought.
 
-- **Turning the knobs.** A chain loads and runs with every control at the value
-  the plugin says it should have. An amplifier nobody can turn up is half an
-  amplifier, and this is the next thing the chains need -- either control ports
-  as our own widgets, or the plugin's own interface through suil, which is a
-  bigger question than it looks.
+- **Keeping a rig.** The knobs turn and are remembered for as long as the
+  program is open, and then they are gone. Where a rig should be kept is the
+  question: not in the `.fw`, for the same reason the sample library is not --
+  it names plugins and paths that are facts about one machine -- but a
+  session file beside it, or a named preset of Fretwork's own, would both
+  work and are different promises.
+
+- **Guitarix presets.** Its own amplifier settings, which are the difference
+  between a chain and a sound, and which it keeps in a format of its own.
 
 - **Pick, fret and string noise.** The difference between a sampled guitar and
   a guitar. The SFZ layer exists now, so this is a question of a library having

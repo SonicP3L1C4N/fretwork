@@ -63,6 +63,40 @@ QList<Description> installed();
 /** One plugin found by its URI, or a description with an empty uri. */
 Description describe(const QString &uri);
 
+/** One knob on one plugin: what it is called, what it may be, and what it is. */
+struct Control {
+    uint32_t index = 0;
+    QString symbol;
+    QString name;
+
+    float minimum = 0;
+    float maximum = 1;
+    float value = 0;
+
+    /** A switch rather than a knob. */
+    bool toggled = false;
+    /** Whole numbers only. */
+    bool integer = false;
+    /** Turns as an ear hears, not as a number counts. */
+    bool logarithmic = false;
+
+    /**
+     * The choices, where the control is a list rather than a range.
+     *
+     * A guitarix amplifier picks its valve model this way, and a slider from
+     * nought to eleven labelled nothing would be a worse way to ask.
+     */
+    QStringList choices;
+    QList<float> choiceValues;
+};
+
+/** One plugin in a chain, and the knobs on it. */
+struct Stage {
+    QString uri;
+    QString name;
+    QList<Control> controls;
+};
+
 class Chain
 {
 public:
@@ -84,6 +118,22 @@ public:
 
     /** What actually loaded, in order. */
     QStringList loaded() const;
+
+    /** Every plugin in the chain and every knob on it, in order. */
+    QList<Stage> stages() const;
+
+    /**
+     * Turns one knob, from any thread.
+     *
+     * A control port is a float the plugin reads at the top of each block, so
+     * this writes one. Every host does exactly that and none of them lock: a
+     * torn read would be one block at a strange value on a machine where a
+     * float write is not atomic, which is no machine this runs on.
+     */
+    void setControl(int stage, uint32_t index, float value);
+
+    /** The same by the name the plugin gives it. False if there is no such knob. */
+    bool setControl(int stage, const QString &symbol, float value);
 
     /** Runs the chain over a block, in place. Safe in an audio callback. */
     void process(float *left, float *right, int frames);
