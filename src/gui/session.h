@@ -43,6 +43,22 @@ class Session : public QObject
     Q_PROPERTY(bool hasScore READ hasScore NOTIFY scoreChanged)
     Q_PROPERTY(QString status READ status NOTIFY statusChanged)
 
+    /**
+     * The tempo in force where the caret is, in crotchets a minute.
+     *
+     * What the bar would be played at, whether the bar writes a change of its
+     * own or inherits one from an earlier bar. `tempoWrittenHere` is how a
+     * window tells those two apart, which is worth showing: a number that
+     * belongs to this bar and one it is merely living under look the same and
+     * behave differently when they are edited.
+     */
+    Q_PROPERTY(double tempoHere READ tempoHere NOTIFY cursorMoved)
+    Q_PROPERTY(bool tempoWrittenHere READ tempoWrittenHere NOTIFY cursorMoved)
+
+    /** The caret's bar's time signature, as "4/4", and whether it starts there. */
+    Q_PROPERTY(QString timeHere READ timeHere NOTIFY cursorMoved)
+    Q_PROPERTY(bool timeWrittenHere READ timeWrittenHere NOTIFY cursorMoved)
+
     /** Where the caret is, for the status bar: "Bar 4 · string 3 · quaver". */
     Q_PROPERTY(QString caretText READ caretText NOTIFY cursorMoved)
 
@@ -169,6 +185,26 @@ public:
     Q_INVOKABLE void moveCursor(const QString &direction, bool extend = false);
     Q_INVOKABLE void typeDigit(int digit);
     Q_INVOKABLE void clearNote();
+
+    double tempoHere() const;
+    bool tempoWrittenHere() const;
+
+    /** Sets the tempo from the caret's bar on. Says so where it will not. */
+    Q_INVOKABLE void setTempoHere(double quarterBpm);
+
+    /** Takes the caret's bar's own tempo change away, where it has one. */
+    Q_INVOKABLE void clearTempoHere();
+
+    QString timeHere() const;
+    bool timeWrittenHere() const;
+
+    /**
+     * Sets the time signature from the caret's bar until the next change.
+     *
+     * Takes it written down -- "6/8" -- because that is how a musician says
+     * one and how the field they type it into reads.
+     */
+    Q_INVOKABLE void setTimeHere(const QString &signature);
 
     /** Moves the note under the caret along its string, or the whole selection. */
     Q_INVOKABLE void transpose(int frets);

@@ -160,6 +160,15 @@ Rational beatOf(const MasterBar &bar);
  */
 Track clickTrack();
 
+/**
+ * The tempo in force at a notated bar, in crotchets a minute.
+ *
+ * The last change written at or before it, which is what a reader looking at
+ * that bar would take the tempo to be. Notated rather than played, because
+ * the page and the editor both ask about a bar as it is written down.
+ */
+double tempoAtBar(const Score &score, int bar);
+
 /** The tempo changes, placed on the played timeline rather than the notated one. */
 QList<TempoEvent> tempoMap(const Score &score, const QList<int> &order);
 

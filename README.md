@@ -94,6 +94,49 @@ added to a piece in 6/8 is in 6/8, and the tempo changes written after it move
 along with the music. The last bar of a score is kept: a score with no bars is
 not a shorter score.
 
+**The tempo is editable**, which it had to become the moment there was a
+metronome to hear it against. The field beside the transport reads what the
+caret's bar is played at and writing in it sets the tempo from that bar on —
+accented while the bar carries a change of its own, quiet while it is living
+under one written earlier, because those two look identical and behave
+differently when they are edited.
+
+At the bar line and not at the caret: gpif can put a change part way through a
+bar and Fretwork deliberately will not, because a caret on the third beat is
+where somebody is typing notes rather than a statement about where the music
+changes speed — and a change with no visible start is one nobody can find to
+remove. Setting a tempo sweeps up any other change already in that bar, so a
+bar has one tempo and one place to look for it. Something outside 20 to 400 is
+refused rather than clamped, since quietly turning 1100 into 400 leaves
+somebody hunting for the tempo they typed. The first bar keeps a tempo
+whatever happens: with nothing before it to inherit from, taking its marking
+off would mean playing at whatever the default happens to be, which is not
+what anybody means by removing one.
+
+**And so is the time signature**, in the field beside it. Writing `6/8` there
+sets it from the caret's bar until the next change — not that one bar. gpif
+keeps a signature on every master bar because that is how the file is shaped,
+but somebody who writes 3/4 at bar five means bars five onwards, so it runs
+forward over every bar sharing the old signature and stops at the first that
+does not, which is where the next change already is. A denominator that is not
+a power of two is refused: 4/5 is a slipped finger, not a bar anybody can
+write down.
+
+What is already in those bars stays exactly where it is. A bar of four
+crotchets asked to be 3/4 is now a bar that does not add up, and the page marks
+it — taking the difference out of the last note would be rewriting music nobody
+asked it to touch, which is the one thing an editor must never do quietly.
+
+The page carries it too, in the direction row above the section names, where
+printed music has always put it:
+
+![The top of Cold Shot: the title, the tuning, and "♩ = 110 · triplet quavers" in italic above the first bar](docs/page-direction.png)
+
+That row is on every page now rather than only where a feel starts. Once the
+tempo is printed there is no such thing as a score with nothing to say — every
+piece has a speed, and a page that does not give it is missing the first thing
+a player looks for.
+
 **It saves.** `Ctrl+S` writes a `.fw` — a ZIP holding readable JSON, so a file
 attached to a bug report can be understood by looking at it. Every score in the
 test corpus survives import, save and reopen describing exactly the same music.
@@ -268,19 +311,12 @@ triplet written inside a swung bar — which happens, and is not a contradiction
 it was written and stays exactly as long as it was. A feel that changed how
 long a bar lasted would have quietly rewritten every bar after it.
 
-The page prints it, in a row above the section names where printed music has
-always put what it says to the player rather than what it draws for them to
-play — italic, over the bar the feel starts on, and again where it stops,
-because a shuffle that merely stopped being printed would read as one that
-carries on:
-
-![The top of Cold Shot: the title, the tuning, and "triplet quavers" in italic above the first bar](docs/page-direction.png)
-
-That row is reserved only on a score that has something to say in it, so a
-piece with no directions is laid out exactly as it was before the row existed
-and nothing is repaginated for a feature it does not use. It is the first
-tenant of a band the score is going to want anyway: a tempo marking, a
-fermata, a `rit.` and free time all belong in the same place.
+The page prints it, in the direction row above the section names where printed
+music has always put what it says to the player rather than what it draws for
+them to play — italic, over the bar the feel starts on, and again where it
+stops, because a shuffle that merely stopped being printed would read as one
+that carries on. It shares that row with the tempo marking, which is the other
+thing said rather than drawn.
 
 `--info` prints it too:
 

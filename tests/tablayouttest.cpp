@@ -593,28 +593,49 @@ private Q_SLOTS:
         const QList<QPair<int, QString>> said = directionsOf(Tab::layOut(swung, 0));
         QCOMPARE(said.size(), 2);
         QCOMPARE(said.at(0).first, 0);
+        QVERIFY(said.at(0).second.contains(QStringLiteral("triplet quavers")));
         QCOMPARE(said.at(1).first, 4);
         QCOMPARE(said.at(1).second, QStringLiteral("straight"));
     }
 
-    void aScoreWithNothingToSayIsDrawnExactlyAsItWas()
+    void everyPageSaysHowFastItGoes()
     {
-        // The whole argument for a row that is only sometimes there: adding it
-        // must not move a single system on a score that has no directions in
-        // it, or every page of every piece is repaginated for a feature it
-        // does not use.
-        const Score plain = score(12);
-        Score swung = plain;
-        swung.masterBars[0].tripletFeel = TripletFeel::Triplet8th;
+        // The first bar carries a tempo whether or not the score writes a
+        // change there, because a page that does not say how fast it goes is
+        // missing the first thing a player looks for. Which is also why the
+        // direction row is on every page rather than only where a feel starts:
+        // there is no such thing as a piece with no speed.
+        Score plain = score(12);
+        QList<QPair<int, QString>> said = directionsOf(Tab::layOut(plain, 0));
+        QCOMPARE(said.size(), 1);
+        QCOMPARE(said.first().first, 0);
+        QVERIFY(said.first().second.contains(QStringLiteral("120")));
 
-        const Tab::Layout without = Tab::layOut(plain, 0);
-        const Tab::Layout with = Tab::layOut(swung, 0);
-        QCOMPARE(without.style.systemSpacing, Tab::Style().systemSpacing);
-        QCOMPARE(with.style.systemSpacing,
-                 Tab::Style().systemSpacing + Tab::Style().directionGap);
+        plain.tempos = {{0, 0, 96}, {5, 0, 132}};
+        said = directionsOf(Tab::layOut(plain, 0));
+        QCOMPARE(said.size(), 2);
+        QVERIFY(said.at(0).second.contains(QStringLiteral("96")));
+        QCOMPARE(said.at(1).first, 5);
+        QVERIFY(said.at(1).second.contains(QStringLiteral("132")));
+    }
 
-        const qreal first = without.pages.first().systems.first().y;
-        QCOMPARE(with.pages.first().systems.first().y, first + Tab::Style().directionGap);
+    void saysBothWhenABarChangesBoth()
+    {
+        // A piece that starts at a tempo and starts swinging says both, in the
+        // order printed music says them: how fast, and then how to feel it.
+        Score swung = score(4);
+        swung.tempos = {{0, 0, 88}};
+        for (MasterBar &bar : swung.masterBars) {
+            bar.tripletFeel = TripletFeel::Triplet8th;
+        }
+
+        const QList<QPair<int, QString>> said = directionsOf(Tab::layOut(swung, 0));
+        QCOMPARE(said.size(), 1);
+        const QString line = said.first().second;
+        QVERIFY(line.contains(QStringLiteral("88")));
+        QVERIFY(line.contains(QStringLiteral("triplet quavers")));
+        QVERIFY(line.indexOf(QStringLiteral("88"))
+                < line.indexOf(QStringLiteral("triplet quavers")));
     }
 
     void everySystemGetsTheRoomAndNotJustTheFirst()
@@ -627,12 +648,44 @@ private Q_SLOTS:
         const Tab::Layout layout = Tab::layOut(swung, 0);
 
         const Tab::Style style;
-        const qreal step = layout.systemHeight() + style.systemSpacing + style.directionGap;
+        const qreal step = layout.systemHeight() + style.systemSpacing;
         const QList<Tab::System> &systems = layout.pages.first().systems;
         QVERIFY(systems.size() > 2);
         for (int index = 1; index < systems.size(); ++index) {
             QCOMPARE(systems.at(index).y - systems.at(index - 1).y, step);
         }
+    }
+
+    void printsTheSignatureWhereItChangesAndMarksWhatNoLongerAddsUp()
+    {
+        Score changed = score(6);
+        for (int bar = 2; bar < 6; ++bar) {
+            changed.masterBars[bar].numerator = 3;
+        }
+
+        QList<int> printed;
+        QList<int> marked;
+        for (const Tab::Page &page : Tab::layOut(changed, 0).pages) {
+            for (const Tab::System &system : page.systems) {
+                for (const Tab::LaidBar &bar : system.bars) {
+                    if (!bar.timeSignature.isEmpty()) {
+                        printed.append(bar.index);
+                    }
+                    if (bar.incomplete) {
+                        marked.append(bar.index);
+                    }
+                }
+            }
+        }
+
+        // Printed where it changes and nowhere else, which is what a signature
+        // on every bar would be: noise.
+        QCOMPARE(printed, QList<int>({0, 2}));
+
+        // And the bars that are now four crotchets in three crotchets' worth of
+        // time are marked rather than quietly shortened. The music somebody
+        // wrote is still there; the page says it does not fit.
+        QCOMPARE(marked, QList<int>({2, 3, 4, 5}));
     }
 };
 

@@ -460,6 +460,112 @@ Kirigami.ApplicationWindow {
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
 
+            /**
+             * How fast, and the one place to change it.
+             *
+             * Beside the transport because that is what it governs, and a
+             * field rather than a pair of nudge buttons because a tempo is a
+             * number somebody knows: 96 is typed, not arrived at by pressing
+             * up eleven times. It reads the tempo the caret's bar is played
+             * at, and writing in it sets one from that bar on.
+             *
+             * Accented while the bar carries a change of its own and quiet
+             * while it is living under an earlier one, because those two look
+             * identical and behave differently when they are edited.
+             */
+            RowLayout {
+                spacing: Kirigami.Units.smallSpacing / 2
+                visible: session.hasScore
+
+                QQC2.Label {
+                    text: "\u2669"
+                    color: session.tempoWrittenHere ? Ink.accentOnInk : Ink.faint
+                    font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.15
+                }
+
+                QQC2.TextField {
+                    id: tempoField
+
+                    implicitWidth: Kirigami.Units.gridUnit * 2.6
+                    horizontalAlignment: Text.AlignHCenter
+                    color: session.tempoWrittenHere ? Ink.paper : Ink.faint
+                    font.features: ({ "tnum": 1 })
+                    // Whole numbers only, and inside the range the editor will
+                    // accept, so the field cannot ask for something refused.
+                    validator: IntValidator { bottom: 20; top: 400 }
+                    text: Math.round(session.tempoHere)
+
+                    QQC2.ToolTip.text: session.tempoWrittenHere
+                        ? i18n("The tempo from this bar on")
+                        : i18n("The tempo here, set in an earlier bar")
+                    QQC2.ToolTip.visible: hovered
+                    QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+
+                    background: Rectangle {
+                        radius: Ink.radius
+                        color: tempoField.activeFocus ? Ink.well : "transparent"
+                        border.width: 1
+                        border.color: tempoField.activeFocus ? Ink.accent : Ink.edge
+                    }
+
+                    onAccepted: {
+                        session.setTempoHere(Number(text))
+                        // The score gets the keyboard back, or the next fret
+                        // number typed would land in here.
+                        view.forceActiveFocus()
+                    }
+                    // Whatever was half typed is dropped rather than applied:
+                    // clicking away from a field is not agreeing with it.
+                    onActiveFocusChanged: if (!activeFocus) {
+                        text = Qt.binding(() => Math.round(session.tempoHere))
+                    }
+                }
+            }
+
+            /**
+             * What the bar is in, and the one place to change it.
+             *
+             * One field with the slash in it rather than two boxes, because a
+             * time signature is one thing a musician says in one breath.
+             * Writing in it sets the signature from the caret's bar until the
+             * next change, which is what "3/4 from here" means to anybody who
+             * has written it on paper.
+             */
+            QQC2.TextField {
+                id: timeField
+
+                visible: session.hasScore
+                implicitWidth: Kirigami.Units.gridUnit * 2.8
+                horizontalAlignment: Text.AlignHCenter
+                color: session.timeWrittenHere ? Ink.paper : Ink.faint
+                font.features: ({ "tnum": 1 })
+                validator: RegularExpressionValidator {
+                    regularExpression: /[0-9]{1,2}\/[0-9]{1,2}/
+                }
+                text: session.timeHere
+
+                QQC2.ToolTip.text: session.timeWrittenHere
+                    ? i18n("The time signature from this bar on")
+                    : i18n("The time signature here, written in an earlier bar")
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+
+                background: Rectangle {
+                    radius: Ink.radius
+                    color: timeField.activeFocus ? Ink.well : "transparent"
+                    border.width: 1
+                    border.color: timeField.activeFocus ? Ink.accent : Ink.edge
+                }
+
+                onAccepted: {
+                    session.setTimeHere(text)
+                    view.forceActiveFocus()
+                }
+                onActiveFocusChanged: if (!activeFocus) {
+                    text = Qt.binding(() => session.timeHere)
+                }
+            }
+
             QQC2.Label {
                 text: session.clock(session.position)
                 color: Ink.paper

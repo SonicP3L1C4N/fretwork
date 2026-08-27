@@ -3,6 +3,7 @@
 
 #include "cursor.h"
 #include "editor.h"
+#include "timeline.h"
 
 #include <QTest>
 #include <QUndoStack>
@@ -1288,6 +1289,281 @@ private Q_SLOTS:
         const Note note = editor.score().notes.value(Editing::noteIdAt(editor.score(), at(0, 0, 0)));
         QVERIFY(!note.muted);
         QCOMPARE(note.fret, 7);
+    }
+
+    // ---- tempo ----
+
+    void setsTheTempoAtTheBarTheCaretIsIn()
+    {
+        Editor editor;
+        editor.setScore(someBars(4));
+        editor.setCursor(Cursor{0, 2, 0, 1});
+
+        QCOMPARE(editor.setTempo(96), Editor::Edit::Done);
+        QCOMPARE(editor.score().tempos.size(), 1);
+        QCOMPARE(editor.score().tempos.first().bar, 2);
+        // At the bar line, whatever beat the caret happened to be sitting on:
+        // typing notes on the third beat is not a statement about where the
+        // music changes speed.
+        QCOMPARE(editor.score().tempos.first().position, 0.0);
+        QCOMPARE(Timeline::tempoAtBar(editor.score(), 2), 96.0);
+        QCOMPARE(Timeline::tempoAtBar(editor.score(), 3), 96.0);
+        // And the bars before it are untouched, which is the whole point of a
+        // change rather than a setting.
+        QCOMPARE(Timeline::tempoAtBar(editor.score(), 1), 120.0);
+    }
+
+    void keepsTheChangesInTheOrderTheyArePlayed()
+    {
+        Editor editor;
+        editor.setScore(someBars(6));
+        for (const QPair<int, double> &wanted :
+             QList<QPair<int, double>>({{4, 80}, {1, 140}, {2, 100}})) {
+            editor.setCursor(Cursor{0, wanted.first, 0, 0});
+            QCOMPARE(editor.setTempo(wanted.second), Editor::Edit::Done);
+        }
+
+        QList<int> bars;
+        for (const TempoChange &tempo : editor.score().tempos) {
+            bars.append(tempo.bar);
+        }
+        // Written out of order and kept in order: everything downstream walks
+        // this list expecting the music's own order.
+        QCOMPARE(bars, QList<int>({1, 2, 4}));
+        QCOMPARE(Timeline::tempoAtBar(editor.score(), 3), 100.0);
+    }
+
+    void oneBarHasOneTempo()
+    {
+        Editor editor;
+        editor.setScore(someBars(3));
+        editor.setCursor(Cursor{1, 0, 0, 1});
+        QCOMPARE(editor.setTempo(90), Editor::Edit::Done);
+        QCOMPARE(editor.setTempo(150), Editor::Edit::Done);
+        QCOMPARE(editor.score().tempos.size(), 1);
+        QCOMPARE(Timeline::tempoAtBar(editor.score(), 1), 150.0);
+
+        // Setting what is already set is nothing to do rather than an edit: a
+        // step on the undo stack that undoes nothing visible is a step that
+        // makes undo untrustworthy.
+        QCOMPARE(editor.setTempo(150), Editor::Edit::Nothing);
+    }
+
+    void sweepsUpAChangeWrittenPartWayThroughTheBar()
+    {
+        Score score = someBars(3);
+        // What an import can hand over and this editor will not create.
+        score.tempos = {{1, 2.0, 60}};
+        Editor editor;
+        editor.setScore(score);
+        editor.setCursor(Cursor{0, 1, 0, 0});
+        QCOMPARE(editor.setTempo(100), Editor::Edit::Done);
+
+        QCOMPARE(editor.score().tempos.size(), 1);
+        QCOMPARE(editor.score().tempos.first().position, 0.0);
+        QCOMPARE(editor.score().tempos.first().quarterBpm, 100.0);
+    }
+
+    void refusesATempoThatIsATypingMistake()
+    {
+        Editor editor;
+        editor.setScore(someBars(2));
+        editor.setCursor(Cursor{0, 1, 0, 0});
+        QCOMPARE(editor.setTempo(1100), Editor::Edit::Refused);
+        QCOMPARE(editor.setTempo(0), Editor::Edit::Refused);
+        QCOMPARE(editor.setTempo(-40), Editor::Edit::Refused);
+        // Refused and not clamped: quietly turning 1100 into 400 leaves
+        // somebody looking for the tempo they typed.
+        QVERIFY(editor.score().tempos.isEmpty());
+    }
+
+    void takesATempoOffAgainButNotTheFirstOne()
+    {
+        Score score = someBars(4);
+        score.tempos = {{0, 0, 120}, {2, 0, 90}};
+        Editor editor;
+        editor.setScore(score);
+
+        editor.setCursor(Cursor{0, 2, 0, 0});
+        QVERIFY(editor.hasTempoHere());
+        QCOMPARE(editor.clearTempo(), Editor::Edit::Done);
+        QCOMPARE(Timeline::tempoAtBar(editor.score(), 3), 120.0);
+
+        // Nothing there to take away is not a refusal.
+        QCOMPARE(editor.clearTempo(), Editor::Edit::Nothing);
+
+        // The first bar keeps one: there is nothing before it to inherit from,
+        // so a score whose opening bar has no tempo is played at whatever the
+        // default happens to be, which is not what taking a marking off means.
+        editor.setCursor(Cursor{0, 0, 0, 0});
+        QCOMPARE(editor.clearTempo(), Editor::Edit::Refused);
+        QVERIFY(editor.hasTempoHere());
+    }
+
+    void undoingATempoPutsBackExactlyWhatWasThere()
+    {
+        Score score = someBars(5);
+        score.tempos = {{0, 0, 120}, {3, 1.5, 200}};
+        Editor editor;
+        editor.setScore(score);
+
+        editor.setCursor(Cursor{0, 3, 0, 0});
+        QCOMPARE(editor.setTempo(75), Editor::Edit::Done);
+        QCOMPARE(editor.score().tempos.size(), 2);
+        editor.undo();
+
+        // Including the mid-bar position the edit swept up, which a record of
+        // one entry rather than the whole list would have lost.
+        QCOMPARE(editor.score().tempos.size(), 2);
+        QCOMPARE(editor.score().tempos.at(1).bar, 3);
+        QCOMPARE(editor.score().tempos.at(1).position, 1.5);
+        QCOMPARE(editor.score().tempos.at(1).quarterBpm, 200.0);
+    }
+
+    void readsTheTempoAtABarWhateverOrderTheyAreWrittenIn()
+    {
+        Score score = someBars(8);
+        // An importer is not obliged to hand these over in order.
+        score.tempos = {{5, 0, 60}, {0, 0, 120}, {2, 0, 90}};
+        QCOMPARE(Timeline::tempoAtBar(score, 0), 120.0);
+        QCOMPARE(Timeline::tempoAtBar(score, 1), 120.0);
+        QCOMPARE(Timeline::tempoAtBar(score, 4), 90.0);
+        QCOMPARE(Timeline::tempoAtBar(score, 7), 60.0);
+
+        // Two in one bar: the later one is the one in force after it.
+        score.tempos.append({2, 3.0, 200});
+        QCOMPARE(Timeline::tempoAtBar(score, 2), 200.0);
+    }
+
+    // ---- time signature ----
+
+    void aSignatureRunsUntilTheNextChange()
+    {
+        Editor editor;
+        editor.setScore(someBars(8));
+        editor.setCursor(Cursor{0, 3, 0, 0});
+        QCOMPARE(editor.setTimeSignature(3, 4), Editor::Edit::Done);
+
+        // From the caret's bar to the end, because nothing after it said
+        // anything different. A musician who writes 3/4 at bar four means bars
+        // four onwards, not bar four alone.
+        for (int bar = 0; bar < 3; ++bar) {
+            QCOMPARE(editor.score().masterBars.at(bar).numerator, 4);
+        }
+        for (int bar = 3; bar < 8; ++bar) {
+            QCOMPARE(editor.score().masterBars.at(bar).numerator, 3);
+            QCOMPARE(editor.score().masterBars.at(bar).denominator, 4);
+        }
+    }
+
+    void itStopsAtTheChangeThatIsAlreadyThere()
+    {
+        Score score = someBars(8);
+        score.masterBars[5].numerator = 6;
+        score.masterBars[5].denominator = 8;
+        score.masterBars[6].numerator = 6;
+        score.masterBars[6].denominator = 8;
+
+        Editor editor;
+        editor.setScore(score);
+        editor.setCursor(Cursor{0, 1, 0, 0});
+        QCOMPARE(editor.setTimeSignature(7, 8), Editor::Edit::Done);
+
+        // Bars one to four take the new signature; bar five was already a
+        // change and is not what anybody asked to alter.
+        QCOMPARE(editor.score().masterBars.at(0).numerator, 4);
+        for (int bar = 1; bar <= 4; ++bar) {
+            QCOMPARE(editor.score().masterBars.at(bar).numerator, 7);
+        }
+        QCOMPARE(editor.score().masterBars.at(5).numerator, 6);
+        // And bar eight is left alone even though it still holds the signature
+        // that was being replaced: the run stopped at the change in bar six and
+        // does not jump over it to find more of the same further on.
+        QCOMPARE(editor.score().masterBars.at(7).numerator, 4);
+    }
+
+    void refusesASignatureNobodyCanWriteDown()
+    {
+        Editor editor;
+        editor.setScore(someBars(3));
+        editor.setCursor(Cursor{0, 1, 0, 0});
+        // A denominator names a note value, so it is a power of two or it is
+        // nothing.
+        QCOMPARE(editor.setTimeSignature(4, 5), Editor::Edit::Refused);
+        QCOMPARE(editor.setTimeSignature(4, 0), Editor::Edit::Refused);
+        QCOMPARE(editor.setTimeSignature(0, 4), Editor::Edit::Refused);
+        QCOMPARE(editor.setTimeSignature(33, 4), Editor::Edit::Refused);
+        QCOMPARE(editor.setTimeSignature(4, 128), Editor::Edit::Refused);
+        QCOMPARE(editor.score().masterBars.at(1).numerator, 4);
+
+        // And the ones that are signatures go in.
+        QCOMPARE(editor.setTimeSignature(12, 8), Editor::Edit::Done);
+        QCOMPARE(editor.setTimeSignature(2, 2), Editor::Edit::Done);
+        QCOMPARE(editor.setTimeSignature(5, 16), Editor::Edit::Done);
+    }
+
+    void leavesTheMusicWhereItWasAndLetsTheBarNotAddUp()
+    {
+        // The rule the whole editor is built on: a bar that no longer adds up
+        // is marked, not corrected. Four crotchets asked to be 3/4 stay four
+        // crotchets, because taking the difference out of the last note would
+        // be rewriting music nobody asked it to touch.
+        Editor editor;
+        editor.setScore(someBars(2));
+        editor.setCursor(Cursor{0, 0, 0, 0});
+        const int beatsBefore = editor.score().voices.value(0).beats.size();
+
+        QCOMPARE(editor.setTimeSignature(3, 4), Editor::Edit::Done);
+        QCOMPARE(editor.score().voices.value(0).beats.size(), beatsBefore);
+        QCOMPARE(editor.score().masterBars.at(0).length(), Rational(3));
+    }
+
+    void undoingASignaturePutsEveryBarBack()
+    {
+        Score score = someBars(6);
+        score.masterBars[4].numerator = 3;      // a change already in the score
+        Editor editor;
+        editor.setScore(score);
+
+        editor.setCursor(Cursor{0, 0, 0, 0});
+        QCOMPARE(editor.setTimeSignature(6, 8), Editor::Edit::Done);
+        editor.undo();
+
+        for (int bar = 0; bar < 4; ++bar) {
+            QCOMPARE(editor.score().masterBars.at(bar).numerator, 4);
+            QCOMPARE(editor.score().masterBars.at(bar).denominator, 4);
+        }
+        QCOMPARE(editor.score().masterBars.at(4).numerator, 3);
+    }
+
+    void knowsWhereTheSignatureIsWrittenRatherThanContinued()
+    {
+        Score score = someBars(5);
+        score.masterBars[2].numerator = 3;
+        Editor editor;
+        editor.setScore(score);
+
+        // The first bar always states one; every other bar only where it
+        // differs from the bar before, which is where a page prints it.
+        editor.setCursor(Cursor{0, 0, 0, 0});
+        QVERIFY(editor.timeSignatureWrittenHere());
+        editor.setCursor(Cursor{0, 1, 0, 0});
+        QVERIFY(!editor.timeSignatureWrittenHere());
+        editor.setCursor(Cursor{0, 2, 0, 0});
+        QVERIFY(editor.timeSignatureWrittenHere());
+        editor.setCursor(Cursor{0, 3, 0, 0});
+        QVERIFY(editor.timeSignatureWrittenHere());     // back to 4/4 is a change too
+        editor.setCursor(Cursor{0, 4, 0, 0});
+        QVERIFY(!editor.timeSignatureWrittenHere());
+    }
+
+    void settingWhatIsAlreadySetIsNothingToDo()
+    {
+        Editor editor;
+        editor.setScore(someBars(3));
+        editor.setCursor(Cursor{0, 1, 0, 0});
+        QCOMPARE(editor.setTimeSignature(4, 4), Editor::Edit::Nothing);
+        QVERIFY(!editor.canUndo());
     }
 };
 

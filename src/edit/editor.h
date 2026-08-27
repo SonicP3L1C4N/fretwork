@@ -209,6 +209,55 @@ public:
     /** Whether there is a bar under the caret that is not the only one. */
     bool canDeleteBar() const;
 
+    // ---- tempo ----
+
+    /**
+     * The tempo from the caret's bar on, in crotchets a minute.
+     *
+     * At the bar line and not at the caret. gpif can put a change part way
+     * through a bar and this deliberately will not: a caret on the third beat
+     * is where somebody is typing notes, not a statement about where the music
+     * changes speed, and a change with no visible start is one nobody can find
+     * to remove. Any other change already inside that bar goes with it, so a
+     * bar has one tempo and one place to look for it.
+     *
+     * Refused outside twenty to four hundred, which is wider than music and
+     * narrow enough to catch a slipped digit.
+     */
+    Edit setTempo(double quarterBpm);
+
+    /** Takes the change off the caret's bar, where the bar has one of its own. */
+    Edit clearTempo();
+
+    /** Whether the caret's bar carries a change rather than inheriting one. */
+    bool hasTempoHere() const;
+
+    // ---- time ----
+
+    /**
+     * Sets the time signature from the caret's bar until the next change.
+     *
+     * Not the one bar. gpif keeps a signature on every master bar because
+     * that is how the file is shaped, but a musician who writes 3/4 at bar
+     * five means bars five onwards and not bar five alone -- so it runs
+     * forward over every bar that shares the old signature and stops at the
+     * first that does not, which is where the next change already is.
+     *
+     * What was already written in those bars is left exactly where it is. A
+     * bar of four crotchets asked to be 3/4 is now a bar that does not add up,
+     * and the page marks it: taking the difference out of the last note would
+     * be rewriting music nobody asked it to touch, and is the one thing an
+     * editor must never do quietly.
+     *
+     * Refused on a numerator outside one to thirty-two, or a denominator that
+     * is not a power of two up to sixty-four -- 4/5 is a typing mistake and
+     * not a time signature.
+     */
+    Edit setTimeSignature(int numerator, int denominator);
+
+    /** Whether the caret's bar is where the signature changes rather than continues. */
+    bool timeSignatureWrittenHere() const;
+
     // ---- how long a beat lasts ----
 
     /**

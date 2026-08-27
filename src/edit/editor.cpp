@@ -857,6 +857,117 @@ private:
  * were written on a particular bar, and a "Chorus" that suddenly starts a bar
  * early is a worse mistake than one that has to be typed again.
  */
+/**
+ * The tempo at a bar, put there or taken away.
+ *
+ * It keeps the whole list rather than the entry it changed. There are a
+ * handful of them in the longest score anybody has, and "put it back exactly
+ * as it was" is a promise that a record of one entry cannot keep once setting
+ * a tempo has swept up two others that were in the same bar.
+ */
+class SetTempoCommand : public QUndoCommand
+{
+public:
+    /** A `bpm` of zero takes the change away instead of putting one there. */
+    SetTempoCommand(Editor *editor, int bar, double bpm)
+        : m_editor(editor)
+        , m_bar(bar)
+        , m_bpm(bpm)
+    {
+        m_previous = editor->score().tempos;
+        setText(bpm > 0 ? i18n("Set tempo") : i18n("Clear tempo"));
+    }
+
+    void redo() override
+    {
+        Score &score = m_editor->mutableScore();
+        QList<TempoChange> kept;
+        bool placed = false;
+        for (const TempoChange &tempo : std::as_const(m_previous)) {
+            if (tempo.bar == m_bar) {
+                continue;       // whatever this bar had, it does not have now
+            }
+            // Kept in bar order, so the new one goes in where it belongs
+            // rather than on the end -- everything downstream walks this list
+            // expecting it to be in the order the music is played.
+            if (!placed && m_bpm > 0 && tempo.bar > m_bar) {
+                kept.append({m_bar, 0, m_bpm});
+                placed = true;
+            }
+            kept.append(tempo);
+        }
+        if (!placed && m_bpm > 0) {
+            kept.append({m_bar, 0, m_bpm});
+        }
+        score.tempos = kept;
+        m_editor->noteEdited(m_bar);
+    }
+
+    void undo() override
+    {
+        m_editor->mutableScore().tempos = m_previous;
+        m_editor->noteEdited(m_bar);
+    }
+
+private:
+    Editor *m_editor;
+    int m_bar = 0;
+    double m_bpm = 0;
+    QList<TempoChange> m_previous;
+};
+
+/**
+ * A time signature, over the run of bars it governs.
+ *
+ * It records what every bar it touched was before, rather than one signature
+ * and a count: undo has to put back what was there, and "what was there" is
+ * not necessarily one value once a score has been edited more than once.
+ */
+class SetTimeCommand : public QUndoCommand
+{
+public:
+    SetTimeCommand(Editor *editor, const QList<int> &bars, int numerator, int denominator)
+        : m_editor(editor)
+        , m_bars(bars)
+        , m_numerator(numerator)
+        , m_denominator(denominator)
+    {
+        const Score &score = editor->score();
+        for (const int index : bars) {
+            m_previous.append({score.masterBars.at(index).numerator,
+                               score.masterBars.at(index).denominator});
+        }
+        setText(i18n("Set time signature"));
+    }
+
+    void redo() override
+    {
+        Score &score = m_editor->mutableScore();
+        for (const int index : std::as_const(m_bars)) {
+            score.masterBars[index].numerator = m_numerator;
+            score.masterBars[index].denominator = m_denominator;
+        }
+        m_editor->noteEdited(m_bars.isEmpty() ? 0 : m_bars.first());
+    }
+
+    void undo() override
+    {
+        Score &score = m_editor->mutableScore();
+        for (int at = 0; at < m_bars.size(); ++at) {
+            score.masterBars[m_bars.at(at)].numerator = m_previous.at(at).first;
+            score.masterBars[m_bars.at(at)].denominator = m_previous.at(at).second;
+        }
+        m_editor->noteEdited(m_bars.isEmpty() ? 0 : m_bars.first());
+    }
+
+private:
+    Editor *m_editor;
+    QList<int> m_bars;
+    int m_numerator = 4;
+    int m_denominator = 4;
+    QList<QPair<int, int>> m_previous;
+};
+
 class InsertBarCommand : public QUndoCommand
 {
 public:
@@ -1571,6 +1682,109 @@ bool Editor::canDeleteBar() const
 {
     return m_cursor.bar >= 0 && m_cursor.bar < m_score.masterBars.size()
         && m_score.masterBars.size() > 1;
+}
+
+bool Editor::hasTempoHere() const
+{
+    for (const TempoChange &tempo : m_score.tempos) {
+        if (tempo.bar == m_cursor.bar) {
+            return true;
+        }
+    }
+    return false;
+}
+
+Editor::Edit Editor::setTempo(double quarterBpm)
+{
+    if (m_cursor.bar < 0 || m_cursor.bar >= m_score.masterBars.size()) {
+        return Edit::Nothing;
+    }
+    // Wider than music and narrow enough to catch a slipped digit. A refusal
+    // rather than a clamp: 1100 is a typing mistake, and quietly turning it
+    // into 400 would leave somebody looking for the tempo they typed.
+    if (quarterBpm < 20 || quarterBpm > 400) {
+        return Edit::Refused;
+    }
+    // Nothing to do is not a refusal, and pushing a command for it would put a
+    // step on the undo stack that undoes nothing visible.
+    if (hasTempoHere()) {
+        for (const TempoChange &tempo : std::as_const(m_score.tempos)) {
+            if (tempo.bar == m_cursor.bar && qFuzzyCompare(tempo.quarterBpm, quarterBpm)
+                && tempo.position == 0) {
+                return Edit::Nothing;
+            }
+        }
+    }
+    m_undo->push(new SetTempoCommand(this, m_cursor.bar, quarterBpm));
+    return Edit::Done;
+}
+
+Editor::Edit Editor::clearTempo()
+{
+    if (!hasTempoHere()) {
+        return Edit::Nothing;
+    }
+    // The first bar keeps a tempo whatever happens: with nothing before it to
+    // inherit from, a score whose opening bar has no tempo is a score played
+    // at whatever the default happens to be, which is not what anybody meant
+    // by taking a marking off.
+    if (m_cursor.bar == 0) {
+        return Edit::Refused;
+    }
+    m_undo->push(new SetTempoCommand(this, m_cursor.bar, 0));
+    return Edit::Done;
+}
+
+bool Editor::timeSignatureWrittenHere() const
+{
+    const int bar = m_cursor.bar;
+    if (bar < 0 || bar >= m_score.masterBars.size()) {
+        return false;
+    }
+    // The first bar always states one; every other bar states one only where
+    // it differs from the bar before it, which is where a page prints it.
+    if (bar == 0) {
+        return true;
+    }
+    const MasterBar &here = m_score.masterBars.at(bar);
+    const MasterBar &before = m_score.masterBars.at(bar - 1);
+    return here.numerator != before.numerator || here.denominator != before.denominator;
+}
+
+Editor::Edit Editor::setTimeSignature(int numerator, int denominator)
+{
+    const int bar = m_cursor.bar;
+    if (bar < 0 || bar >= m_score.masterBars.size()) {
+        return Edit::Nothing;
+    }
+    // A denominator names a note value, so it is a power of two or it is
+    // nothing: 4/5 is a slipped finger and not a bar anybody can write down.
+    const bool power = denominator > 0 && denominator <= 64
+        && (denominator & (denominator - 1)) == 0;
+    if (numerator < 1 || numerator > 32 || !power) {
+        return Edit::Refused;
+    }
+
+    const MasterBar &here = m_score.masterBars.at(bar);
+    if (here.numerator == numerator && here.denominator == denominator) {
+        return Edit::Nothing;
+    }
+
+    // Forward over every bar that shares the signature being replaced, and
+    // stop at the first that does not: that one is the next change, and it was
+    // not what anybody asked to alter.
+    const int wasNumerator = here.numerator;
+    const int wasDenominator = here.denominator;
+    QList<int> run;
+    for (int index = bar; index < m_score.masterBars.size(); ++index) {
+        const MasterBar &next = m_score.masterBars.at(index);
+        if (next.numerator != wasNumerator || next.denominator != wasDenominator) {
+            break;
+        }
+        run.append(index);
+    }
+    m_undo->push(new SetTimeCommand(this, run, numerator, denominator));
+    return Edit::Done;
 }
 
 void Editor::insertBar()

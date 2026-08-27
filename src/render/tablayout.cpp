@@ -4,12 +4,14 @@
 #include "tablayout.h"
 
 #include "swing.h"
+#include "timeline.h"
 
 #include <KLocalizedString>
 
 #include "notevalue.h"
 
 #include <QHash>
+#include <QStringList>
 #include <QMap>
 
 #include <algorithm>
@@ -18,6 +20,18 @@
 
 namespace
 {
+/**
+ * How fast, written the way it has been written since Maelzel.
+ *
+ * A crotchet and a number: the unit is the quarter note whatever the time
+ * signature is, which is the quantity the model keeps and the one a metronome
+ * counts.
+ */
+QString tempoMarking(double quarterBpm)
+{
+    return QStringLiteral("\u2669 = %1").arg(QString::number(quarterBpm, 'g', 4));
+}
+
 /**
  * How much room a beat asks for, given how long it lasts.
  *
@@ -301,20 +315,6 @@ Tab::Layout Tab::layOut(const Score &score, int trackIndex, const Style &style)
         return layout;
     }
 
-    // Whether this score says anything to the player at all. Asked before
-    // anything is placed, because the answer decides how much room every
-    // system on every page needs above it.
-    bool speaks = false;
-    for (const MasterBar &master : score.masterBars) {
-        if (master.tripletFeel != TripletFeel::None) {
-            speaks = true;
-            break;
-        }
-    }
-    if (speaks) {
-        layout.style.systemSpacing += layout.style.directionGap;
-    }
-    const Style &measured = layout.style;
 
     const Track &track = score.tracks.at(trackIndex);
     layout.title = score.title;
@@ -332,14 +332,30 @@ Tab::Layout Tab::layOut(const Score &score, int trackIndex, const Style &style)
     int denominator = 0;
     TripletFeel feel = TripletFeel::None;
     for (int index = 0; index < score.masterBars.size(); ++index) {
-        LaidBar bar = measure(score, trackIndex, index, measured);
+        LaidBar bar = measure(score, trackIndex, index, style);
         const MasterBar &master = score.masterBars.at(index);
+
+        // Everything this bar has to say to the player, in the order printed
+        // music says it: how fast, and then how to feel it.
+        QStringList said;
+        bool changesTempo = index == 0;
+        for (const TempoChange &tempo : score.tempos) {
+            changesTempo = changesTempo || tempo.bar == index;
+        }
+        if (changesTempo) {
+            // The first bar carries one whether or not a change is written
+            // there: a page that does not say how fast it goes is missing the
+            // first thing a player looks for.
+            said.append(tempoMarking(Timeline::tempoAtBar(score, index)));
+        }
         if (master.tripletFeel != feel) {
             feel = master.tripletFeel;
-            bar.direction = feel == TripletFeel::None
-                ? i18nc("a direction to the player: play it as it is written", "straight")
-                : Swing::nameOf(feel);
+            said.append(feel == TripletFeel::None
+                            ? i18nc("a direction to the player: play it as it is written",
+                                    "straight")
+                            : Swing::nameOf(feel));
         }
+        bar.direction = said.join(QStringLiteral("  ·  "));
         if (master.numerator != numerator || master.denominator != denominator) {
             numerator = master.numerator;
             denominator = master.denominator;
@@ -359,6 +375,7 @@ Tab::Layout Tab::layOut(const Score &score, int trackIndex, const Style &style)
         bars.append(bar);
     }
 
+    const Style &measured = layout.style;
     const qreal usable = measured.pageWidth - measured.margin * 2;
     // The room a line of music takes is the strings *and* the rhythm under
     // them; the spacing on top of that is what the next line's labels live in.
@@ -372,7 +389,7 @@ Tab::Layout Tab::layOut(const Score &score, int trackIndex, const Style &style)
     // particular line has any, so that one that does is not drawn on top of
     // whatever is above it.
     const qreal labelRoom =
-        measured.labelSize * 4.2 + measured.markGap + (speaks ? measured.directionGap : 0);
+        measured.labelSize * 4.2 + measured.markGap + measured.directionGap;
     qreal y = measured.margin + (measured.showTitle ? measured.titleHeight : 0) + labelRoom;
 
     const auto finishSystem = [&](bool justify) {

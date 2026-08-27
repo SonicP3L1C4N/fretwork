@@ -539,6 +539,79 @@ void Session::clearNote()
     }
 }
 
+double Session::tempoHere() const
+{
+    return hasScore() ? Timeline::tempoAtBar(m_editor.score(), m_editor.cursor().bar) : 120;
+}
+
+bool Session::tempoWrittenHere() const
+{
+    return hasScore() && m_editor.hasTempoHere();
+}
+
+void Session::setTempoHere(double quarterBpm)
+{
+    switch (m_editor.setTempo(quarterBpm)) {
+    case Editor::Edit::Done:
+        setStatus(i18n("Tempo %1 from bar %2",
+                       QString::number(quarterBpm, 'g', 4),
+                       QString::number(m_editor.cursor().bar + 1)));
+        break;
+    case Editor::Edit::Refused:
+        // A number outside the range is a slipped digit rather than a tempo,
+        // and saying so is the difference between a field that refused and a
+        // field that appears not to work.
+        setStatus(i18n("A tempo has to be between 20 and 400"));
+        break;
+    case Editor::Edit::Nothing:
+        break;
+    }
+}
+
+void Session::clearTempoHere()
+{
+    if (m_editor.clearTempo() == Editor::Edit::Refused) {
+        setStatus(i18n("The first bar keeps its tempo: there is nothing before it to "
+                       "take one from"));
+    }
+}
+
+QString Session::timeHere() const
+{
+    if (!hasScore()) {
+        return QString();
+    }
+    const MasterBar &bar = m_editor.score().masterBars.at(m_editor.cursor().bar);
+    return QStringLiteral("%1/%2").arg(bar.numerator).arg(bar.denominator);
+}
+
+bool Session::timeWrittenHere() const
+{
+    return hasScore() && m_editor.timeSignatureWrittenHere();
+}
+
+void Session::setTimeHere(const QString &signature)
+{
+    const QStringList parts = signature.split(QLatin1Char('/'));
+    if (parts.size() != 2) {
+        setStatus(i18n("A time signature is two numbers with a slash between them"));
+        return;
+    }
+    switch (m_editor.setTimeSignature(parts.at(0).toInt(), parts.at(1).toInt())) {
+    case Editor::Edit::Done:
+        setStatus(i18n("%1 from bar %2", timeHere(),
+                       QString::number(m_editor.cursor().bar + 1)));
+        break;
+    case Editor::Edit::Refused:
+        // The denominator is the half of this people get wrong, and saying
+        // which half is wrong beats saying that something is.
+        setStatus(i18n("The lower number has to be 1, 2, 4, 8, 16, 32 or 64"));
+        break;
+    case Editor::Edit::Nothing:
+        break;
+    }
+}
+
 void Session::transpose(int frets)
 {
     if (m_editor.transpose(frets) != Editor::Edit::Refused) {

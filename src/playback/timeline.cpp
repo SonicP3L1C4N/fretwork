@@ -383,6 +383,29 @@ QList<Timeline::Message> Timeline::clickFor(const Score &score, const QList<int>
     return messages;
 }
 
+double Timeline::tempoAtBar(const Score &score, int bar)
+{
+    // 120 where a score says nothing at all, which is the same default the
+    // rest of the program falls back to and the one every sequencer uses.
+    double bpm = 120;
+    int bestBar = -1;
+    double bestPosition = -1;
+    for (const TempoChange &tempo : score.tempos) {
+        // The latest change at or before this bar, found by looking at all of
+        // them rather than by stopping at the first one that is too late: the
+        // editor keeps this list in order and an importer is not obliged to.
+        if (tempo.bar > bar) {
+            continue;
+        }
+        if (tempo.bar > bestBar || (tempo.bar == bestBar && tempo.position > bestPosition)) {
+            bestBar = tempo.bar;
+            bestPosition = tempo.position;
+            bpm = tempo.quarterBpm;
+        }
+    }
+    return bpm;
+}
+
 QList<Timeline::TempoEvent> Timeline::tempoMap(const Score &score, const QList<int> &order)
 {
     if (score.tempos.isEmpty()) {

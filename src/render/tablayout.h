@@ -32,7 +32,7 @@ struct Style {
     qreal margin = 40;
 
     qreal stringSpacing = 11;   //< between the lines of the tablature
-    qreal systemSpacing = 54;   //< between one line of music and the next,
+    qreal systemSpacing = 68;   //< between one line of music and the next,
                                 //  and the room the labels above it need
 
     /**
@@ -49,12 +49,14 @@ struct Style {
     /**
      * The row above the section names, where a direction to the player goes.
      *
-     * "Triplet quavers", and in time a tempo marking or a fermata: the things
-     * printed music says to whoever is playing rather than draws as notes.
-     * Reserved only on a score that has one -- a piece with nothing to say to
-     * the player is laid out exactly as tall as it was before this row
-     * existed, which is why adding it re-paginates nothing that was not
-     * already carrying a direction.
+     * A tempo marking, a triplet feel, and in time a fermata or a rit.: the
+     * things printed music says to whoever is playing rather than draws as
+     * notes.
+     *
+     * Reserved on every page, which it was not when it held only a feel. Once
+     * the tempo is printed there is no such thing as a score with nothing to
+     * say -- every piece has a speed, and a page that does not give it is
+     * missing the first thing a player looks for.
      */
     qreal directionGap = 14;
     /**
