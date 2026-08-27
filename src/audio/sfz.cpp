@@ -10,6 +10,9 @@
 #include <QFileInfo>
 #include <QHash>
 #include <QRegularExpression>
+#include <QSet>
+
+#include <algorithm>
 
 namespace
 {
@@ -98,6 +101,22 @@ Sfz::Region regionFrom(const Level &settings, const QString &directory,
     region.loopEnd = qint64(number("loop_end", -1));
     region.release = number("ampeg_release", 0.05);
     region.group = int(number("group", 0));
+    region.lowRandom = number("lorand", 0);
+    region.highRandom = number("hirand", 1);
+    region.delay = number("delay", 0);
+    region.switchLow = keyOf(value("sw_lokey"), -1);
+    region.switchHigh = keyOf(value("sw_hikey"), -1);
+    region.switchLast = keyOf(value("sw_last"), -1);
+    region.switchDefault = keyOf(value("sw_default"), -1);
+
+    const QString trigger = value("trigger").toLower();
+    if (trigger == QLatin1String("release")) {
+        region.trigger = Sfz::Region::Trigger::Release;
+    } else if (trigger == QLatin1String("first")) {
+        region.trigger = Sfz::Region::Trigger::First;
+    } else if (trigger == QLatin1String("legato")) {
+        region.trigger = Sfz::Region::Trigger::Legato;
+    }
     region.offBy = int(number("off_by", number("offby", 0)));
 
     QString sample = value("sample");
@@ -228,4 +247,67 @@ Sfz::Instrument Sfz::read(const QString &path, QString *error)
         return {};
     }
     return parse(QString::fromUtf8(file.readAll()), QFileInfo(path).absolutePath(), error);
+}
+
+QList<Sfz::Library> Sfz::found(const QStringList &roots, int maximumDepth)
+{
+    QList<Library> libraries;
+    QSet<QString> seen;
+
+    // Breadth first with a depth cap, so a directory that turns out to hold a
+    // whole disk of samples still answers rather than descending for ever.
+    for (const QString &root : roots) {
+        const QDir base(root);
+        QList<QPair<QString, int>> pending;
+        pending.append({root, 0});
+        while (!pending.isEmpty()) {
+            const auto [where, depth] = pending.takeFirst();
+            QDir directory(where);
+            if (!directory.exists()) {
+                continue;
+            }
+            const QFileInfoList entries = directory.entryInfoList(
+                QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+            for (const QFileInfo &entry : entries) {
+                if (entry.isDir()) {
+                    if (depth < maximumDepth) {
+                        pending.append({entry.absoluteFilePath(), depth + 1});
+                    }
+                    continue;
+                }
+                if (entry.suffix().compare(QLatin1String("sfz"), Qt::CaseInsensitive) != 0) {
+                    continue;
+                }
+                const QString path = entry.absoluteFilePath();
+                if (seen.contains(path)) {
+                    continue;
+                }
+                seen.insert(path);
+
+                // The collection is the first folder under the root, which is
+                // one downloaded library: a menu of five hundred programmes is
+                // a menu nobody can use, and they come in about a dozen boxes.
+                const QString relative = base.relativeFilePath(path);
+                const int slash = relative.indexOf(QLatin1Char('/'));
+                const QString collection =
+                    slash > 0 ? relative.left(slash) : base.dirName();
+
+                // What is left of the path is the programme, minus the
+                // extension: "Programs/03-kit-complete" says more than
+                // "03-kit-complete" and much more than "kit".
+                QString name = slash > 0 ? relative.mid(slash + 1) : relative;
+                if (name.endsWith(QLatin1String(".sfz"), Qt::CaseInsensitive)) {
+                    name.chop(4);
+                }
+                libraries.append({collection, name, path});
+            }
+        }
+    }
+
+    std::sort(libraries.begin(), libraries.end(),
+              [](const Library &a, const Library &b) {
+                  const int box = a.collection.localeAwareCompare(b.collection);
+                  return box != 0 ? box < 0 : a.name.localeAwareCompare(b.name) < 0;
+              });
+    return libraries;
 }

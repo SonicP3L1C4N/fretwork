@@ -4,6 +4,7 @@
 #pragma once
 
 #include "editor.h"
+#include "sfz.h"
 #include "player.h"
 #include "score.h"
 #include "tablayout.h"
@@ -71,6 +72,21 @@ class Session : public QObject
     /** What the current part is called and what it is, for the editor of both. */
     Q_PROPERTY(QString trackNameHere READ trackNameHere NOTIFY cursorMoved)
     Q_PROPERTY(QString instrumentHere READ instrumentHere NOTIFY cursorMoved)
+
+    /**
+     * The sample library the current part is played from, and what there is.
+     *
+     * Kept for the session and not written into the score. Which recordings a
+     * part is played through is a property of this machine -- where the files
+     * are, which of them are installed -- and a `.fw` that named a path on
+     * somebody's disk would be a `.fw` that opened wrong everywhere else.
+     */
+    Q_PROPERTY(QString samplerHere READ samplerHere NOTIFY samplersChanged)
+    /** Every programme found, as {collection, name, path}, in collection order. */
+    Q_PROPERTY(QVariantList libraries READ libraries NOTIFY samplersChanged)
+
+    /** The collections they came in, which is what the menu is grouped by. */
+    Q_PROPERTY(QStringList collections READ collections NOTIFY samplersChanged)
 
     /** Everything a new part may be: names to show, and ids to ask for. */
     Q_PROPERTY(QStringList instrumentNames READ instrumentNames CONSTANT)
@@ -169,6 +185,17 @@ public:
 
     /** Moves a part up or down the list by `by` places, bars and all. */
     Q_INVOKABLE void moveTrack(int track, int by);
+
+    /** The library the current part uses, by name; empty for a General MIDI part. */
+    QString samplerHere() const;
+    QVariantList libraries() const;
+    QStringList collections() const;
+
+    /** Plays the current part from `path`, or from a programme when empty. */
+    Q_INVOKABLE void setSamplerHere(const QString &path);
+
+    /** Looks again at where sample libraries live. */
+    Q_INVOKABLE void rescanLibraries();
 
     QStringList instrumentNames() const;
     QStringList instrumentIds() const;
@@ -367,6 +394,7 @@ Q_SIGNALS:
     void playingChanged();
     void clickChanged();
     void portsChanged();
+    void samplersChanged();
     void positionChanged();
     void layoutChanged();
     void mixerChanged();
@@ -390,6 +418,8 @@ private:
     bool m_click = false;
     bool m_ports = false;
     bool m_following = false;
+    QHash<int, QString> m_samplers;
+    QList<Sfz::Library> m_libraries;
     double m_clickGain = 1.0;
     int m_currentBar = -1;
     bool m_wasPlaying = false;

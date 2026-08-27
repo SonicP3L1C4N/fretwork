@@ -57,6 +57,42 @@ struct Region {
     int sequenceLength = 1;
     int sequencePosition = 1;
 
+    /**
+     * The other kind of round-robin: a range of a random draw.
+     *
+     * A library picks a number between nought and one for each note and plays
+     * whichever region's range contains it. Karoryfer's guitars are written
+     * this way and a sampler that ignored it would play all five takes at
+     * once, which is not five times louder so much as wrong -- the same
+     * recording five times over is a comb filter.
+     */
+    double lowRandom = 0;
+    double highRandom = 1;
+
+    /**
+     * A keyswitch: which articulation this region belongs to.
+     *
+     * Notes in the switch range do not sound; they choose which of the
+     * regions above them answer. `switchLast` of -1 means the region is not
+     * part of any articulation and always answers.
+     */
+    int switchLow = -1;
+    int switchHigh = -1;
+    int switchLast = -1;
+    int switchDefault = -1;
+
+    /** When a region fires: on the note, or on letting it go. */
+    enum class Trigger {
+        Attack,
+        Release,
+        First,
+        Legato,
+    };
+    Trigger trigger = Trigger::Attack;
+
+    /** How long after the note this region waits, in seconds. */
+    double delay = 0;
+
     /** Frames into the recording to start and stop; -1 is to the end of it. */
     qint64 offset = 0;
     qint64 end = -1;
@@ -87,6 +123,29 @@ struct Instrument {
         return regions.isEmpty();
     }
 };
+
+/** An instrument found on the machine, and where it is. */
+struct Library {
+    QString collection;         //< the library it belongs to, as a folder name
+    QString name;               //< the programme within it
+    QString path;
+};
+
+/**
+ * Every `.sfz` under these directories, by the name a person would call it.
+ *
+ * Because choosing a sample library through a file dialog every time is
+ * choosing it through a file dialog every time: the libraries somebody has are
+ * in a handful of folders and the program can go and look. A library is
+ * usually a repository with the instrument a directory or two down, so this
+ * descends -- but only so far, because pointing it at a home directory should
+ * take a moment rather than a morning.
+ *
+ * Named after the folder the file is in where that says more than the file
+ * does: "Emilyguitar" beats "Emilyguitar/Emilyguitar", and a bare "sustain.sfz"
+ * beside forty others tells nobody anything.
+ */
+QList<Library> found(const QStringList &roots, int maximumDepth = 5);
 
 /** Reads an `.sfz`. Empty, with `error` set, where it cannot. */
 Instrument read(const QString &path, QString *error = nullptr);

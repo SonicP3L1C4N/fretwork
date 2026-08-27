@@ -3,6 +3,9 @@
 
 #include "sfz.h"
 
+#include <QDir>
+#include <QFile>
+#include <QTemporaryDir>
 #include <QTest>
 
 /**
@@ -156,6 +159,42 @@ private Q_SLOTS:
                        QStringLiteral("/samples"), &why);
         QVERIFY(instrument.isEmpty());
         QVERIFY2(why.contains(QLatin1String("region")), qPrintable(why));
+    }
+
+    void findsWhatIsInstalledAndGroupsItByLibrary()
+    {
+        QTemporaryDir root;
+        QVERIFY(root.isValid());
+        const QDir base(root.path());
+        QVERIFY(base.mkpath(QStringLiteral("karoryfer.emilyguitar-master")));
+        QVERIFY(base.mkpath(QStringLiteral("unruly-drums/Programs")));
+        QVERIFY(base.mkpath(QStringLiteral("unruly-drums/Samples")));
+
+        const auto touch = [&](const QString &where) {
+            QFile file(base.filePath(where));
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write("<region> sample=a.wav\n");
+        };
+        touch(QStringLiteral("karoryfer.emilyguitar-master/emily_clean.sfz"));
+        touch(QStringLiteral("karoryfer.emilyguitar-master/emily_basic.sfz"));
+        touch(QStringLiteral("unruly-drums/Programs/01-kit.sfz"));
+        touch(QStringLiteral("unruly-drums/Samples/not-a-programme.txt"));
+
+        const QList<Sfz::Library> found = Sfz::found({root.path()});
+        QCOMPARE(found.size(), 3);
+
+        // Grouped by the folder they were downloaded in, because a drum kit
+        // alone holds dozens of programmes and a flat list is unusable.
+        QCOMPARE(found.at(0).collection, QStringLiteral("karoryfer.emilyguitar-master"));
+        QCOMPARE(found.at(0).name, QStringLiteral("emily_basic"));
+        QCOMPARE(found.at(2).collection, QStringLiteral("unruly-drums"));
+        // The path within the library is kept, because "01-kit" alone says
+        // less than "Programs/01-kit".
+        QCOMPARE(found.at(2).name, QStringLiteral("Programs/01-kit"));
+
+        // A directory with nothing in it is not an error, it is no libraries.
+        QVERIFY(Sfz::found({base.filePath(QStringLiteral("unruly-drums/Samples"))}).isEmpty());
+        QVERIFY(Sfz::found({QStringLiteral("/nowhere/at/all")}).isEmpty());
     }
 };
 

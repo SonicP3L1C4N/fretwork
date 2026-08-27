@@ -381,6 +381,24 @@ skips the rest rather than refusing it. Several hundred opcodes exist; a
 library that would not load because it mentioned a filter cutoff is a library
 nobody can use.
 
+Libraries are found rather than navigated to. Anything under
+`~/.local/share/fretwork/instruments` is offered in a menu in the track panel,
+grouped by the library it came in — a drum kit alone can hold forty programmes,
+and a flat list of five hundred is a list nobody reads. Which library a part
+uses is kept for the session and **not** written into the score: which
+recordings a part is played through is a property of this machine, and a `.fw`
+naming a path on somebody's disk would open wrong everywhere else.
+
+Reading a real library was worth more than any amount of reasoning about the
+format. Karoryfer's guitars use `lorand`/`hirand` rather than `seq_position`
+for their round-robins — a number drawn per note, and the region whose range
+contains it plays — and a sampler ignoring that plays all five takes at once,
+which is not five times louder so much as a comb filter. They also carry
+release noises under `trigger=release`, which fired on the attack of every
+note until they were skipped, and per-region `delay`. None of that was
+guessable from the specification; all of it was obvious ten seconds after
+pointing this at a real instrument.
+
 Not sfizz: it is not packaged, and vendoring a large C++ library to use a dozen
 opcodes was the worse trade. The cost of that is stated rather than hidden —
 this interpolates in a straight line between two samples, which is audibly fine

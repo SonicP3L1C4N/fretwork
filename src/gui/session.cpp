@@ -14,6 +14,7 @@
 #include <QFileInfo>
 #include <QHash>
 #include <QRegularExpression>
+#include <QStandardPaths>
 #include <QUrl>
 
 #include <algorithm>
@@ -53,6 +54,8 @@ Session::Session(QObject *parent)
     });
     connect(&m_editor, &Editor::cursorChanged, this, &Session::cursorMoved);
     connect(&m_editor, &Editor::historyChanged, this, &Session::historyChanged);
+
+    rescanLibraries();
 
     m_ticker.setInterval(50);
     connect(&m_ticker, &QTimer::timeout, this, [this] {
@@ -179,6 +182,7 @@ void Session::rebuildPlayer()
     }
 
     Player::Options options;
+    options.samplers = m_samplers;
     options.perTrackPorts = m_ports || m_following;
     options.followTransport = m_following;
     auto player = std::make_unique<Player>(m_editor.score(), m_order, options);
@@ -312,6 +316,88 @@ void Session::setCurrentTrack(int track)
 
     rebuildLayout();
     Q_EMIT currentTrackChanged();
+}
+
+QString Session::samplerHere() const
+{
+    const QString path = m_samplers.value(m_currentTrack);
+    if (path.isEmpty()) {
+        return QString();
+    }
+    for (const Sfz::Library &library : m_libraries) {
+        if (library.path == path) {
+            return library.name;
+        }
+    }
+    // Chosen from a file rather than from the list: the file's own name is
+    // the best anybody can do, and it is what they picked.
+    return QFileInfo(path).completeBaseName();
+}
+
+QVariantList Session::libraries() const
+{
+    QVariantList found;
+    for (const Sfz::Library &library : m_libraries) {
+        found.append(QVariantMap{{QStringLiteral("collection"), library.collection},
+                                 {QStringLiteral("name"), library.name},
+                                 {QStringLiteral("path"), library.path}});
+    }
+    return found;
+}
+
+QStringList Session::collections() const
+{
+    QStringList boxes;
+    for (const Sfz::Library &library : m_libraries) {
+        if (!boxes.contains(library.collection)) {
+            boxes.append(library.collection);
+        }
+    }
+    return boxes;
+}
+
+void Session::rescanLibraries()
+{
+    // Where a person's libraries actually are: the place this program would
+    // put one, and the standard share directories, which is where a package
+    // would put one.
+    QStringList roots =
+        QStandardPaths::standardLocations(QStandardPaths::AppDataLocation);
+    for (QString &root : roots) {
+        root += QStringLiteral("/instruments");
+    }
+    m_libraries = Sfz::found(roots);
+    Q_EMIT samplersChanged();
+}
+
+void Session::setSamplerHere(const QString &path)
+{
+    const QString local = QUrl(path).isLocalFile() ? QUrl(path).toLocalFile() : path;
+    if (m_samplers.value(m_currentTrack) == local) {
+        return;
+    }
+
+    const QHash<int, QString> was = m_samplers;
+    if (local.isEmpty()) {
+        m_samplers.remove(m_currentTrack);
+    } else {
+        m_samplers.insert(m_currentTrack, local);
+    }
+
+    stop();
+    rebuildPlayer();
+    if (!canPlay() && !local.isEmpty()) {
+        // It would not load. Back to the programme rather than leaving
+        // somebody with a part that cannot be played at all; the status bar
+        // already carries whatever the player said was wrong with it.
+        m_samplers = was;
+        rebuildPlayer();
+    } else {
+        setStatus(local.isEmpty()
+                      ? i18n("%1 is back on a General MIDI programme", trackNameHere())
+                      : i18n("%1 is playing from %2", trackNameHere(), samplerHere()));
+    }
+    Q_EMIT samplersChanged();
 }
 
 bool Session::isFollowing() const

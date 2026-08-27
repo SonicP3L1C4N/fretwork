@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <random>
 
 namespace
 {
@@ -94,6 +95,19 @@ Sampler::Sampler(const Sfz::Instrument &instrument, const QList<Timeline::Messag
         // A recording made at one rate and played out at another has to be
         // stepped through faster or slower before any pitching is considered.
         playable.stepScale = playable.sound->rate / std::max(1, m_options.sampleRate);
+        if (region.switchLow >= 0 && region.switchHigh >= 0) {
+            m_switchLow = std::min(m_switchLow, region.switchLow);
+            m_switchHigh = std::max(m_switchHigh, region.switchHigh);
+        }
+        if (m_switch < 0 && region.switchDefault >= 0) {
+            m_switch = region.switchDefault;
+        }
+        // With no default said out loud, the lowest articulation is the one a
+        // library expects before anybody has chosen: silence until a keyswitch
+        // is pressed would be an instrument that appears not to work.
+        if (region.switchLast >= 0) {
+            m_switch = m_switch < 0 ? region.switchLast : std::min(m_switch, region.switchLast);
+        }
         m_playables.push_back(playable);
     }
 
@@ -142,23 +156,52 @@ qint64 Sampler::lastEventSample() const
 
 void Sampler::startNote(int channel, int key, int velocity)
 {
+    // A note in the switch range chooses an articulation and makes no sound of
+    // its own, which is what a keyswitch is.
+    if (key >= m_switchLow && key <= m_switchHigh) {
+        m_switch = key;
+        return;
+    }
+
     // Which take of the round-robin this is. Counted per note, because that is
     // what a listener notices: the same note twice in a row is what gives a
     // sampled instrument away, and two different notes never sounded alike.
     const int turn = m_sequence.value(key, 0);
 
+    // One draw for the note, compared against every candidate: a draw per
+    // region would let two of them answer, or none.
+    const double drawn =
+        std::uniform_real_distribution<double>(0.0, 1.0)(m_random);
+
     bool started = false;
     for (const Playable &playable : m_playables) {
         const Sfz::Region &region = playable.region;
+        // Only what fires when a note is struck. Release noises, first-note
+        // and legato regions are real parts of a library and are not this: a
+        // sampler that fired them here would put a fingering squeak on the
+        // front of every note.
+        if (region.trigger != Sfz::Region::Trigger::Attack) {
+            continue;
+        }
         if (key < region.lowKey || key > region.highKey) {
             continue;
         }
         if (velocity < region.lowVelocity || velocity > region.highVelocity) {
             continue;
         }
+        if (region.switchLast >= 0 && region.switchLast != m_switch) {
+            continue;
+        }
         if (region.sequenceLength > 1
             && region.sequencePosition != (turn % region.sequenceLength) + 1) {
             continue;
+        }
+        // A range of nought to one is every note, which is what a region with
+        // no lorand at all means.
+        if (drawn < region.lowRandom || drawn >= region.highRandom) {
+            if (!(region.lowRandom <= 0 && region.highRandom >= 1)) {
+                continue;
+            }
         }
 
         // Anything this region turns off, goes. Two notes on one string cannot
@@ -202,6 +245,7 @@ void Sampler::startNote(int channel, int key, int velocity)
         free->channel = channel;
         free->group = region.group;
         free->fade = 1.0f;
+        free->waiting = qint64(std::max(0.0, region.delay) * m_options.sampleRate);
         free->active = true;
         started = true;
     }
@@ -271,6 +315,10 @@ void Sampler::fill(float *left, float *right, int frames, qint64 at)
         const double step = voice.step * std::pow(2.0, bend / 1200.0);
 
         for (int frame = 0; frame < frames; ++frame) {
+            if (voice.waiting > 0) {
+                --voice.waiting;
+                continue;
+            }
             if (voice.position >= double(last)) {
                 if (region.loops && loopEnd > region.loopStart) {
                     voice.position = double(region.loopStart)

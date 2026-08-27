@@ -114,6 +114,13 @@ Kirigami.ApplicationWindow {
     }
 
     Dialogs.FileDialog {
+        id: sfzDialog
+        title: i18n("Choose a sample library")
+        nameFilters: [i18n("SFZ instruments (*.sfz)"), i18n("All files (*)")]
+        onAccepted: session.setSamplerHere(selectedFile)
+    }
+
+    Dialogs.FileDialog {
         id: saveDialog
         title: i18n("Save the score")
         fileMode: Dialogs.FileDialog.SaveFile
@@ -907,6 +914,97 @@ Kirigami.ApplicationWindow {
                                 checkable: false
                                 QQC2.ToolTip.text: i18n("Move it down")
                                 onClicked: session.moveTrack(session.currentTrack, 1)
+                            }
+                        }
+                    }
+
+                    /**
+                     * Which recordings the part is played from.
+                     *
+                     * A menu of what is installed rather than a file dialog:
+                     * the libraries somebody has are in a folder the program
+                     * knows about, and picking one should not mean navigating
+                     * to it. Grouped by the library they came in, because a
+                     * drum kit alone can hold forty programmes and a flat list
+                     * of five hundred is a list nobody reads.
+                     *
+                     * Not written into the score. Which recordings a part is
+                     * played through is a property of this machine, and a .fw
+                     * naming a path on somebody's disk would open wrong
+                     * everywhere else.
+                     */
+                    QQC2.Button {
+                        Layout.fillWidth: true
+                        Layout.topMargin: Kirigami.Units.smallSpacing
+                        visible: session.stringsHere > 0 || session.instrumentHere.length > 0
+                        flat: true
+                        text: session.samplerHere.length > 0
+                            ? i18n("Samples: %1", session.samplerHere)
+                            : i18n("Samples: General MIDI")
+                        onClicked: samplesMenu.popup()
+
+                        // A programme name is as long as somebody named it,
+                        // and the panel is as wide as it is.
+                        contentItem: QQC2.Label {
+                            text: parent.text
+                            elide: Text.ElideRight
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            color: Ink.ink
+                        }
+
+                        QQC2.Menu {
+                            id: samplesMenu
+
+                            QQC2.MenuItem {
+                                text: i18n("A General MIDI programme")
+                                onTriggered: session.setSamplerHere("")
+                            }
+
+                            QQC2.MenuSeparator {}
+
+                            // An Instantiator and not a Repeater: a submenu is
+                            // a popup rather than an item, and a Repeater can
+                            // only make items.
+                            Instantiator {
+                                model: session.collections
+                                onObjectAdded: (index, object) =>
+                                    samplesMenu.insertMenu(index + 2, object)
+                                onObjectRemoved: (index, object) =>
+                                    samplesMenu.removeMenu(object)
+
+                                delegate: QQC2.Menu {
+                                    id: collectionMenu
+                                    required property string modelData
+
+                                    title: collectionMenu.modelData
+
+                                    Repeater {
+                                        // Only this collection's programmes,
+                                        // which is what makes the menu a menu
+                                        // rather than a wall.
+                                        model: session.libraries.filter(
+                                            entry => entry.collection
+                                                     === collectionMenu.modelData)
+                                        delegate: QQC2.MenuItem {
+                                            required property var modelData
+                                            text: modelData.name
+                                            onTriggered: session.setSamplerHere(modelData.path)
+                                        }
+                                    }
+                                }
+                            }
+
+                            QQC2.MenuSeparator {}
+
+                            QQC2.MenuItem {
+                                text: i18n("From a file…")
+                                onTriggered: sfzDialog.open()
+                            }
+
+                            QQC2.MenuItem {
+                                text: i18n("Look again")
+                                onTriggered: session.rescanLibraries()
                             }
                         }
                     }

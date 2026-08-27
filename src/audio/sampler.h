@@ -11,6 +11,7 @@
 #include <QString>
 
 #include <memory>
+#include <random>
 #include <vector>
 
 /**
@@ -96,6 +97,7 @@ private:
         float fade = 1;
         float fadeStep = 0;
         bool active = false;
+        qint64 waiting = 0;         //< frames still to wait before it sounds
     };
 
     struct Event {
@@ -116,6 +118,21 @@ private:
 
     /** Which take of a round-robin comes next, counted per note. */
     QHash<int, int> m_sequence;
+
+    /**
+     * The draw for the other kind of round-robin, seeded the same every time.
+     *
+     * Deliberately not seeded from the clock. Rendering a score twice has to
+     * give the same file twice -- the format tests say so -- and an instrument
+     * that chose differently on each pass would make that false without ever
+     * looking like the reason.
+     */
+    std::mt19937 m_random{20260827};
+
+    /** Which articulation is selected, where the library has keyswitches. */
+    int m_switch = -1;
+    int m_switchLow = 128;
+    int m_switchHigh = -1;
 
     /** Per channel, in cents, so a bend reaches a recording as a step change. */
     std::vector<double> m_bend;
