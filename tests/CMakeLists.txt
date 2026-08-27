@@ -63,6 +63,16 @@ ecm_add_test(tablayouttest.cpp
     LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n
 )
 
+ecm_add_test(samplertest.cpp
+    TEST_NAME samplertest
+    LINK_LIBRARIES Qt6::Test fretworkcore
+)
+
+ecm_add_test(sfztest.cpp
+    TEST_NAME sfztest
+    LINK_LIBRARIES Qt6::Test fretworkcore
+)
+
 ecm_add_test(swingtest.cpp
     TEST_NAME swingtest
     LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n

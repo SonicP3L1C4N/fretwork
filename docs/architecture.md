@@ -47,7 +47,7 @@ Wayland, PipeWire 1.6.2.
 | UI toolkit | Qt 6 + KDE Frameworks 6 | Qt 6.10.2, KF6 6.24.0 | Custom-painted dense canvas, mature; matches the platform the program is for |
 | Build | CMake + Ninja, ECM | CMake 3.20+ | KDE's own conventions, so the project stays proposable upstream |
 | Synthesis | FluidSynth | 2.4.8 | SoundFont playback, one instance per track, offline rendering built in |
-| Sample format | SFZ via sfizz, later | not packaged | Round-robins and per-string articulation are what make a guitar sound like a guitar rather than like a General MIDI patch. Not in the Ubuntu archive; vendored or built when P4 arrives |
+| Sample format | SFZ, read and played here | ours, ~600 lines | Round-robins and per-string articulation are what make a guitar sound like a guitar rather than like a General MIDI patch. **Not sfizz, as this row used to say.** It is not in the Ubuntu archive, and vendoring a large C++ library with its own dependency tree to use a dozen opcodes of a format was the worse trade — a parser and a voice allocator for the subset a plucked-string library uses is a few hundred lines that this project can read, test and fix. The cost is stated where it lands: linear interpolation, and no filters or LFOs. If a library ever needs more of the format than this reads, vendoring sfizz is still there to be done |
 | Plugin hosting | lilv + suil | 0.26.2 / 0.10.24 | Per-track LV2 chains — the amplifier simulation that makes stems worth having |
 | Amp simulation | guitarix LV2 | packaged | Already good, already free, already installed on the target machine |
 | Audio I/O | PipeWire native, JACK fallback | 1.6.2 | The target machine already runs a pro-audio PipeWire profile |

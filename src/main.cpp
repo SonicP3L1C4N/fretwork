@@ -33,6 +33,7 @@
 #include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QHash>
 #include <QTextStream>
 #include <QTimer>
 
@@ -43,6 +44,31 @@
 
 namespace
 {
+/**
+ * `--sfz 1=guitar.sfz`, repeated, into a table by track number.
+ *
+ * By track rather than for all of them, because a library exists for the
+ * guitar and does not for the organ, and a score is usually both.
+ */
+QHash<int, QString> samplersFrom(const QStringList &given, QTextStream &error, int *bad)
+{
+    QHash<int, QString> samplers;
+    for (const QString &pair : given) {
+        const int split = pair.indexOf(QLatin1Char('='));
+        bool number = false;
+        const int track = split > 0 ? pair.left(split).toInt(&number) : -1;
+        if (!number || track < 0 || split + 1 >= pair.size()) {
+            error << QStringLiteral("fretwork: --sfz wants a track and a file, as in "
+                                    "--sfz 1=guitar.sfz, not \"%1\"\n")
+                         .arg(pair);
+            ++*bad;
+            continue;
+        }
+        samplers.insert(track, pair.mid(split + 1));
+    }
+    return samplers;
+}
+
 QString clock(double seconds)
 {
     const int whole = int(seconds + 0.5);
@@ -203,11 +229,12 @@ bool writeMidi(QTextStream &out, QTextStream &error, const Score &score,
  */
 bool renderAudio(QTextStream &out, QTextStream &error, const Score &score,
                  const QList<int> &order, const QString &directory,
-                 const QString &soundFont, bool click)
+                 const QString &soundFont, bool click, const QHash<int, QString> &samplers)
 {
     Render::Options options;
     options.soundFont = soundFont;
     options.click = click;
+    options.samplers = samplers;
 
     QString why;
     QList<Render::Written> written;
@@ -287,13 +314,14 @@ bool drawTab(QTextStream &out, QTextStream &error, const Score &score, int track
 bool playScore(QTextStream &out, QTextStream &error, const Score &score,
                const QList<int> &order, const QString &soundFont, const QString &driver,
                const QStringList &solo, const QStringList &mute, bool click, bool ports,
-               bool follow)
+               bool follow, const QHash<int, QString> &samplers)
 {
     Player::Options options;
     options.soundFont = soundFont;
     options.audioDriver = driver;
     options.perTrackPorts = ports || follow;
     options.followTransport = follow;
+    options.samplers = samplers;
 
     Player player(score, order, options);
     if (!player.isValid()) {
@@ -627,6 +655,11 @@ int main(int argc, char *argv[])
                                      i18n("Give every track a pair of ports in the audio "
                                           "graph, for a DAW to record"));
     parser.addOption(porting);
+    const QCommandLineOption sfz(QStringLiteral("sfz"),
+                                 i18n("Play a track from an SFZ instrument rather than a "
+                                      "General MIDI programme; repeatable"),
+                                 i18n("track=file.sfz"));
+    parser.addOption(sfz);
     const QCommandLineOption following(QStringLiteral("follow"),
                                        i18n("Take the transport from the audio graph, so "
                                             "a DAW starts and locates it; implies --ports"));
@@ -704,6 +737,8 @@ int main(int argc, char *argv[])
     }
 
     int failures = 0;
+    const QHash<int, QString> samplers = samplersFrom(parser.values(sfz), error, &failures);
+
     for (const QString &path : files) {
         QString why;
         // Whatever the window can open, this can: a score saved from Fretwork
@@ -747,7 +782,7 @@ int main(int argc, char *argv[])
             if (!playScore(out, error, score, order, parser.value(soundFont),
                            parser.value(audioDriver), parser.values(soloed),
                            parser.values(muted), parser.isSet(clicking),
-                           parser.isSet(porting), parser.isSet(following))) {
+                           parser.isSet(porting), parser.isSet(following), samplers)) {
                 ++failures;
             }
         }
@@ -789,7 +824,7 @@ int main(int argc, char *argv[])
         }
         if (parser.isSet(render)) {
             if (!renderAudio(out, error, score, order, parser.value(render),
-                             parser.value(soundFont), parser.isSet(clicking))) {
+                             parser.value(soundFont), parser.isSet(clicking), samplers)) {
                 ++failures;
             }
         }

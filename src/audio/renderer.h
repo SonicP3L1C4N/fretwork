@@ -6,6 +6,7 @@
 #include "score.h"
 
 #include <QList>
+#include <QHash>
 #include <QString>
 #include <QStringList>
 
@@ -54,6 +55,9 @@ struct Options {
      * can drag in.
      */
     bool click = false;
+
+    /** An `.sfz` per track, by track number, for the parts that have one. */
+    QHash<int, QString> samplers;
 };
 
 /** A General MIDI SoundFont on this machine, or empty if there is none. */

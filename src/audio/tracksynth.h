@@ -4,6 +4,7 @@
 #pragma once
 
 #include "score.h"
+#include "synth.h"
 #include "timeline.h"
 
 #include <QList>
@@ -26,7 +27,7 @@ typedef struct _fluid_synth_t fluid_synth_t;
  * collides. That is what a synth per track buys, and it is why the sixteen
  * channels of a MIDI file are not a limit here.
  */
-class TrackSynth
+class TrackSynth : public Synth
 {
 public:
     struct Options {
@@ -38,12 +39,12 @@ public:
     /** `events` must be sorted by sample position. */
     TrackSynth(const Track &track, const QList<Timeline::Message> &messages,
                const Timeline::Clock &clock, const Options &options);
-    ~TrackSynth();
+    ~TrackSynth() override;
 
     TrackSynth(const TrackSynth &) = delete;
     TrackSynth &operator=(const TrackSynth &) = delete;
 
-    bool isValid() const;
+    bool isValid() const override;
 
     /**
      * Fill `frames` of audio starting at sample `at`.
@@ -52,7 +53,7 @@ public:
      * an audio device or a flat-out loop is asking. Positions must arrive in
      * order; seek() is how they stop doing so.
      */
-    void fill(float *left, float *right, int frames, qint64 at);
+    void fill(float *left, float *right, int frames, qint64 at) override;
 
     /**
      * Move to `sample`, silencing whatever was ringing.
@@ -61,10 +62,10 @@ public:
      * cursor, and allocates nothing. Notes that would have been sounding are
      * not restarted, which is what every sequencer does on a seek.
      */
-    void seek(qint64 sample);
+    void seek(qint64 sample) override;
 
     /** The sample the last event falls on, which is where a render may stop. */
-    qint64 lastEventSample() const;
+    qint64 lastEventSample() const override;
 
 private:
     struct Event {

@@ -61,12 +61,14 @@ P4 in the plan is three items. These are the rest of that thought.
   whatever amplifier simulation sits in front of it.
 
 - **Pick, fret and string noise.** The difference between a sampled guitar and
-  a guitar. Needs the SFZ layer first, because there is nothing in a GM bank to
-  trigger.
+  a guitar. The SFZ layer exists now, so this is a question of a library having
+  the recordings and the score knowing when to ask for them -- a release noise
+  on a note that ends, and a scrape where a hand moves position.
 
-- **Per-string panning and per-string round-robins.** One synth per track
-  already means sixteen channels per instrument; spending them on stereo width
-  and alternating samples costs nothing extra at render time.
+- **Per-string panning.** Round-robins are done and pan is read from the
+  library, but per *string* is different: the same note played on the fifth
+  string and the sixth should not sit in the same place, and the score knows
+  which string it was even though the SFZ does not.
 
 - **A dry stem beside the wet one.** Write the unprocessed track alongside the
   processed one, so a mix can be redone in a DAW without re-rendering from the

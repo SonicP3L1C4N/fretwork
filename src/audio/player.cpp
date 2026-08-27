@@ -3,6 +3,8 @@
 
 #include "player.h"
 #include "renderer.h"
+#include "sampler.h"
+#include "sfz.h"
 #include "timeline.h"
 
 #include <fluidsynth.h>
@@ -92,9 +94,28 @@ Player::Player(const Score &score, const QList<int> &order, const Options &optio
     qint64 lastEvent = 0;
     for (int index = 0; index < score.tracks.size(); ++index) {
         auto channel = std::make_unique<Channel>();
-        channel->synth = std::make_unique<TrackSynth>(
-            score.tracks.at(index), Timeline::messagesFor(score, index, order), clock,
-            synthOptions);
+        const QList<Timeline::Message> messages = Timeline::messagesFor(score, index, order);
+
+        const QString sfz = m_options.samplers.value(index);
+        if (!sfz.isEmpty()) {
+            QString why;
+            const Sfz::Instrument instrument = Sfz::read(sfz, &why);
+            Sampler::Options samplerOptions;
+            samplerOptions.sampleRate = m_options.sampleRate;
+            samplerOptions.gain = m_options.gain;
+            auto sampler =
+                std::make_unique<Sampler>(instrument, messages, clock, samplerOptions);
+            if (!sampler->isValid()) {
+                m_error = QStringLiteral("%1: %2").arg(
+                    sfz, why.isEmpty() ? sampler->error() : why);
+                return;
+            }
+            channel->synth = std::move(sampler);
+        } else {
+            channel->synth =
+                std::make_unique<TrackSynth>(score.tracks.at(index), messages, clock,
+                                             synthOptions);
+        }
         if (!channel->synth->isValid()) {
             m_error = QStringLiteral("could not load %1").arg(m_options.soundFont);
             return;

@@ -6,6 +6,8 @@
 #include <QFile>
 #include <QString>
 
+#include <vector>
+
 /**
  * Writes a stereo WAV file, a block at a time.
  *
@@ -19,6 +21,45 @@
  * Only what is needed: 16-bit PCM, two channels. Anything more is libsndfile's
  * job, and this project does not need libsndfile to write one format.
  */
+/**
+ * Reads a WAV file into memory, whole.
+ *
+ * Whole rather than streamed, because the thing that reads these is a sampler
+ * and a sampler needs any part of a sample at any moment: a note struck at the
+ * top of a bar wants frame zero, and the note under it wants frame forty
+ * thousand of a different file. Streaming that from disk is a buffering
+ * problem nobody has to have while a guitar library is a few hundred megabytes
+ * and a machine has several gigabytes.
+ *
+ * Reads what sample libraries are actually written in -- 16- and 24-bit PCM
+ * and 32-bit float, mono or stereo -- and refuses anything else by name rather
+ * than by returning silence. A sample that loaded as nothing would be a
+ * missing note somebody would look for in the wrong place.
+ */
+class WavReader
+{
+public:
+    explicit WavReader(const QString &path);
+
+    bool isValid() const;
+    QString error() const;
+
+    int channels() const;
+    int sampleRate() const;
+
+    /** How many frames, which is samples divided by channels. */
+    qint64 frames() const;
+
+    /** Interleaved, -1 to 1, `frames() * channels()` of them. */
+    const std::vector<float> &samples() const;
+
+private:
+    QString m_error;
+    int m_channels = 0;
+    int m_sampleRate = 0;
+    std::vector<float> m_samples;
+};
+
 class WavWriter
 {
 public:

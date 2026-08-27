@@ -363,6 +363,30 @@ once, so the *MIDI* writer says what it gave up:
 Audio rendering has no such limit, because nothing is shared: that compromise
 is a property of the MIDI file format, not of the program.
 
+**A part can be played by recordings** rather than by a General MIDI
+programme. `--sfz 0=guitar.sfz` gives track 0 an SFZ instrument, and the parts
+without one carry on as they were — because a sample library exists for the
+guitar and does not for the organ, and a score is usually both.
+
+Round-robins are the reason the format is worth reading. A guitar recorded once
+per note and replayed is a guitar nobody believes: the same note twice is the
+identical waveform twice, which an ear notices immediately and cannot name. A
+library with four takes of each note played in turn is the cheapest fix in
+sampling, and it is the first thing this does with a file.
+
+It reads the subset a plucked-string library uses — where the sample is, which
+notes and strengths it answers to, how to pitch it, how loud and how wide,
+where it loops, which take of a run it is, and which group it silences — and
+skips the rest rather than refusing it. Several hundred opcodes exist; a
+library that would not load because it mentioned a filter cutoff is a library
+nobody can use.
+
+Not sfizz: it is not packaged, and vendoring a large C++ library to use a dozen
+opcodes was the worse trade. The cost of that is stated rather than hidden —
+this interpolates in a straight line between two samples, which is audibly fine
+within a few semitones of where a recording was made and audibly not fine an
+octave away.
+
 **Every part is a pair of ports**, which is the point of a synth per track made
 true outside this window. Until now the only way to get a stem anywhere else
 was to render a WAV and import it; with `--ports`, or the switch at the foot of
@@ -493,7 +517,7 @@ GPL — the reasoning for every line of that is in
 | **P1** | Headless converter: importers, model, technique translation, stem export. No window | **done** — the program is useful with no window |
 | **P2** | The player: tab rendering, transport, mixer, live playback | **done** |
 | **P3** | The editor | **done** — caret, fret entry, marks, transposition, beats, durations, bars, selection, copy and paste, undo, saving, tempo, time signature, sections, tuning, capo, parts, and a new score |
-| P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | **begun** — every part is a pair of ports in the graph, and the graph's transport starts them |
+| P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | **begun** — ports per part, the graph's transport starts them, and a part can be played from an SFZ library |
 | P5 | Standard notation, PDF, MusicXML, GP6 | |
 
 P1 is the one that matters: at the end of it the program is useful with no user

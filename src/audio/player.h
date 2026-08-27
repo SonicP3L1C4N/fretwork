@@ -5,8 +5,10 @@
 
 #include "score.h"
 #include "portedoutput.h"
+#include "synth.h"
 #include "tracksynth.h"
 
+#include <QHash>
 #include <QList>
 #include <QString>
 
@@ -41,6 +43,16 @@ class Player
 public:
     struct Options {
         QString soundFont;          //< empty means "find a General MIDI one"
+
+        /**
+         * An `.sfz` per track, by track number, for the parts that have one.
+         *
+         * A part with an entry here is played by recordings; a part without is
+         * played by a General MIDI programme, as everything was before. Not
+         * all or nothing, because a library exists for the guitar and does not
+         * for the organ.
+         */
+        QHash<int, QString> samplers;
         QString audioDriver;        //< empty means "pipewire if there is one"
         int sampleRate = 48000;
         int periodFrames = 512;
@@ -161,7 +173,7 @@ private:
     qint64 advance(int frames);
 
     struct Channel {
-        std::unique_ptr<TrackSynth> synth;
+        std::unique_ptr<Synth> synth;
         std::atomic<bool> muted{false};
         std::atomic<bool> solo{false};
         std::atomic<float> gain{1.0f};

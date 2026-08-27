@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
 #include "renderer.h"
+
+#include "sampler.h"
+#include "sfz.h"
 #include "timeline.h"
 #include "tracksynth.h"
 #include "wav.h"
@@ -74,7 +77,7 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
 
     const Timeline::Clock clock(score, order);
 
-    std::vector<std::unique_ptr<TrackSynth>> voices;
+    std::vector<std::unique_ptr<Synth>> voices;
     std::vector<std::unique_ptr<WavWriter>> writers;
     QStringList paths;
 
@@ -85,8 +88,29 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
         synthOptions.soundFont = options.soundFont;
         synthOptions.sampleRate = options.sampleRate;
         synthOptions.gain = options.gain;
-        auto voice = std::make_unique<TrackSynth>(
-            track, Timeline::messagesFor(score, index, order), clock, synthOptions);
+        const QList<Timeline::Message> messages = Timeline::messagesFor(score, index, order);
+
+        std::unique_ptr<Synth> voice;
+        const QString sfz = options.samplers.value(index);
+        if (!sfz.isEmpty()) {
+            QString why;
+            const Sfz::Instrument instrument = Sfz::read(sfz, &why);
+            Sampler::Options samplerOptions;
+            samplerOptions.sampleRate = options.sampleRate;
+            samplerOptions.gain = options.gain;
+            auto sampler =
+                std::make_unique<Sampler>(instrument, messages, clock, samplerOptions);
+            if (!sampler->isValid()) {
+                if (error) {
+                    *error = QStringLiteral("%1: %2").arg(
+                        sfz, why.isEmpty() ? sampler->error() : why);
+                }
+                return false;
+            }
+            voice = std::move(sampler);
+        } else {
+            voice = std::make_unique<TrackSynth>(track, messages, clock, synthOptions);
+        }
         if (!voice->isValid()) {
             if (error) {
                 *error = QStringLiteral("could not load %1").arg(options.soundFont);
@@ -118,9 +142,10 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
         synthOptions.soundFont = options.soundFont;
         synthOptions.sampleRate = options.sampleRate;
         synthOptions.gain = options.gain;
-        auto voice = std::make_unique<TrackSynth>(Timeline::clickTrack(),
-                                                  Timeline::clickFor(score, order), clock,
-                                                  synthOptions);
+        std::unique_ptr<Synth> voice =
+            std::make_unique<TrackSynth>(Timeline::clickTrack(),
+                                         Timeline::clickFor(score, order), clock,
+                                         synthOptions);
         if (!voice->isValid()) {
             if (error) {
                 *error = QStringLiteral("could not load %1").arg(options.soundFont);
