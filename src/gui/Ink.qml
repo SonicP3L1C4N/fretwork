@@ -48,7 +48,7 @@ QtObject {
     readonly property int groove: 4                 //< every slider
     readonly property int grip: 14                  //< every slider's handle
     readonly property int mixerWidth: 290
-    readonly property int tracksWidth: 210         //< the list of parts, opposite it
+    readonly property int tracksWidth: 240         //< the list of parts, opposite it
     readonly property int barBoxWidth: 42          //< one bar in the strip along the bottom
     readonly property int barBoxHeight: 32
 }

@@ -204,7 +204,7 @@ free from the engine rule above; everything else is a separate afternoon.
 | **P0** | Spike: parse a `.gp`, emit MIDI, play it through FluidSynth, render per-track stems. Python, throwaway | A real file from the corpus makes the right noise |
 | **P1** | Headless converter: importers, model, `.fw` format, repeat expansion, technique translation, stem export. A CLI tool, no GUI, fully tested | The program is useful with no window |
 | **P2** | The player: Qt6/KF6 window, tab rendering, transport, per-track mixer, live PipeWire playback | You would rather use it than TuxGuitar to read a tab |
-| **P3** | The editor: fret entry, selection, undo/redo, copy/paste, transposition | Scope doubles here; be sure before starting |
+| **P3** | The editor: fret entry, selection, undo/redo, copy/paste, transposition | **done.** Scope did double, as predicted, and then some: everything a bar or a part *is* became editable too -- tempo, time signature, section names, tuning, capo, and the set of parts. It ends where it does because a score can now be made from nothing rather than only changed |
 | **P4** | The differentiator: per-track LV2 chains, guitarix presets, SFZ sampling with round-robins | It sounds like a guitar |
 | **P5** | The long tail: standard notation, PDF, MusicXML, GP6 `.gpx` | Never, probably |
 

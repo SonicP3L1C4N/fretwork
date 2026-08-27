@@ -437,6 +437,15 @@ Kirigami.ApplicationWindow {
             spacing: Kirigami.Units.smallSpacing * 2
 
             ChromeButton {
+                icon.name: "document-new"
+                text: i18n("Start a new score")
+                onClicked: {
+                    session.newScore()
+                    view.forceActiveFocus()
+                }
+            }
+
+            ChromeButton {
                 icon.name: "document-open"
                 text: i18n("Open a Guitar Pro file")
                 onClicked: fileDialog.open()
@@ -717,9 +726,27 @@ Kirigami.ApplicationWindow {
                 visible: session.hasScore && panels.tracks
                 color: Ink.panel
 
-                ColumnLayout {
+                /**
+                 * The list and the inspector scroll together.
+                 *
+                 * They were fighting over a narrow column: the inspector has a
+                 * fixed number of controls in it and the list was given
+                 * whatever was left, which on a window of ordinary height was
+                 * two rows of a four-part score. A list of parts that cannot
+                 * show the parts is the wrong thing to squeeze, and there is
+                 * no arrangement of a column this size that fits both, so the
+                 * panel scrolls instead of choosing.
+                 */
+                QQC2.ScrollView {
+                    id: trackScroll
+
                     anchors.fill: parent
                     anchors.margins: Kirigami.Units.largeSpacing * 2
+                    clip: true
+                    contentWidth: availableWidth
+
+                    ColumnLayout {
+                    width: trackScroll.availableWidth
                     spacing: Kirigami.Units.largeSpacing
 
                     Kirigami.Heading {
@@ -730,8 +757,11 @@ Kirigami.ApplicationWindow {
 
                     ListView {
                         Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        clip: true
+                        // As tall as it needs, because the panel around it is
+                        // what scrolls now: a list inside a scrolling panel
+                        // that also scrolls is two scrollbars for one thing.
+                        Layout.preferredHeight: contentHeight
+                        interactive: false
                         spacing: Kirigami.Units.smallSpacing
                         boundsBehavior: Flickable.StopAtBounds
                         model: session.trackCount
@@ -755,6 +785,133 @@ Kirigami.ApplicationWindow {
                     }
 
                     /**
+                     * What the chosen part is, and what parts there are.
+                     *
+                     * Under the list because all of it is about the row lit up
+                     * in it. A part is a column through every bar of the score
+                     * -- adding one puts an empty bar in every bar and taking
+                     * one out removes a column -- which is why these are four
+                     * deliberate buttons rather than a drag.
+                     *
+                     * Tighter spacing than the panel above it, because the
+                     * list is what this panel is for and an inspector that
+                     * squeezed it down to two rows would have the tail wagging
+                     * the dog.
+                     */
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: Kirigami.Units.smallSpacing
+                        spacing: Kirigami.Units.smallSpacing
+
+                        Kirigami.Separator {
+                            Layout.fillWidth: true
+                            Layout.bottomMargin: Kirigami.Units.smallSpacing
+                            color: Ink.rule
+                        }
+
+                        QQC2.TextField {
+                            id: nameField
+
+                            Layout.fillWidth: true
+                            color: Ink.ink
+                            text: session.trackNameHere
+
+                            background: Rectangle {
+                                radius: Ink.radius
+                                color: nameField.activeFocus ? Ink.paper : "transparent"
+                                border.width: 1
+                                border.color: nameField.activeFocus ? Ink.accent : Ink.rule
+                            }
+
+                            onAccepted: {
+                                session.renameTrack(session.currentTrack, text)
+                                view.forceActiveFocus()
+                            }
+                            onActiveFocusChanged: if (!activeFocus) {
+                                text = Qt.binding(() => session.trackNameHere)
+                            }
+                        }
+
+                        // What it is, and the way to make it something else:
+                        // one control, because the name of the instrument and
+                        // the list of instruments are the same question.
+                        QQC2.Button {
+                            Layout.fillWidth: true
+                            flat: true
+                            text: session.instrumentHere
+                            onClicked: instrumentMenu.popup()
+
+                            QQC2.Menu {
+                                id: instrumentMenu
+                                Repeater {
+                                    model: session.instrumentNames
+                                    delegate: QQC2.MenuItem {
+                                        required property int index
+                                        required property string modelData
+                                        text: modelData
+                                        onTriggered: session.setTrackInstrument(
+                                            session.currentTrack,
+                                            session.instrumentIds[index])
+                                    }
+                                }
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Kirigami.Units.smallSpacing
+
+                            MixerButton {
+                                text: i18n("+")
+                                checkable: false
+                                QQC2.ToolTip.text: i18n("Add a part after this one")
+                                onClicked: addMenu.popup()
+
+                                QQC2.Menu {
+                                    id: addMenu
+                                    Repeater {
+                                        model: session.instrumentNames
+                                        delegate: QQC2.MenuItem {
+                                            required property int index
+                                            required property string modelData
+                                            text: modelData
+                                            onTriggered: session.addTrack(
+                                                session.instrumentIds[index])
+                                        }
+                                    }
+                                }
+                            }
+
+                            MixerButton {
+                                text: i18n("\u2212")
+                                checkable: false
+                                litFill: Ink.ink
+                                QQC2.ToolTip.text: i18n("Take this part out")
+                                onClicked: session.removeTrack(session.currentTrack)
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            // The arrows carry a text-presentation selector.
+                            // Without it they come out of a colour emoji font,
+                            // in a colour that is in no palette this window has.
+                            MixerButton {
+                                text: i18n("\u2191\ufe0e")
+                                checkable: false
+                                QQC2.ToolTip.text: i18n("Move it up")
+                                onClicked: session.moveTrack(session.currentTrack, -1)
+                            }
+
+                            MixerButton {
+                                text: i18n("\u2193\ufe0e")
+                                checkable: false
+                                QQC2.ToolTip.text: i18n("Move it down")
+                                onClicked: session.moveTrack(session.currentTrack, 1)
+                            }
+                        }
+                    }
+
+                    /**
                      * What the instrument on the page is tuned to.
                      *
                      * Under the list because it belongs to whichever part is
@@ -769,12 +926,16 @@ Kirigami.ApplicationWindow {
                      */
                     Kirigami.Separator {
                         Layout.fillWidth: true
+                        Layout.topMargin: -Kirigami.Units.largeSpacing
+                                          + Kirigami.Units.smallSpacing
                         visible: session.stringsHere > 0
                         color: Ink.rule
                     }
 
                     QQC2.Label {
                         // A drum kit has no strings and no business here.
+                        Layout.topMargin: -Kirigami.Units.largeSpacing
+                                          + Kirigami.Units.smallSpacing
                         visible: session.stringsHere > 0
                         text: i18n("Tuning")
                         color: Ink.quiet
@@ -786,6 +947,8 @@ Kirigami.ApplicationWindow {
                         id: tuningField
 
                         visible: session.stringsHere > 0
+                        Layout.topMargin: -Kirigami.Units.largeSpacing
+                                          + Kirigami.Units.smallSpacing
                         Layout.fillWidth: true
                         color: Ink.ink
                         text: session.tuningHere
@@ -809,6 +972,8 @@ Kirigami.ApplicationWindow {
 
                     RowLayout {
                         Layout.fillWidth: true
+                        Layout.topMargin: -Kirigami.Units.largeSpacing
+                                          + Kirigami.Units.smallSpacing
                         visible: session.stringsHere > 0
                         spacing: Kirigami.Units.smallSpacing
 
@@ -854,6 +1019,8 @@ Kirigami.ApplicationWindow {
                             }
                         }
                     }
+                }
+
                 }
 
                 Kirigami.Separator {

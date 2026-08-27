@@ -5,6 +5,7 @@
 
 #include "fwformat.h"
 #include "gpif.h"
+#include "instruments.h"
 #include "notename.h"
 #include "notevalue.h"
 
@@ -27,10 +28,25 @@ Session::Session(QObject *parent)
     // asked for: relaying out is microseconds, and rebuilding the player means
     // loading a SoundFont for every track, which is not something to do
     // between two keystrokes.
-    connect(&m_editor, &Editor::scoreEdited, this, [this](int) {
+    connect(&m_editor, &Editor::scoreEdited, this, [this](int bar) {
         m_playerStale = true;
+
+        // A bar of -1 means the shape of the score changed rather than
+        // something inside one bar of it: a part added, removed or moved. The
+        // track list, the mixer and everything else counting parts is reading
+        // a number that has just changed, and none of them are listening for
+        // an edit.
+        if (bar < 0) {
+            m_currentTrack = std::clamp(m_currentTrack, 0, std::max(0, trackCount() - 1));
+        }
+
         rebuildLayout();
         Q_EMIT historyChanged();
+        if (bar < 0) {
+            Q_EMIT scoreChanged();
+            Q_EMIT currentTrackChanged();
+            Q_EMIT mixerChanged();
+        }
         // What the caret is sitting on may have changed under it, and the
         // status bar is reading that out.
         Q_EMIT cursorMoved();
@@ -648,6 +664,96 @@ void Session::setTimeHere(const QString &signature)
         break;
     case Editor::Edit::Nothing:
         break;
+    }
+}
+
+QStringList Session::instrumentNames() const
+{
+    QStringList names;
+    for (const Instruments::Kind &kind : Instruments::all()) {
+        names.append(kind.name);
+    }
+    return names;
+}
+
+QStringList Session::instrumentIds() const
+{
+    QStringList ids;
+    for (const Instruments::Kind &kind : Instruments::all()) {
+        ids.append(kind.id);
+    }
+    return ids;
+}
+
+QString Session::instrumentHere() const
+{
+    if (!hasScore()) {
+        return QString();
+    }
+    return Instruments::byId(m_editor.score().tracks.at(m_currentTrack).instrumentType).name;
+}
+
+QString Session::trackNameHere() const
+{
+    return hasScore() ? m_editor.score().tracks.at(m_currentTrack).name : QString();
+}
+
+void Session::newScore()
+{
+    m_player.reset();
+    m_editor.setScore(Editor::blankScore());
+    m_order = Timeline::playedOrder(m_editor.score());
+    m_clock = std::make_unique<Timeline::Clock>(m_editor.score(), m_order);
+    // No file behind it yet, so the first save asks where to put one.
+    m_fileName = QString();
+    m_filePath = QString();
+    m_currentTrack = 0;
+    m_currentBar = -1;
+    m_wasPlaying = false;
+
+    rebuildLayout();
+    rebuildPlayer();
+    Q_EMIT scoreChanged();
+    Q_EMIT currentTrackChanged();
+    Q_EMIT mixerChanged();
+    setStatus(i18n("A new score: one guitar, one bar, and somewhere to start"));
+}
+
+void Session::addTrack(const QString &instrumentId)
+{
+    if (m_editor.addTrack(instrumentId) == Editor::Edit::Done) {
+        setCurrentTrack(m_editor.cursor().track);
+        setStatus(i18n("Added %1", Instruments::byId(instrumentId).name));
+    }
+}
+
+void Session::removeTrack(int track)
+{
+    if (m_editor.removeTrack(track) == Editor::Edit::Refused) {
+        setStatus(i18n("A score keeps its last part: there would be nothing left to play"));
+    }
+}
+
+void Session::renameTrack(int track, const QString &name)
+{
+    if (m_editor.renameTrack(track, name) == Editor::Edit::Refused) {
+        setStatus(i18n("A part needs a name to be found by"));
+    }
+}
+
+void Session::setTrackInstrument(int track, const QString &instrumentId)
+{
+    if (m_editor.setTrackInstrument(track, instrumentId) == Editor::Edit::Done) {
+        // Said out loud, because the one thing it deliberately does not do is
+        // the thing somebody might expect it to.
+        setStatus(i18n("%1, tuned as it was", Instruments::byId(instrumentId).name));
+    }
+}
+
+void Session::moveTrack(int track, int by)
+{
+    if (m_editor.moveTrack(track, by) == Editor::Edit::Done) {
+        setCurrentTrack(m_editor.cursor().track);
     }
 }
 

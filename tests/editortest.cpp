@@ -6,6 +6,7 @@
 #include "notename.h"
 #include "timeline.h"
 
+#include <QSet>
 #include <QTest>
 #include <QUndoStack>
 
@@ -1712,6 +1713,190 @@ private Q_SLOTS:
 
         editor.undo();
         QCOMPARE(editor.score().masterBars.at(2).section, QStringLiteral("Chorus"));
+    }
+
+    // ---- tracks ----
+
+    /** Every bar id any track can still reach. */
+    static QSet<int> reachableBars(const Score &score)
+    {
+        QSet<int> bars;
+        for (const MasterBar &master : score.masterBars) {
+            for (const int id : master.bars) {
+                bars.insert(id);
+            }
+        }
+        return bars;
+    }
+
+    void addingAPartPutsABarOfItInEveryBar()
+    {
+        Editor editor;
+        editor.setScore(someBars(5));
+        QCOMPARE(editor.score().tracks.size(), 1);
+
+        QCOMPARE(editor.addTrack(QStringLiteral("electricBass")), Editor::Edit::Done);
+        QCOMPARE(editor.score().tracks.size(), 2);
+        QCOMPARE(editor.score().tracks.at(1).instrumentType, QStringLiteral("electricBass"));
+        QCOMPARE(editor.score().tracks.at(1).tuning.size(), 4);
+
+        // A track is a column through every bar: a score where one part has
+        // fewer bars than another is not one anything downstream can read.
+        for (const MasterBar &master : editor.score().masterBars) {
+            QCOMPARE(master.bars.size(), 2);
+            QVERIFY(editor.score().bars.contains(master.bars.at(1)));
+        }
+        // And the caret is in the new part, which is where somebody who just
+        // added one is about to type.
+        QCOMPARE(editor.cursor().track, 1);
+
+        editor.undo();
+        QCOMPARE(editor.score().tracks.size(), 1);
+        for (const MasterBar &master : editor.score().masterBars) {
+            QCOMPARE(master.bars.size(), 1);
+        }
+    }
+
+    void removingAPartTakesOnlyWhatNothingElseIsUsing()
+    {
+        // Two parts sharing a beat, which is what a deduplicated file looks
+        // like: walking the departing track would erase a beat the other one
+        // is still playing.
+        Score score = someBars(2, 2);
+        const int shared = score.voices.value(0).beats.first();
+        score.voices[1].beats = {shared};
+
+        Editor editor;
+        editor.setScore(score);
+        QCOMPARE(editor.score().tracks.size(), 2);
+
+        QCOMPARE(editor.removeTrack(1), Editor::Edit::Done);
+        QCOMPARE(editor.score().tracks.size(), 1);
+        for (const MasterBar &master : editor.score().masterBars) {
+            QCOMPARE(master.bars.size(), 1);
+        }
+        // The shared beat is still there, because the remaining part reaches it.
+        QVERIFY(editor.score().beats.contains(shared));
+
+        // And nothing unreachable is left lying about.
+        const QSet<int> bars = reachableBars(editor.score());
+        for (const int id : editor.score().bars.keys()) {
+            QVERIFY2(bars.contains(id), "an unreachable bar was left behind");
+        }
+    }
+
+    void undoingARemovalPutsBackEverythingItSweptUp()
+    {
+        Score score = someBars(3, 2);
+        Editor editor;
+        editor.setScore(score);
+        const int barsBefore = editor.score().bars.size();
+        const int voicesBefore = editor.score().voices.size();
+        const int beatsBefore = editor.score().beats.size();
+
+        QCOMPARE(editor.removeTrack(0), Editor::Edit::Done);
+        QVERIFY(editor.score().bars.size() < barsBefore);
+        editor.undo();
+
+        QCOMPARE(editor.score().tracks.size(), 2);
+        QCOMPARE(editor.score().bars.size(), barsBefore);
+        QCOMPARE(editor.score().voices.size(), voicesBefore);
+        QCOMPARE(editor.score().beats.size(), beatsBefore);
+        for (const MasterBar &master : editor.score().masterBars) {
+            QCOMPARE(master.bars.size(), 2);
+        }
+    }
+
+    void keepsTheLastPart()
+    {
+        Editor editor;
+        editor.setScore(someBars(2));
+        // The same rule the last bar has: a score with no parts is not a
+        // shorter score, it is one the rest of the program treats as empty.
+        QCOMPARE(editor.removeTrack(0), Editor::Edit::Refused);
+        QCOMPARE(editor.score().tracks.size(), 1);
+    }
+
+    void renamesAPartButNotToNothing()
+    {
+        Editor editor;
+        editor.setScore(someBars(1));
+        QCOMPARE(editor.renameTrack(0, QStringLiteral("  Rhythm  ")), Editor::Edit::Done);
+        QCOMPARE(editor.score().tracks.first().name, QStringLiteral("Rhythm"));
+        QCOMPARE(editor.renameTrack(0, QStringLiteral("Rhythm")), Editor::Edit::Nothing);
+        // A row of nothing in the list and the mixer is not a name.
+        QCOMPARE(editor.renameTrack(0, QStringLiteral("   ")), Editor::Edit::Refused);
+        QCOMPARE(editor.score().tracks.first().name, QStringLiteral("Rhythm"));
+    }
+
+    void changingTheInstrumentLeavesTheTuningAlone()
+    {
+        Editor editor;
+        editor.setScore(someBars(1));
+        const QList<int> tuning = editor.score().tracks.first().tuning;
+
+        QCOMPARE(editor.setTrackInstrument(0, QStringLiteral("drumKit")),
+                 Editor::Edit::Done);
+        QCOMPARE(editor.score().tracks.first().instrumentType, QStringLiteral("drumKit"));
+        QVERIFY(editor.score().tracks.first().isPercussion());
+        // Which strings a part is written for is a separate decision with an
+        // editor of its own: answering it here would move every pitch in the
+        // part in answer to a question about its sound.
+        QCOMPARE(editor.score().tracks.first().tuning, tuning);
+
+        editor.undo();
+        QCOMPARE(editor.score().tracks.first().instrumentType,
+                 QStringLiteral("electricGuitar"));
+    }
+
+    void movingAPartTakesItsBarsWithIt()
+    {
+        Score score = someBars(2, 3);
+        Editor editor;
+        editor.setScore(score);
+        QCOMPARE(editor.renameTrack(0, QStringLiteral("First")), Editor::Edit::Done);
+        QCOMPARE(editor.renameTrack(2, QStringLiteral("Third")), Editor::Edit::Done);
+        const QList<int> wasFirstColumn = {score.masterBars.at(0).bars.at(0),
+                                           score.masterBars.at(1).bars.at(0)};
+
+        editor.setCursor(Cursor{0, 0, 0, 0});
+        QCOMPARE(editor.moveTrack(0, 2), Editor::Edit::Done);
+        QCOMPARE(editor.score().tracks.at(2).name, QStringLiteral("First"));
+        QCOMPARE(editor.score().tracks.at(1).name, QStringLiteral("Third"));
+        // The bars moved with the part, or every other part would be playing
+        // somebody else's music.
+        QCOMPARE(editor.score().masterBars.at(0).bars.at(2), wasFirstColumn.at(0));
+        QCOMPARE(editor.score().masterBars.at(1).bars.at(2), wasFirstColumn.at(1));
+        // And the caret went with it rather than staying at a number that now
+        // means a different part.
+        QCOMPARE(editor.cursor().track, 2);
+
+        // And back up one.
+        QCOMPARE(editor.moveTrack(2, -1), Editor::Edit::Done);
+        QCOMPARE(editor.score().tracks.at(1).name, QStringLiteral("First"));
+
+        // Off either end is refused rather than clamped: a part that did not
+        // move when it was told to would look like a part that could not be.
+        QCOMPARE(editor.moveTrack(0, -1), Editor::Edit::Refused);
+        QCOMPARE(editor.moveTrack(2, 1), Editor::Edit::Refused);
+    }
+
+    void aBlankScoreIsSomethingToWriteIn()
+    {
+        Editor editor;
+        editor.setScore(Editor::blankScore());
+        QVERIFY(!editor.score().isEmpty());
+        QCOMPARE(editor.score().tracks.size(), 1);
+        QCOMPARE(editor.score().masterBars.size(), 1);
+        QCOMPARE(editor.score().tracks.first().tuning.size(), 6);
+        // A tempo said rather than implied: the page prints the first thing a
+        // player looks for, and a score with none prints nothing.
+        QCOMPARE(editor.score().tempos.size(), 1);
+
+        // And it can be written in straight away.
+        editor.setCursor(Cursor{0, 0, 0, 0});
+        editor.setFret(5);
+        QCOMPARE(Editing::beatIdAt(editor.score(), editor.cursor()) >= 0, true);
     }
 };
 

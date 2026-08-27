@@ -62,7 +62,7 @@ playing it wrongly:
 
 ![The Crimson Path by DVNE, with repeat signs and a warning that alternate endings are not flattened](docs/window-repeats.png)
 
-**P3 has begun: it edits.** Click a string, type a fret number, and the score
+**P3 is done: it edits.** Click a string, type a fret number, and the score
 changes. Arrows move the caret, `Delete` clears a note, and every change is
 undoable — typing `1` then `2` is fret 12 and one press of undo, not two.
 
@@ -105,6 +105,25 @@ rest of the piece. A new bar is worth what the one it displaced was, so a bar
 added to a piece in 6/8 is in 6/8, and the tempo changes written after it move
 along with the music. The last bar of a score is kept: a score with no bars is
 not a shorter score.
+
+**Parts can be added and taken away.** A part is a column through every bar of
+the score, so adding one puts an empty bar in every bar and removing one takes
+a column out — which is why they are deliberate buttons under the track list
+rather than a drag. A part can be renamed, moved up or down the order with its
+bars, and turned into something else: five instruments, which is what a
+tablature program writes for rather than the whole General MIDI bank. Changing
+what a part *is* leaves its tuning exactly as it was — turning a guitar into a
+bass is a question about what it sounds like, and which strings it is written
+for has an editor of its own.
+
+Taking a part out takes everything only it was using with it, found by sweeping
+from the parts that remain. Guitar Pro deduplicates beats — a four-part score
+of 704 bars can hold 235 distinct ones — so walking through the departing track
+instead would erase beats the other parts are still playing. The last part
+stays: a score with none is not a shorter score.
+
+And there is a **New score**: one guitar, one empty bar, and a tempo. Until now
+Fretwork could only change a score somebody else's program had made.
 
 **The instrument is editable.** The tuning sits under the track list, written
 as names because that is how a guitarist says one — type `D2 A2 D3 G3 B3 E4`
@@ -422,7 +441,7 @@ GPL — the reasoning for every line of that is in
 | **P0** | Spike — parse, play, render stems | **done**, and it plays |
 | **P1** | Headless converter: importers, model, technique translation, stem export. No window | **done** — the program is useful with no window |
 | **P2** | The player: tab rendering, transport, mixer, live playback | **done** |
-| **P3** | The editor: fret entry, undo, copy and paste | **in progress** — caret, fret entry, beats, bars, durations, selection, copy and paste, undo and saving |
+| **P3** | The editor | **done** — caret, fret entry, marks, transposition, beats, durations, bars, selection, copy and paste, undo, saving, tempo, time signature, sections, tuning, capo, parts, and a new score |
 | P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | |
 | P5 | Standard notation, PDF, MusicXML, GP6 | |
 

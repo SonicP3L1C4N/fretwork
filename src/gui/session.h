@@ -68,6 +68,14 @@ class Session : public QObject
     /** How many strings the current track has; none for a drum kit. */
     Q_PROPERTY(int stringsHere READ stringsHere NOTIFY cursorMoved)
 
+    /** What the current part is called and what it is, for the editor of both. */
+    Q_PROPERTY(QString trackNameHere READ trackNameHere NOTIFY cursorMoved)
+    Q_PROPERTY(QString instrumentHere READ instrumentHere NOTIFY cursorMoved)
+
+    /** Everything a new part may be: names to show, and ids to ask for. */
+    Q_PROPERTY(QStringList instrumentNames READ instrumentNames CONSTANT)
+    Q_PROPERTY(QStringList instrumentIds READ instrumentIds CONSTANT)
+
     /** What the caret's bar is called, where the score calls it anything. */
     Q_PROPERTY(QString sectionHere READ sectionHere NOTIFY cursorMoved)
 
@@ -127,6 +135,24 @@ public:
     ~Session() override;
 
     Q_INVOKABLE bool open(const QString &path);
+
+    /** Starts again with one guitar and one empty bar. */
+    Q_INVOKABLE void newScore();
+
+    // ---- parts ----
+
+    Q_INVOKABLE void addTrack(const QString &instrumentId);
+    Q_INVOKABLE void removeTrack(int track);
+    Q_INVOKABLE void renameTrack(int track, const QString &name);
+    Q_INVOKABLE void setTrackInstrument(int track, const QString &instrumentId);
+
+    /** Moves a part up or down the list by `by` places, bars and all. */
+    Q_INVOKABLE void moveTrack(int track, int by);
+
+    QStringList instrumentNames() const;
+    QStringList instrumentIds() const;
+    QString instrumentHere() const;
+    QString trackNameHere() const;
 
     /**
      * Writes to the file it was opened from, if that is one of ours.

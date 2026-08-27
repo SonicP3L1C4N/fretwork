@@ -267,6 +267,49 @@ public:
      */
     Edit setSection(const QString &name);
 
+    // ---- tracks ----
+
+    /**
+     * Adds a part after the caret's track, and puts the caret in it.
+     *
+     * A track is a column through every bar of the score, so this puts an
+     * empty bar in every master bar as well: a score where one part has fewer
+     * bars than another is not a score anything downstream can read.
+     */
+    Edit addTrack(const QString &instrumentId);
+
+    /**
+     * Takes a part out, and everything only it was using with it.
+     *
+     * Refused on the last one: a score with no parts is not a shorter score,
+     * it is one the rest of the program treats as empty -- the same rule the
+     * last bar has.
+     *
+     * Beats and notes are shared between parts where a file deduplicated them,
+     * so what goes is what nothing left is reaching: the removal is a sweep
+     * from the remaining tracks rather than a walk through the departing one.
+     */
+    Edit removeTrack(int track);
+
+    /** What a part is called on the page, in the list and in the mixer. */
+    Edit renameTrack(int track, const QString &name);
+
+    /**
+     * Changes what a part is, and therefore what it sounds like.
+     *
+     * The tuning is left exactly as it was. Turning a guitar into a bass does
+     * not retune the guitar -- the strings a part is written for are a
+     * separate decision with its own editor, and doing both at once would move
+     * every pitch in the part in answer to a question about its sound.
+     */
+    Edit setTrackInstrument(int track, const QString &instrumentId);
+
+    /** Moves a part up or down the list, taking its bars with it. */
+    Edit moveTrack(int track, int by);
+
+    /** A score with one guitar and one empty bar, which is where writing starts. */
+    static Score blankScore();
+
     // ---- the instrument ----
 
     /**

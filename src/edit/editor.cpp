@@ -3,8 +3,11 @@
 
 #include "editor.h"
 
+#include "instruments.h"
+
 #include <KLocalizedString>
 
+#include <QSet>
 #include <QUndoCommand>
 #include <QUndoStack>
 
@@ -968,6 +971,247 @@ private:
     QList<QPair<int, int>> m_previous;
 };
 
+/**
+ * Adding a part, which is a column through every bar of the score.
+ *
+ * The bar ids are worked out once in the constructor and kept, so undoing and
+ * redoing puts the same bars back under the same numbers rather than a fresh
+ * set each time -- the same reason a paste keeps its ids.
+ */
+class AddTrackCommand : public QUndoCommand
+{
+public:
+    AddTrackCommand(Editor *editor, int at, const Track &track)
+        : m_editor(editor)
+        , m_at(at)
+        , m_track(track)
+    {
+        const Score &score = editor->score();
+        int nextBar = Editor::freshBarId(score);
+        for (int index = 0; index < score.masterBars.size(); ++index) {
+            m_barIds.append(nextBar++);
+        }
+        setText(i18n("Add track"));
+    }
+
+    void redo() override
+    {
+        Score &score = m_editor->mutableScore();
+        score.tracks.insert(m_at, m_track);
+        for (int index = 0; index < score.masterBars.size(); ++index) {
+            const int barId = m_barIds.at(index);
+            // Four empty slots: a voice is addressed by its position and one
+            // gets made the moment something is typed into it.
+            score.bars.insert(barId, Bar{{-1, -1, -1, -1}});
+            score.masterBars[index].bars.insert(m_at, barId);
+        }
+        m_editor->noteEdited(-1);
+    }
+
+    void undo() override
+    {
+        Score &score = m_editor->mutableScore();
+        score.tracks.removeAt(m_at);
+        for (int index = 0; index < score.masterBars.size(); ++index) {
+            score.masterBars[index].bars.removeAt(m_at);
+            score.bars.remove(m_barIds.at(index));
+        }
+        m_editor->noteEdited(-1);
+    }
+
+private:
+    Editor *m_editor;
+    int m_at = 0;
+    Track m_track;
+    QList<int> m_barIds;
+};
+
+/**
+ * Taking a part out, and everything only it was using.
+ *
+ * What is kept for the undo is whatever was actually erased, gathered by
+ * sweeping from the parts that remain rather than by walking the one that is
+ * leaving. Guitar Pro deduplicates beats -- a four-part score of 704 bars can
+ * hold 235 distinct ones -- so a walk through the departing track would erase
+ * beats the other parts are still playing.
+ */
+class RemoveTrackCommand : public QUndoCommand
+{
+public:
+    RemoveTrackCommand(Editor *editor, int at)
+        : m_editor(editor)
+        , m_at(at)
+    {
+        const Score &score = editor->score();
+        m_track = score.tracks.at(at);
+        for (const MasterBar &master : score.masterBars) {
+            m_barIds.append(master.bars.value(at, -1));
+        }
+        setText(i18n("Remove track"));
+    }
+
+    void redo() override
+    {
+        Score &score = m_editor->mutableScore();
+        score.tracks.removeAt(m_at);
+        for (MasterBar &master : score.masterBars) {
+            if (m_at < master.bars.size()) {
+                master.bars.removeAt(m_at);
+            }
+        }
+
+        // What the remaining parts can still reach.
+        QSet<int> bars;
+        QSet<int> voices;
+        QSet<int> beats;
+        QSet<int> notes;
+        for (const MasterBar &master : score.masterBars) {
+            for (const int barId : master.bars) {
+                bars.insert(barId);
+                for (const int voiceId : score.bars.value(barId).voices) {
+                    if (voiceId < 0) {
+                        continue;
+                    }
+                    voices.insert(voiceId);
+                    for (const int beatId : score.voices.value(voiceId).beats) {
+                        beats.insert(beatId);
+                        for (const int noteId : score.beats.value(beatId).notes) {
+                            notes.insert(noteId);
+                        }
+                    }
+                }
+            }
+        }
+
+        m_bars = sweep(score.bars, bars);
+        m_voices = sweep(score.voices, voices);
+        m_beats = sweep(score.beats, beats);
+        m_notes = sweep(score.notes, notes);
+        m_editor->noteEdited(-1);
+    }
+
+    void undo() override
+    {
+        Score &score = m_editor->mutableScore();
+        score.tracks.insert(m_at, m_track);
+        for (int index = 0; index < score.masterBars.size() && index < m_barIds.size();
+             ++index) {
+            score.masterBars[index].bars.insert(m_at, m_barIds.at(index));
+        }
+        restore(score.bars, m_bars);
+        restore(score.voices, m_voices);
+        restore(score.beats, m_beats);
+        restore(score.notes, m_notes);
+        m_editor->noteEdited(-1);
+    }
+
+private:
+    /** Removes everything not in `keep`, and hands back what went. */
+    template<typename T>
+    static QHash<int, T> sweep(QHash<int, T> &table, const QSet<int> &keep)
+    {
+        QHash<int, T> gone;
+        for (auto entry = table.begin(); entry != table.end();) {
+            if (keep.contains(entry.key())) {
+                ++entry;
+                continue;
+            }
+            gone.insert(entry.key(), entry.value());
+            entry = table.erase(entry);
+        }
+        return gone;
+    }
+
+    template<typename T>
+    static void restore(QHash<int, T> &table, const QHash<int, T> &gone)
+    {
+        for (auto entry = gone.constBegin(); entry != gone.constEnd(); ++entry) {
+            table.insert(entry.key(), entry.value());
+        }
+    }
+
+    Editor *m_editor;
+    int m_at = 0;
+    Track m_track;
+    QList<int> m_barIds;
+    QHash<int, Bar> m_bars;
+    QHash<int, Voice> m_voices;
+    QHash<int, Beat> m_beats;
+    QHash<int, Note> m_notes;
+};
+
+/** What a part is called, and what it is. */
+class ChangeTrackCommand : public QUndoCommand
+{
+public:
+    ChangeTrackCommand(Editor *editor, int at, const Track &track, const QString &what)
+        : m_editor(editor)
+        , m_at(at)
+        , m_track(track)
+    {
+        m_previous = editor->score().tracks.at(at);
+        setText(what);
+    }
+
+    void redo() override
+    {
+        m_editor->mutableScore().tracks[m_at] = m_track;
+        m_editor->noteEdited(-1);
+    }
+
+    void undo() override
+    {
+        m_editor->mutableScore().tracks[m_at] = m_previous;
+        m_editor->noteEdited(-1);
+    }
+
+private:
+    Editor *m_editor;
+    int m_at = 0;
+    Track m_track;
+    Track m_previous;
+};
+
+/** Moving a part up or down, and its column of bars with it. */
+class MoveTrackCommand : public QUndoCommand
+{
+public:
+    MoveTrackCommand(Editor *editor, int from, int to)
+        : m_editor(editor)
+        , m_from(from)
+        , m_to(to)
+    {
+        setText(i18n("Move track"));
+    }
+
+    void redo() override
+    {
+        shift(m_from, m_to);
+    }
+
+    void undo() override
+    {
+        shift(m_to, m_from);
+    }
+
+private:
+    void shift(int from, int to)
+    {
+        Score &score = m_editor->mutableScore();
+        score.tracks.move(from, to);
+        for (MasterBar &master : score.masterBars) {
+            if (from < master.bars.size() && to < master.bars.size()) {
+                master.bars.move(from, to);
+            }
+        }
+        m_editor->noteEdited(-1);
+    }
+
+    Editor *m_editor;
+    int m_from = 0;
+    int m_to = 0;
+};
+
 /** What a bar is called, where the score calls it anything. */
 class SetSectionCommand : public QUndoCommand
 {
@@ -1895,6 +2139,131 @@ Editor::Edit Editor::setSection(const QString &name)
         return Edit::Nothing;
     }
     m_undo->push(new SetSectionCommand(this, bar, wanted));
+    return Edit::Done;
+}
+
+Score Editor::blankScore()
+{
+    Score score;
+    const Instruments::Kind guitar = Instruments::byId(QStringLiteral("electricGuitar"));
+
+    Track track;
+    track.name = guitar.name;
+    track.instrumentType = guitar.id;
+    track.program = guitar.program;
+    track.tuning = guitar.tuning;
+    score.tracks.append(track);
+
+    MasterBar master;
+    master.bars = {0};
+    score.masterBars.append(master);
+    score.bars.insert(0, Bar{{-1, -1, -1, -1}});
+
+    // A quarter, because every bar this program makes starts out wanting one
+    // and the rhythm table cannot be empty when the first note is typed.
+    score.rhythms.insert(0, Rational(1));
+
+    // Said rather than implied: a score with no tempo is played at the default
+    // and prints nothing, and the first thing the page says is how fast it is.
+    score.tempos.append({0, 0, 120});
+    return score;
+}
+
+Editor::Edit Editor::addTrack(const QString &instrumentId)
+{
+    const Instruments::Kind kind = Instruments::byId(instrumentId);
+    Track track;
+    track.name = kind.name;
+    track.instrumentType = kind.id;
+    track.program = kind.program;
+    track.tuning = kind.tuning;
+
+    // After the one the caret is in, which is where somebody adding a part
+    // while looking at another one means to put it.
+    const int at = std::clamp(m_cursor.track + 1, 0, int(m_score.tracks.size()));
+    m_undo->push(new AddTrackCommand(this, at, track));
+
+    Cursor moved = m_cursor;
+    moved.track = at;
+    setCursor(Editing::clamped(m_score, moved));
+    return Edit::Done;
+}
+
+Editor::Edit Editor::removeTrack(int track)
+{
+    if (track < 0 || track >= m_score.tracks.size()) {
+        return Edit::Nothing;
+    }
+    // The same rule the last bar has: a score with no parts is not a shorter
+    // score, it is one the rest of the program treats as empty.
+    if (m_score.tracks.size() == 1) {
+        return Edit::Refused;
+    }
+    m_undo->push(new RemoveTrackCommand(this, track));
+    setCursor(Editing::clamped(m_score, m_cursor));
+    return Edit::Done;
+}
+
+Editor::Edit Editor::renameTrack(int track, const QString &name)
+{
+    if (track < 0 || track >= m_score.tracks.size()) {
+        return Edit::Nothing;
+    }
+    const QString wanted = name.trimmed();
+    // A part with no name at all is a row of nothing in the list and the
+    // mixer, so an empty one is refused rather than quietly accepted.
+    if (wanted.isEmpty()) {
+        return Edit::Refused;
+    }
+    if (wanted == m_score.tracks.at(track).name) {
+        return Edit::Nothing;
+    }
+    Track changed = m_score.tracks.at(track);
+    changed.name = wanted;
+    m_undo->push(new ChangeTrackCommand(this, track, changed, i18n("Rename track")));
+    return Edit::Done;
+}
+
+Editor::Edit Editor::setTrackInstrument(int track, const QString &instrumentId)
+{
+    if (track < 0 || track >= m_score.tracks.size()) {
+        return Edit::Nothing;
+    }
+    const Instruments::Kind kind = Instruments::byId(instrumentId);
+    const Track &was = m_score.tracks.at(track);
+    if (was.instrumentType == kind.id && was.program == kind.program) {
+        return Edit::Nothing;
+    }
+
+    Track changed = was;
+    changed.instrumentType = kind.id;
+    changed.program = kind.program;
+    // The tuning is left exactly as it was. Turning a guitar into a bass is a
+    // question about what it sounds like; which strings it is written for is a
+    // separate decision with an editor of its own, and answering both at once
+    // would move every pitch in the part without being asked to.
+    m_undo->push(new ChangeTrackCommand(this, track, changed, i18n("Change instrument")));
+    return Edit::Done;
+}
+
+Editor::Edit Editor::moveTrack(int track, int by)
+{
+    const int to = track + by;
+    if (track < 0 || track >= m_score.tracks.size() || by == 0) {
+        return Edit::Nothing;
+    }
+    if (to < 0 || to >= m_score.tracks.size()) {
+        return Edit::Refused;
+    }
+    m_undo->push(new MoveTrackCommand(this, track, to));
+
+    // The caret follows the part it was in rather than staying at a number
+    // that now means a different one.
+    if (m_cursor.track == track) {
+        Cursor moved = m_cursor;
+        moved.track = to;
+        setCursor(Editing::clamped(m_score, moved));
+    }
     return Edit::Done;
 }
 

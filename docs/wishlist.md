@@ -148,9 +148,6 @@ cheaper.
 P3 is fret entry, rhythm, bars, selection, clipboard and undo. These are the
 edits it cannot yet make.
 
-- **Track management.** Add, remove, reorder, rename, change instrument. The
-  mixer and the track list both already assume a fixed set.
-
 - **Editable section names.** They are drawn on the bar strip and on the page,
   and read only.
 
