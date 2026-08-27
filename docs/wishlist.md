@@ -56,9 +56,11 @@ says it cannot play. Each of these closes one of those admissions.
 
 P4 in the plan is three items. These are the rest of that thought.
 
-- **Impulse-response cabinets.** A cab is a convolution and a file. It is the
-  cheapest realism available per line of code written, and it composes with
-  whatever amplifier simulation sits in front of it.
+- **Turning the knobs.** A chain loads and runs with every control at the value
+  the plugin says it should have. An amplifier nobody can turn up is half an
+  amplifier, and this is the next thing the chains need -- either control ports
+  as our own widgets, or the plugin's own interface through suil, which is a
+  bigger question than it looks.
 
 - **Pick, fret and string noise.** The difference between a sampled guitar and
   a guitar. The SFZ layer exists now, so this is a question of a library having

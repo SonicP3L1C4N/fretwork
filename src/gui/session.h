@@ -4,6 +4,7 @@
 #pragma once
 
 #include "editor.h"
+#include "lv2chain.h"
 #include "sfz.h"
 #include "player.h"
 #include "score.h"
@@ -87,6 +88,16 @@ class Session : public QObject
 
     /** The collections they came in, which is what the menu is grouped by. */
     Q_PROPERTY(QStringList collections READ collections NOTIFY samplersChanged)
+
+    /**
+     * The effects on the current part, and everything installed to choose from.
+     *
+     * Kept for the session and not written into the score, the same as the
+     * sample library and for the same reason: which plugins exist is a fact
+     * about this machine.
+     */
+    Q_PROPERTY(QStringList effectsHere READ effectsHere NOTIFY effectsChanged)
+    Q_PROPERTY(QVariantList availableEffects READ availableEffects NOTIFY effectsChanged)
 
     /** Everything a new part may be: names to show, and ids to ask for. */
     Q_PROPERTY(QStringList instrumentNames READ instrumentNames CONSTANT)
@@ -196,6 +207,17 @@ public:
 
     /** Looks again at where sample libraries live. */
     Q_INVOKABLE void rescanLibraries();
+
+    /** What the current part's chain loaded, in order, by name. */
+    QStringList effectsHere() const;
+    QVariantList availableEffects() const;
+
+    /** Puts a plugin on the end of the current part's chain. */
+    Q_INVOKABLE void addEffect(const QString &uri);
+
+    /** Takes the last one off, which is the one a person just regretted. */
+    Q_INVOKABLE void removeLastEffect();
+    Q_INVOKABLE void clearEffects();
 
     QStringList instrumentNames() const;
     QStringList instrumentIds() const;
@@ -395,6 +417,7 @@ Q_SIGNALS:
     void clickChanged();
     void portsChanged();
     void samplersChanged();
+    void effectsChanged();
     void positionChanged();
     void layoutChanged();
     void mixerChanged();
@@ -419,6 +442,8 @@ private:
     bool m_ports = false;
     bool m_following = false;
     QHash<int, QString> m_samplers;
+    QHash<int, QStringList> m_effects;
+    QList<Lv2::Description> m_plugins;
     QList<Sfz::Library> m_libraries;
     double m_clickGain = 1.0;
     int m_currentBar = -1;

@@ -58,6 +58,9 @@ struct Options {
 
     /** An `.sfz` per track, by track number, for the parts that have one. */
     QHash<int, QString> samplers;
+
+    /** An LV2 chain per track, as plugin URIs in order, nearest the instrument first. */
+    QHash<int, QStringList> effects;
 };
 
 /** A General MIDI SoundFont on this machine, or empty if there is none. */

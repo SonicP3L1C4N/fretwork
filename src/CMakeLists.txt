@@ -14,6 +14,7 @@ add_library(fretworkcore STATIC
     audio/tracksynth.cpp
     audio/player.cpp
     audio/audioinput.cpp
+    audio/lv2chain.cpp
     audio/pitchdetector.cpp
     audio/portedoutput.cpp
     audio/sampler.cpp
@@ -49,6 +50,11 @@ target_include_directories(fretworkcore PUBLIC
 target_link_libraries(fretworkcore PUBLIC Qt6::Core Qt6::Gui Qt6::Xml ZLIB::ZLIB
                                          PkgConfig::FluidSynth
                                   PRIVATE KF6::I18n KF6::Archive)
+
+if(Lilv_FOUND)
+    target_link_libraries(fretworkcore PRIVATE PkgConfig::Lilv)
+    target_compile_definitions(fretworkcore PRIVATE FRETWORK_HAVE_LILV)
+endif()
 
 if(PipeWire_FOUND)
     target_link_libraries(fretworkcore PRIVATE PkgConfig::PipeWire)

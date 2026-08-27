@@ -120,6 +120,19 @@ Player::Player(const Score &score, const QList<int> &order, const Options &optio
             m_error = QStringLiteral("could not load %1").arg(m_options.soundFont);
             return;
         }
+
+        const QStringList chain = m_options.effects.value(index);
+        if (!chain.isEmpty()) {
+            Lv2::Chain::Options chainOptions;
+            chainOptions.sampleRate = m_options.sampleRate;
+            chainOptions.maximumFrames = MaximumBlock;
+            auto hosted = std::make_unique<Lv2::Chain>(chain, chainOptions);
+            if (!hosted->isValid()) {
+                m_error = hosted->error();
+                return;
+            }
+            channel->chain = std::move(hosted);
+        }
         lastEvent = std::max(lastEvent, channel->synth->lastEventSample());
         m_channels.push_back(std::move(channel));
     }
@@ -345,6 +358,14 @@ int Player::portCount() const
     return m_ports ? m_ports->pairCount() : 0;
 }
 
+QStringList Player::effectsOn(int track) const
+{
+    if (track < 0 || track >= int(m_channels.size()) || !m_channels[size_t(track)]->chain) {
+        return {};
+    }
+    return m_channels[size_t(track)]->chain->loaded();
+}
+
 bool Player::isFollowing() const
 {
     return m_options.followTransport && m_ports != nullptr;
@@ -439,6 +460,9 @@ void Player::spread(int frames, const PortedOutput::Transport &transport,
     for (size_t index = 0; index < m_channels.size(); ++index) {
         Channel &channel = *m_channels[index];
         channel.synth->fill(left[index], right[index], frames, at);
+        if (channel.chain) {
+            channel.chain->process(left[index], right[index], frames);
+        }
 
         const bool audible = soloing ? channel.solo.load(std::memory_order_relaxed)
                                      : !channel.muted.load(std::memory_order_relaxed);
@@ -551,6 +575,12 @@ void Player::mix(int frames, float *left, float *right)
             // Filled whether or not it is heard, so that unmuting a track does
             // not empty every event it slept through into one block.
             channel->synth->fill(m_scratchLeft.data(), m_scratchRight.data(), block, at);
+            if (channel->chain) {
+                // Between the instrument and the fader, which is where an
+                // amplifier stands: behind it, the distortion would change
+                // every time somebody adjusted a level.
+                channel->chain->process(m_scratchLeft.data(), m_scratchRight.data(), block);
+            }
 
             const bool audible = soloing ? channel->solo.load(std::memory_order_relaxed)
                                          : !channel->muted.load(std::memory_order_relaxed);

@@ -363,6 +363,38 @@ once, so the *MIDI* writer says what it gave up:
 Audio rendering has no such limit, because nothing is shared: that compromise
 is a property of the MIDI file format, not of the program.
 
+**Each part can go through its own effects.** `--lv2 0=<uri>,<uri>`, or the
+chain in the mixer, puts LV2 plugins between a part's instrument and its
+fader — which is where an amplifier stands, and behind the fader the
+distortion would change every time somebody adjusted a level. `--effects`
+lists what is installed; on a desktop with guitarix that is over a hundred
+usable things.
+
+```
+$ fretwork "Horses.gp" --render out/ \
+    --sfz 0=…/emily_clean.sfz \
+    --lv2 "0=…/gx_amp#GUITARIX,…/gx_cabinet#CABINET"
+```
+
+That is the point of the project finally assembled: a sampled guitar, through
+its own amplifier, out as its own stem. Over the same twenty seconds the
+amplifier and cabinet take the crest factor from 8.8 to 4.7 and double the RMS
+while leaving the peak where it was — peaks squashed toward the average and
+harmonics added, which is what an amplifier is.
+
+Hosted in this process with lilv rather than delegated to Carla. That was an
+open question in the architecture, and the ports answered it: handing a chain
+to another process means the audio leaving the callback and coming back, which
+is a second clock and a buffer of latency per track. Guitarix's amplifiers will
+not instantiate without the LV2 worker extension, so there is a real one here —
+a thread and two lock-free rings — rather than the errand being run on the
+audio thread, which would have worked and would have been a lie about what the
+callback does.
+
+Mono plugins are instantiated twice, one per side, which is what every host
+does and what a player would do with two pedals. Control ports sit at the
+values the plugin says they should: the chain is not adjustable yet.
+
 **A part can be played by recordings** rather than by a General MIDI
 programme. `--sfz 0=guitar.sfz` gives track 0 an SFZ instrument, and the parts
 without one carry on as they were — because a sample library exists for the
@@ -535,7 +567,7 @@ GPL — the reasoning for every line of that is in
 | **P1** | Headless converter: importers, model, technique translation, stem export. No window | **done** — the program is useful with no window |
 | **P2** | The player: tab rendering, transport, mixer, live playback | **done** |
 | **P3** | The editor | **done** — caret, fret entry, marks, transposition, beats, durations, bars, selection, copy and paste, undo, saving, tempo, time signature, sections, tuning, capo, parts, and a new score |
-| P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | **begun** — ports per part, the graph's transport starts them, and a part can be played from an SFZ library |
+| P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | **begun** — ports per part, the graph's transport starts them, a part can be played from an SFZ library, and each part has an LV2 chain of its own |
 | P5 | Standard notation, PDF, MusicXML, GP6 | |
 
 P1 is the one that matters: at the end of it the program is useful with no user

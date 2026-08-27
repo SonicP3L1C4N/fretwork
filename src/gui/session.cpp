@@ -6,6 +6,7 @@
 #include "fwformat.h"
 #include "gpif.h"
 #include "instruments.h"
+#include "lv2chain.h"
 #include "notename.h"
 #include "notevalue.h"
 
@@ -56,6 +57,9 @@ Session::Session(QObject *parent)
     connect(&m_editor, &Editor::historyChanged, this, &Session::historyChanged);
 
     rescanLibraries();
+    // Read once: lilv parses every manifest on the machine to answer the
+    // first question asked of it.
+    m_plugins = Lv2::installed();
 
     m_ticker.setInterval(50);
     connect(&m_ticker, &QTimer::timeout, this, [this] {
@@ -183,6 +187,7 @@ void Session::rebuildPlayer()
 
     Player::Options options;
     options.samplers = m_samplers;
+    options.effects = m_effects;
     options.perTrackPorts = m_ports || m_following;
     options.followTransport = m_following;
     auto player = std::make_unique<Player>(m_editor.score(), m_order, options);
@@ -316,6 +321,7 @@ void Session::setCurrentTrack(int track)
 
     rebuildLayout();
     Q_EMIT currentTrackChanged();
+    Q_EMIT effectsChanged();
 }
 
 QString Session::samplerHere() const
@@ -332,6 +338,71 @@ QString Session::samplerHere() const
     // Chosen from a file rather than from the list: the file's own name is
     // the best anybody can do, and it is what they picked.
     return QFileInfo(path).completeBaseName();
+}
+
+QStringList Session::effectsHere() const
+{
+    return m_player ? m_player->effectsOn(m_currentTrack) : QStringList();
+}
+
+QVariantList Session::availableEffects() const
+{
+    QVariantList found;
+    for (const Lv2::Description &plugin : m_plugins) {
+        found.append(QVariantMap{{QStringLiteral("name"), plugin.name},
+                                 {QStringLiteral("uri"), plugin.uri},
+                                 {QStringLiteral("stereo"), plugin.audioInputs == 2}});
+    }
+    return found;
+}
+
+void Session::addEffect(const QString &uri)
+{
+    QStringList chain = m_effects.value(m_currentTrack);
+    chain.append(uri);
+    const QHash<int, QStringList> was = m_effects;
+    m_effects.insert(m_currentTrack, chain);
+
+    stop();
+    rebuildPlayer();
+    if (!canPlay()) {
+        // It would not load. Back to the chain that worked rather than a part
+        // that cannot be played; the status bar carries what the host said.
+        m_effects = was;
+        rebuildPlayer();
+    } else {
+        setStatus(i18n("%1 on %2", Lv2::describe(uri).name, trackNameHere()));
+    }
+    Q_EMIT effectsChanged();
+}
+
+void Session::removeLastEffect()
+{
+    QStringList chain = m_effects.value(m_currentTrack);
+    if (chain.isEmpty()) {
+        return;
+    }
+    chain.removeLast();
+    if (chain.isEmpty()) {
+        m_effects.remove(m_currentTrack);
+    } else {
+        m_effects.insert(m_currentTrack, chain);
+    }
+    stop();
+    rebuildPlayer();
+    Q_EMIT effectsChanged();
+}
+
+void Session::clearEffects()
+{
+    if (!m_effects.contains(m_currentTrack)) {
+        return;
+    }
+    m_effects.remove(m_currentTrack);
+    stop();
+    rebuildPlayer();
+    setStatus(i18n("%1 is dry again", trackNameHere()));
+    Q_EMIT effectsChanged();
 }
 
 QVariantList Session::libraries() const

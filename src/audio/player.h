@@ -4,6 +4,7 @@
 #pragma once
 
 #include "score.h"
+#include "lv2chain.h"
 #include "portedoutput.h"
 #include "synth.h"
 #include "tracksynth.h"
@@ -53,6 +54,16 @@ public:
          * for the organ.
          */
         QHash<int, QString> samplers;
+
+        /**
+         * An LV2 chain per track, by track number, as plugin URIs in order.
+         *
+         * The first is nearest the instrument. Applied after the synth and
+         * before the fader, which is where a pedalboard and an amplifier sit:
+         * a chain behind the fader would be a chain whose distortion changed
+         * when somebody adjusted a level.
+         */
+        QHash<int, QStringList> effects;
         QString audioDriver;        //< empty means "pipewire if there is one"
         int sampleRate = 48000;
         int periodFrames = 512;
@@ -95,6 +106,9 @@ public:
 
     /** How many port pairs are in the graph; zero where there are none. */
     int portCount() const;
+
+    /** What a track's chain actually loaded, for a window to show. */
+    QStringList effectsOn(int track) const;
 
     /** Whether the transport is the graph's rather than this program's. */
     bool isFollowing() const;
@@ -174,6 +188,7 @@ private:
 
     struct Channel {
         std::unique_ptr<Synth> synth;
+        std::unique_ptr<Lv2::Chain> chain;
         std::atomic<bool> muted{false};
         std::atomic<bool> solo{false};
         std::atomic<float> gain{1.0f};

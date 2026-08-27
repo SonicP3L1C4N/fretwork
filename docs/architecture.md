@@ -48,8 +48,8 @@ Wayland, PipeWire 1.6.2.
 | Build | CMake + Ninja, ECM | CMake 3.20+ | KDE's own conventions, so the project stays proposable upstream |
 | Synthesis | FluidSynth | 2.4.8 | SoundFont playback, one instance per track, offline rendering built in |
 | Sample format | SFZ, read and played here | ours, ~600 lines | Round-robins and per-string articulation are what make a guitar sound like a guitar rather than like a General MIDI patch. **Not sfizz, as this row used to say.** It is not in the Ubuntu archive, and vendoring a large C++ library with its own dependency tree to use a dozen opcodes of a format was the worse trade — a parser and a voice allocator for the subset a plucked-string library uses is a few hundred lines that this project can read, test and fix. The cost is stated where it lands: linear interpolation, and no filters or LFOs. If a library ever needs more of the format than this reads, vendoring sfizz is still there to be done |
-| Plugin hosting | lilv + suil | 0.26.2 / 0.10.24 | Per-track LV2 chains — the amplifier simulation that makes stems worth having |
-| Amp simulation | guitarix LV2 | packaged | Already good, already free, already installed on the target machine |
+| Plugin hosting | lilv, in this process | 0.26.2 | Per-track LV2 chains — the amplifier simulation that makes stems worth having. **In-process, not delegated to Carla**, which was an open question and is now answered: handing a chain to another process means the audio leaving the callback and coming back, a second clock and a buffer of latency per track. The ports are one node precisely because there is one clock, and a process per chain would be the same mistake with more moving parts. suil is unused so far — plugin interfaces are a later question than plugin audio |
+| Amp simulation | guitarix LV2 | packaged, 69 bundles | Already good, already free. Its amplifiers will not instantiate without the LV2 worker extension, which is why this host has a real one — a thread and two lock-free rings — rather than running the errand on the audio thread |
 | Audio I/O | PipeWire native, JACK fallback | 1.6.2 | The target machine already runs a pro-audio PipeWire profile |
 | Audio files | libsndfile | 1.2.2 | Stem export |
 | Containers | our own central-directory reader, on zlib | zlib 1.3 | Neither KArchive nor a local-header reader opens a Guitar Pro 8.1.4 file — see [gpif-format.md](gpif-format.md#the-container-changed-in-814) |
@@ -233,7 +233,5 @@ committed, and `.gitignore`d by extension.
   and write MIDI, deferring the format until something needs to save?
 - QWidget or QQuickItem for the score canvas — settle with a scrolling
   measurement on a 250-bar score, not in advance.
-- Whether the per-track LV2 chain is hosted in-process with lilv or delegated to
-  Carla. In-process is more work and fewer moving parts.
 - How much of the RSE mixer state in a `.gp` file is worth importing when the
   effects it names are Arobas's and cannot be reproduced.

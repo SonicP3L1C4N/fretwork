@@ -34,6 +34,11 @@ pkg_check_modules(FluidSynth REQUIRED IMPORTED_TARGET fluidsynth)
 # Only to call pw_init(). FluidSynth's PipeWire driver expects the host
 # application to have initialised the library, and says so at the point where
 # it cannot find a single SPA plugin.
+# lilv finds and loads LV2 plugins: the per-track amplifier simulation that
+# makes stems worth having, hosted in this process rather than delegated --
+# see the architecture note on why.
+pkg_check_modules(Lilv IMPORTED_TARGET lilv-0)
+
 pkg_check_modules(PipeWire IMPORTED_TARGET libpipewire-0.3)
 find_package(KF6 ${KF_MIN_VERSION} REQUIRED COMPONENTS
     Archive CoreAddons I18n Kirigami)

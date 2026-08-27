@@ -1425,6 +1425,83 @@ Kirigami.ApplicationWindow {
                         }
 
                         /**
+                         * The effects on the part that is on the page.
+                         *
+                         * In the mixer because a chain is routing, and between
+                         * the instrument and the fader is where an amplifier
+                         * stands. Added at the end and taken off the end: a
+                         * pedalboard is an order, and rearranging one by
+                         * dragging is a different feature from having one.
+                         */
+                        Kirigami.Separator {
+                            Layout.fillWidth: true
+                            Layout.topMargin: Kirigami.Units.smallSpacing
+                            color: Ink.rule
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Kirigami.Units.smallSpacing
+
+                            QQC2.Label {
+                                Layout.fillWidth: true
+                                text: session.effectsHere.length > 0
+                                    ? i18n("Effects on %1", session.trackNameHere)
+                                    : i18n("Effects")
+                                color: session.effectsHere.length > 0 ? Ink.accentDeep : Ink.ink
+                                elide: Text.ElideRight
+                                font.weight: session.effectsHere.length > 0
+                                    ? Font.DemiBold : Font.Normal
+                            }
+
+                            MixerButton {
+                                text: i18n("+")
+                                checkable: false
+                                QQC2.ToolTip.text: i18n("Put one on the end of the chain")
+                                onClicked: effectMenu.popup()
+
+                                QQC2.Menu {
+                                    id: effectMenu
+                                    Repeater {
+                                        model: session.availableEffects
+                                        delegate: QQC2.MenuItem {
+                                            required property var modelData
+                                            text: modelData.stereo
+                                                ? modelData.name
+                                                : i18n("%1 (mono)", modelData.name)
+                                            onTriggered: session.addEffect(modelData.uri)
+                                        }
+                                    }
+                                }
+                            }
+
+                            MixerButton {
+                                text: i18n("\u2212")
+                                checkable: false
+                                litFill: Ink.ink
+                                QQC2.ToolTip.text: i18n("Take the last one off")
+                                onClicked: session.removeLastEffect()
+                            }
+                        }
+
+                        // The chain in order, which is the only thing about a
+                        // pedalboard that cannot be guessed from its parts.
+                        Repeater {
+                            model: session.effectsHere
+                            delegate: QQC2.Label {
+                                required property int index
+                                required property string modelData
+
+                                Layout.fillWidth: true
+                                Layout.leftMargin: Kirigami.Units.largeSpacing
+                                text: i18n("%1. %2", index + 1, modelData)
+                                elide: Text.ElideRight
+                                color: Ink.quiet
+                                font.pointSize: Kirigami.Theme.smallFont.pointSize
+                            }
+                        }
+
+                        /**
                          * Every part as a pair of ports in the graph.
                          *
                          * In the mixer because that is where this program says

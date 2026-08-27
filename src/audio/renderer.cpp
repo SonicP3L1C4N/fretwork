@@ -3,6 +3,7 @@
 
 #include "renderer.h"
 
+#include "lv2chain.h"
 #include "sampler.h"
 #include "sfz.h"
 #include "timeline.h"
@@ -78,6 +79,7 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
     const Timeline::Clock clock(score, order);
 
     std::vector<std::unique_ptr<Synth>> voices;
+    std::vector<std::unique_ptr<Lv2::Chain>> chains;
     std::vector<std::unique_ptr<WavWriter>> writers;
     QStringList paths;
 
@@ -118,6 +120,23 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
             return false;
         }
         lastEvent = std::max(lastEvent, voice->lastEventSample());
+
+        const QStringList wanted = options.effects.value(index);
+        if (!wanted.isEmpty()) {
+            Lv2::Chain::Options chainOptions;
+            chainOptions.sampleRate = options.sampleRate;
+            chainOptions.maximumFrames = std::max(64, options.blockFrames);
+            auto chain = std::make_unique<Lv2::Chain>(wanted, chainOptions);
+            if (!chain->isValid()) {
+                if (error) {
+                    *error = chain->error();
+                }
+                return false;
+            }
+            chains.push_back(std::move(chain));
+        } else {
+            chains.push_back(nullptr);
+        }
 
         const QString path = folder.filePath(QStringLiteral("%1-%2.wav")
                                                  .arg(index, 2, 10, QLatin1Char('0'))
@@ -197,6 +216,12 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
 
         for (size_t index = 0; index < voices.size(); ++index) {
             voices[index]->fill(left.data(), right.data(), frames, at);
+            if (index < chains.size() && chains[index]) {
+                // Between the instrument and the mix, the same as live: a stem
+                // that came out dry while the transport was playing it wet
+                // would be a stem of a different performance.
+                chains[index]->process(left.data(), right.data(), frames);
+            }
             if (!writers[index]->write(left.data(), right.data(), frames)) {
                 if (error) {
                     *error = writers[index]->error();

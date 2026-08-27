@@ -4,6 +4,7 @@
 #include "audioinput.h"
 #include "fwformat.h"
 #include "gpif.h"
+#include "lv2chain.h"
 #include "session.h"
 #include "midi.h"
 #include "pitchdetector.h"
@@ -67,6 +68,25 @@ QHash<int, QString> samplersFrom(const QStringList &given, QTextStream &error, i
         samplers.insert(track, pair.mid(split + 1));
     }
     return samplers;
+}
+
+/** `--lv2 1=uri,uri` into a table of chains by track number. */
+QHash<int, QStringList> effectsFrom(const QStringList &given, QTextStream &error, int *bad)
+{
+    QHash<int, QStringList> chains;
+    for (const QString &pair : given) {
+        const int split = pair.indexOf(QLatin1Char('='));
+        bool number = false;
+        const int track = split > 0 ? pair.left(split).toInt(&number) : -1;
+        if (!number || track < 0 || split + 1 >= pair.size()) {
+            error << QStringLiteral("fretwork: --lv2 wants a track and one or more plugin "
+                                    "URIs, as in --lv2 1=urn:one,urn:two\n");
+            ++*bad;
+            continue;
+        }
+        chains.insert(track, pair.mid(split + 1).split(QLatin1Char(','), Qt::SkipEmptyParts));
+    }
+    return chains;
 }
 
 QString clock(double seconds)
@@ -229,12 +249,15 @@ bool writeMidi(QTextStream &out, QTextStream &error, const Score &score,
  */
 bool renderAudio(QTextStream &out, QTextStream &error, const Score &score,
                  const QList<int> &order, const QString &directory,
-                 const QString &soundFont, bool click, const QHash<int, QString> &samplers)
+                 const QString &soundFont, bool click, const QHash<int, QString> &samplers,
+                 const QHash<int, QStringList> &effects)
 {
     Render::Options options;
     options.soundFont = soundFont;
     options.click = click;
     options.samplers = samplers;
+    options.effects = effects;
+    options.effects = effects;
 
     QString why;
     QList<Render::Written> written;
@@ -314,7 +337,8 @@ bool drawTab(QTextStream &out, QTextStream &error, const Score &score, int track
 bool playScore(QTextStream &out, QTextStream &error, const Score &score,
                const QList<int> &order, const QString &soundFont, const QString &driver,
                const QStringList &solo, const QStringList &mute, bool click, bool ports,
-               bool follow, const QHash<int, QString> &samplers)
+               bool follow, const QHash<int, QString> &samplers,
+               const QHash<int, QStringList> &effects)
 {
     Player::Options options;
     options.soundFont = soundFont;
@@ -655,6 +679,14 @@ int main(int argc, char *argv[])
                                      i18n("Give every track a pair of ports in the audio "
                                           "graph, for a DAW to record"));
     parser.addOption(porting);
+    const QCommandLineOption lv2(QStringLiteral("lv2"),
+                                 i18n("Put a chain of LV2 effects on a track, nearest the "
+                                      "instrument first; repeatable"),
+                                 i18n("track=uri,uri"));
+    parser.addOption(lv2);
+    const QCommandLineOption listEffects(QStringLiteral("effects"),
+                                         i18n("List the LV2 effects installed, and exit"));
+    parser.addOption(listEffects);
     const QCommandLineOption sfz(QStringLiteral("sfz"),
                                  i18n("Play a track from an SFZ instrument rather than a "
                                       "General MIDI programme; repeatable"),
@@ -698,6 +730,20 @@ int main(int argc, char *argv[])
 
     const QStringList files = parser.positionalArguments();
 
+    // Asked what it can do rather than what a file holds: no score needed.
+    if (parser.isSet(listEffects)) {
+        const QList<Lv2::Description> found = Lv2::installed();
+        for (const Lv2::Description &plugin : found) {
+            out << QStringLiteral("  %1  %2 in %3 out  %4\n")
+                       .arg(plugin.name, -34)
+                       .arg(plugin.audioInputs)
+                       .arg(plugin.audioOutputs)
+                       .arg(plugin.uri);
+        }
+        out << i18n("  %1 usable in a chain\n", QString::number(found.size()));
+        return 0;
+    }
+
     // Asked to produce something, this is a command line tool; asked for
     // nothing in particular, it is an application and opens a window.
     const bool asked = parser.isSet(info) || parser.isSet(midi) || parser.isSet(stems)
@@ -738,6 +784,7 @@ int main(int argc, char *argv[])
 
     int failures = 0;
     const QHash<int, QString> samplers = samplersFrom(parser.values(sfz), error, &failures);
+    const QHash<int, QStringList> effects = effectsFrom(parser.values(lv2), error, &failures);
 
     for (const QString &path : files) {
         QString why;
@@ -782,7 +829,7 @@ int main(int argc, char *argv[])
             if (!playScore(out, error, score, order, parser.value(soundFont),
                            parser.value(audioDriver), parser.values(soloed),
                            parser.values(muted), parser.isSet(clicking),
-                           parser.isSet(porting), parser.isSet(following), samplers)) {
+                           parser.isSet(porting), parser.isSet(following), samplers, effects)) {
                 ++failures;
             }
         }
@@ -824,7 +871,7 @@ int main(int argc, char *argv[])
         }
         if (parser.isSet(render)) {
             if (!renderAudio(out, error, score, order, parser.value(render),
-                             parser.value(soundFont), parser.isSet(clicking), samplers)) {
+                             parser.value(soundFont), parser.isSet(clicking), samplers, effects)) {
                 ++failures;
             }
         }

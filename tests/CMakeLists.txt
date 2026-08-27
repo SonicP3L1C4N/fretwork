@@ -43,6 +43,11 @@ ecm_add_test(tunertest.cpp
     LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n
 )
 
+ecm_add_test(lv2test.cpp
+    TEST_NAME lv2test
+    LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n
+)
+
 ecm_add_test(midtest.cpp
     TEST_NAME midtest
     LINK_LIBRARIES Qt6::Test fretworkcore
