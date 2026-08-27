@@ -72,9 +72,35 @@ P4 in the plan is three items. These are the rest of that thought.
   of the gap without any of that.
 
 - **Pick, fret and string noise.** The difference between a sampled guitar and
-  a guitar. The SFZ layer exists now, so this is a question of a library having
-  the recordings and the score knowing when to ask for them -- a release noise
-  on a note that ends, and a scrape where a hand moves position.
+  a guitar. The SFZ layer exists, so this is a question of a library having the
+  recordings and the score knowing when to ask for them. Both halves were
+  looked at before starting, and what was found shapes the job:
+
+  *The recordings are there, and the parser already reaches them.* Emily
+  guitar keeps a `noises/` folder -- `fingering1`, `muted1` to `muted5`,
+  `pickrest1`, each with round-robins -- and a `release/` folder with a release
+  sample per note. Growlybass keeps `scrape/`. Sample paths in both are written
+  with backslashes, which `Sfz::parse` already turns into separators.
+
+  *Release noise may cost nothing.* `emily_basic.sfz` carries eighteen
+  `trigger=release` groups and the sampler has honoured that opcode since the
+  Karoryfer libraries were added. Whether a note ending in Fretwork actually
+  plays its release sample is unverified, and is the first thing to measure --
+  it may be working already, or silently not.
+
+  *The noises are notes, above the instrument's range.* Emily maps key 90 to
+  fingering, 91-95 to the muted variants and 96 to pick-rest; Growlybass maps
+  81-84 to scrapes. **The ranges differ per library**, so nothing can hardcode
+  "key 90 is a finger squeak". A noise map has to be discovered -- regions
+  whose sample path names a noise folder and whose keys sit above what the
+  tuning can reach -- or configured per instrument, and discovered is the only
+  one that survives somebody installing a library nobody has seen.
+
+  *The score already knows when.* A position shift is two consecutive notes on
+  one string whose frets are far apart; a dead note is `Note::muted`, which the
+  model has carried from the beginning; a pick-rest belongs where a part stops.
+  `Timeline` is where that turns into a note number, which keeps `Sampler`
+  ignorant of guitars, as it is now.
 
 - **Per-string panning.** Round-robins are done and pan is read from the
   library, but per *string* is different: the same note played on the fifth
