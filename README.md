@@ -718,7 +718,7 @@ interface at all, which is the only honest definition of a foundation.
 ## Building
 
 ```
-sudo apt install build-essential cmake ninja-build pkg-config \
+sudo apt install build-essential cmake ninja-build pkg-config gettext \
     extra-cmake-modules qt6-base-dev qt6-declarative-dev \
     libkf6archive-dev libkf6coreaddons-dev libkf6i18n-dev \
     libkirigami-dev \
