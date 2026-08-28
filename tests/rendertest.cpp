@@ -8,18 +8,27 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QtEndian>
 
+#include <cmath>
+#include <vector>
+
 /**
- * The audio side: the WAV writer on its own, and the renderer against a real
- * SoundFont where the machine has one.
+ * The audio side: the WAV writer and reader on their own, and the renderer
+ * against a real SoundFont where the machine has one.
  *
  * The renderer's tests are skipped rather than failed without a SoundFont,
  * because a build machine without fluid-soundfont-gm installed is a missing
- * dependency and not a broken program. The WAV writer is tested unconditionally
- * -- it needs nothing.
+ * dependency and not a broken program. The writer and the reader are tested
+ * unconditionally -- they need nothing.
+ *
+ * The reader is tested against files built byte by byte rather than against
+ * files the writer produced. The writer only ever emits 16-bit stereo PCM, so
+ * a round trip through it proves one of the six shapes the reader claims to
+ * accept and none of the ones a sample library actually arrives in.
  */
 class RenderTest : public QObject
 {
@@ -40,6 +49,99 @@ private:
         qint64 frames = 0;
         QList<qint16> samples;
     };
+
+    // ---- building WAV files by hand, for the reader ----
+
+    static void putU16(QByteArray &out, quint16 value)
+    {
+        char bytes[2];
+        qToLittleEndian(value, bytes);
+        out.append(bytes, 2);
+    }
+
+    static void putU32(QByteArray &out, quint32 value)
+    {
+        char bytes[4];
+        qToLittleEndian(value, bytes);
+        out.append(bytes, 4);
+    }
+
+    /**
+     * A WAV with the header a real one has, and nothing helpful added.
+     *
+     * `format` is the tag in the fmt chunk: 1 for PCM, 3 for float, 0xFFFE for
+     * extensible. For extensible, `subFormat` is the tag buried in the
+     * SubFormat GUID, which is where the format actually lives.
+     */
+    static QByteArray wavBytes(int format, int bits, int channels, int rate,
+                               const QByteArray &data, int subFormat = 1,
+                               const QByteArray &extraChunk = {})
+    {
+        QByteArray fmt;
+        putU16(fmt, quint16(format));
+        putU16(fmt, quint16(channels));
+        putU32(fmt, quint32(rate));
+        putU32(fmt, quint32(rate * channels * bits / 8));
+        putU16(fmt, quint16(channels * bits / 8));
+        putU16(fmt, quint16(bits));
+        if (format == 0xFFFE) {
+            putU16(fmt, 22);                    // cbSize
+            putU16(fmt, quint16(bits));         // wValidBitsPerSample
+            putU32(fmt, 3);                     // dwChannelMask
+            putU16(fmt, quint16(subFormat));    // the GUID's first two bytes
+            putU16(fmt, 0);
+            // The rest of the GUID every extensible WAV carries unchanged.
+            const unsigned char tail[14] = {0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80,
+                                            0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71};
+            fmt.append(reinterpret_cast<const char *>(tail), 14);
+        }
+
+        QByteArray body;
+        body.append("WAVE", 4);
+        body.append(extraChunk);
+        body.append("fmt ", 4);
+        putU32(body, quint32(fmt.size()));
+        body.append(fmt);
+        body.append("data", 4);
+        putU32(body, quint32(data.size()));
+        body.append(data);
+
+        QByteArray out;
+        out.append("RIFF", 4);
+        putU32(out, quint32(body.size()));
+        out.append(body);
+        return out;
+    }
+
+    /** Writes `bytes` to a file in the temporary directory and names it back. */
+    QString wavFile(const QString &name, const QByteArray &bytes) const
+    {
+        const QString where = path(name);
+        QFile file(where);
+        [&] { QVERIFY(file.open(QIODevice::WriteOnly)); }();
+        [&] { QCOMPARE(file.write(bytes), qint64(bytes.size())); }();
+        file.close();
+        return where;
+    }
+
+    /** One 24-bit sample at half scale, little-endian. */
+    static QByteArray sample24(qint32 value)
+    {
+        QByteArray out;
+        out.append(char(value & 0xFF));
+        out.append(char((value >> 8) & 0xFF));
+        out.append(char((value >> 16) & 0xFF));
+        return out;
+    }
+
+    static float loudest(const std::vector<float> &samples)
+    {
+        float peak = 0;
+        for (const float sample : samples) {
+            peak = std::max(peak, std::abs(sample));
+        }
+        return peak;
+    }
 
     /** Reads back a WAV strictly enough to catch a wrong length in the header. */
     static Wav readWav(const QString &file)
@@ -127,6 +229,197 @@ private Q_SLOTS:
     void initTestCase()
     {
         QVERIFY(m_directory.isValid());
+    }
+
+    // ---- the WAV reader, against files a sample library would hold ----
+
+    /**
+     * Every depth and every header shape a sample library arrives in, each
+     * read to the right amplitude.
+     *
+     * Half scale in every case, so a wrong divisor is a wrong number rather
+     * than silence, and one row per format so a failure names the format
+     * rather than stopping at the first one that breaks.
+     *
+     * The extensible rows are the ones with teeth. An extensible header names
+     * its format only in the SubFormat GUID: the bit depth cannot stand in for
+     * it, because 32-bit integer and 32-bit float are both 32 bits and reading
+     * one as the other does not fail -- it returns numbers. A sample four
+     * times too loud, or a denormal that reads as silence, is the kind of
+     * wrong that gets blamed on the sampler. Extensible 24-bit matters on its
+     * own account: it is what a professional sample library is usually in.
+     */
+    void readsEveryShapeASampleArrivesIn_data()
+    {
+        QTest::addColumn<int>("format");
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<int>("subFormat");
+        QTest::addColumn<QByteArray>("data");
+
+        QByteArray sixteen;
+        putU16(sixteen, quint16(qint16(16384)));            // 0.5 of 32768
+        QByteArray thirtyTwo;
+        putU32(thirtyTwo, 0x40000000u);                     // 0.5 of 2147483648
+        QByteArray asFloat;
+        const float half = 0.5f;
+        asFloat.append(reinterpret_cast<const char *>(&half), 4);
+        const QByteArray twentyFour = sample24(0x400000);   // 0.5 of 8388608
+
+        QTest::newRow("16-bit PCM") << 1 << 16 << 1 << sixteen;
+        QTest::newRow("24-bit PCM") << 1 << 24 << 1 << twentyFour;
+        QTest::newRow("32-bit PCM") << 1 << 32 << 1 << thirtyTwo;
+        QTest::newRow("32-bit float") << 3 << 32 << 1 << asFloat;
+        QTest::newRow("extensible 16-bit PCM") << 0xFFFE << 16 << 1 << sixteen;
+        QTest::newRow("extensible 24-bit PCM") << 0xFFFE << 24 << 1 << twentyFour;
+        QTest::newRow("extensible 32-bit PCM") << 0xFFFE << 32 << 1 << thirtyTwo;
+        QTest::newRow("extensible 32-bit float") << 0xFFFE << 32 << 3 << asFloat;
+    }
+
+    void readsEveryShapeASampleArrivesIn()
+    {
+        QFETCH(int, format);
+        QFETCH(int, bits);
+        QFETCH(int, subFormat);
+        QFETCH(QByteArray, data);
+
+        const QString file =
+            wavFile(QStringLiteral("shape-%1.wav").arg(QLatin1String(QTest::currentDataTag())),
+                    wavBytes(format, bits, 1, 44100, data, subFormat));
+        const WavReader reader(file);
+        QVERIFY2(reader.isValid(), qPrintable(reader.error()));
+        QCOMPARE(reader.channels(), 1);
+        QCOMPARE(reader.sampleRate(), 44100);
+        QCOMPARE(reader.frames(), qint64(1));
+
+        const float peak = loudest(reader.samples());
+        QVERIFY2(std::abs(peak - 0.5f) < 0.001f,
+                 qPrintable(QStringLiteral("read at %1, not 0.5").arg(double(peak))));
+    }
+
+    /** Stereo stays stereo, and the frame count is samples over channels. */
+    void countsFramesPerChannelNotPerSample()
+    {
+        QByteArray data;
+        for (int frame = 0; frame < 4; ++frame) {
+            putU16(data, quint16(qint16(1000)));    // left
+            putU16(data, quint16(qint16(-1000)));   // right
+        }
+        const WavReader reader(
+            wavFile(QStringLiteral("stereo.wav"), wavBytes(1, 16, 2, 48000, data)));
+        QVERIFY2(reader.isValid(), qPrintable(reader.error()));
+        QCOMPARE(reader.channels(), 2);
+        QCOMPARE(reader.frames(), qint64(4));
+        QCOMPARE(reader.samples().size(), size_t(8));
+    }
+
+    /**
+     * A chunk the reader has never heard of, before the one it needs.
+     *
+     * Editors put LIST and fact chunks wherever they like, and one of them is
+     * an odd number of bytes long -- which is padded to even, and a reader
+     * that forgets the padding walks into the middle of the next chunk and
+     * finds nothing.
+     */
+    void walksPastChunksItDoesNotKnow()
+    {
+        QByteArray odd;
+        odd.append("LIST", 4);
+        putU32(odd, 5);
+        odd.append("INFO!", 5);
+        odd.append('\0');                           // the pad byte
+
+        QByteArray data;
+        putU16(data, quint16(qint16(16384)));
+        const WavReader reader(wavFile(QStringLiteral("chunky.wav"),
+                                       wavBytes(1, 16, 1, 44100, data, 1, odd)));
+        QVERIFY2(reader.isValid(), qPrintable(reader.error()));
+        QCOMPARE(reader.frames(), qint64(1));
+        QVERIFY(std::abs(loudest(reader.samples()) - 0.5f) < 0.001f);
+    }
+
+    /**
+     * A data chunk that claims more than the file holds.
+     *
+     * Truncated downloads are ordinary, and the header still says how long the
+     * file was meant to be. Reading to the length in the header rather than to
+     * the length on disk is a read past the end of the buffer.
+     */
+    void readsNoFurtherThanTheFileGoes()
+    {
+        QByteArray data;
+        for (int frame = 0; frame < 8; ++frame) {
+            putU16(data, quint16(qint16(1000)));
+        }
+        QByteArray bytes = wavBytes(1, 16, 1, 44100, data);
+        bytes.chop(10);                             // five frames short
+
+        const WavReader reader(wavFile(QStringLiteral("cut.wav"), bytes));
+        QVERIFY2(reader.isValid(), qPrintable(reader.error()));
+        QCOMPARE(reader.frames(), qint64(3));
+    }
+
+    /** Refused by name, so a missing sample is not a silent one. */
+    void refusesFormatsItCannotReadByName()
+    {
+        QByteArray data(64, '\0');
+
+        const struct {
+            const char *what;
+            int format;
+            int bits;
+            int channels;
+        } cases[] = {
+            {"ADPCM", 2, 4, 1},
+            {"8-bit PCM", 1, 8, 1},
+            {"five channels", 1, 16, 5},
+        };
+
+        for (const auto &one : cases) {
+            const WavReader reader(
+                wavFile(QStringLiteral("bad-%1.wav").arg(QLatin1String(one.what)),
+                        wavBytes(one.format, one.bits, one.channels, 44100, data)));
+            QVERIFY2(!reader.isValid(), one.what);
+            QVERIFY2(!reader.error().isEmpty(), one.what);
+        }
+    }
+
+    /**
+     * An extensible header whose GUID cannot be read is refused, not guessed
+     * at. Guessing is what produced the wrong amplitude this suite exists to
+     * catch.
+     */
+    void refusesAnExtensibleHeaderItCannotResolve()
+    {
+        QByteArray data(64, '\0');
+        QByteArray bytes = wavBytes(0xFFFE, 32, 1, 44100, data, 1);
+        // Cut the fmt chunk back to the plain sixteen bytes, leaving the tag
+        // saying "extensible" with no GUID behind it.
+        const int at = bytes.indexOf("fmt ") + 4;
+        QByteArray shortened = bytes.left(at);
+        putU32(shortened, 16);
+        shortened.append(bytes.mid(at + 4, 16));
+        shortened.append(bytes.mid(bytes.indexOf("data")));
+
+        const WavReader reader(wavFile(QStringLiteral("halfext.wav"), shortened));
+        QVERIFY(!reader.isValid());
+        QVERIFY2(!reader.error().isEmpty(), qPrintable(reader.error()));
+    }
+
+    void saysWhichFileItCouldNotOpen()
+    {
+        const WavReader reader(path(QStringLiteral("no-such-sample.wav")));
+        QVERIFY(!reader.isValid());
+        QVERIFY2(reader.error().contains(QStringLiteral("no-such-sample.wav")),
+                 qPrintable(reader.error()));
+    }
+
+    void refusesSomethingThatIsNotAWavAtAll()
+    {
+        const WavReader reader(
+            wavFile(QStringLiteral("prose.wav"),
+                    QByteArrayLiteral("This is not a WAV file, it is a sentence.")));
+        QVERIFY(!reader.isValid());
+        QVERIFY(!reader.error().isEmpty());
     }
 
     // ---- the WAV writer, which needs nothing ----
@@ -327,7 +620,91 @@ private Q_SLOTS:
                                             .arg(worst)));
     }
 
-    void saysSoWhenThereIsNoSoundFont()
+    /**
+     * The click is written as a stem and kept out of the mix.
+     *
+     * Both halves matter and the second is the one that can break quietly. A
+     * click baked into the mix cannot be taken out again by whoever opens
+     * these files later, and it would sound like a deliberate part rather than
+     * like a mistake -- so the test is that the mix is still exactly the two
+     * instruments, with a click file sitting beside it.
+     */
+    void writesTheClickAsAStemAndKeepsItOutOfTheMix()
+    {
+        if (Render::findSoundFont().isEmpty()) {
+            QSKIP("no SoundFont on this machine; install fluid-soundfont-gm");
+        }
+
+        const Score score = twoTracks();
+        const QString folder = path(QStringLiteral("clicked"));
+        Render::Options options;
+        options.tailSeconds = 0.5;
+        options.click = true;
+
+        QString why;
+        QList<Render::Written> written;
+        QVERIFY2(Render::stems(score, Timeline::playedOrder(score), folder, options,
+                               &why, &written),
+                 qPrintable(why));
+
+        QVERIFY(QFileInfo::exists(QDir(folder).filePath(QStringLiteral("click.wav"))));
+        const Wav click = readWav(QDir(folder).filePath(QStringLiteral("click.wav")));
+        QVERIFY2(click.frames > 0, "the click stem is empty");
+
+        const Wav guitar = readWav(QDir(folder).filePath(QStringLiteral("00-Guitar.wav")));
+        const Wav drums = readWav(QDir(folder).filePath(QStringLiteral("01-Drums.wav")));
+        const Wav mix = readWav(QDir(folder).filePath(QStringLiteral("mix.wav")));
+
+        int worst = 0;
+        for (int index = 0; index < mix.samples.size(); index += 37) {
+            const int summed = std::clamp(guitar.samples.at(index) + drums.samples.at(index),
+                                          -32767, 32767);
+            worst = std::max(worst, std::abs(summed - mix.samples.at(index)));
+        }
+        QVERIFY2(worst <= 4,
+                 qPrintable(QStringLiteral("the click reached the mix: off by %1")
+                                .arg(worst)));
+    }
+
+    /**
+     * The tail is what is asked for, and it is there because a file that stops
+     * on the last note-off ends with a click of its own.
+     */
+    void keepsRenderingForAsLongAsTheTailAsksFor()
+    {
+        if (Render::findSoundFont().isEmpty()) {
+            QSKIP("no SoundFont on this machine; install fluid-soundfont-gm");
+        }
+
+        const Score score = twoTracks();
+        Render::Options brief;
+        brief.tailSeconds = 0.5;
+        Render::Options longer = brief;
+        longer.tailSeconds = 2.0;
+
+        QList<Render::Written> shortRun;
+        QList<Render::Written> longRun;
+        QVERIFY(Render::stems(score, Timeline::playedOrder(score),
+                              path(QStringLiteral("tail-short")), brief, nullptr,
+                              &shortRun));
+        QVERIFY(Render::stems(score, Timeline::playedOrder(score),
+                              path(QStringLiteral("tail-long")), longer, nullptr,
+                              &longRun));
+
+        QVERIFY(!shortRun.isEmpty() && !longRun.isEmpty());
+        const double difference = longRun.constFirst().seconds - shortRun.constFirst().seconds;
+        QVERIFY2(std::abs(difference - 1.5) < 0.05,
+                 qPrintable(QStringLiteral("the extra tail was %1 seconds, not 1.5")
+                                .arg(difference)));
+    }
+
+    /**
+     * A named SoundFont that is not there. Not the same case as none being
+     * installed at all: naming one skips the search entirely, so this is the
+     * "could not load" branch and the message has to name the file, since the
+     * path the user typed is the thing they got wrong.
+     */
+    void saysWhichSoundFontItCouldNotLoad()
     {
         Render::Options options;
         options.soundFont = path(QStringLiteral("absent.sf2"));
@@ -336,7 +713,24 @@ private Q_SLOTS:
         QString why;
         QVERIFY(!Render::stems(score, Timeline::playedOrder(score),
                                path(QStringLiteral("nowhere")), options, &why));
-        QVERIFY(!why.isEmpty());
+        QVERIFY2(why.contains(QStringLiteral("absent.sf2")), qPrintable(why));
+    }
+
+    /**
+     * The search only ever offers a file that is there.
+     *
+     * The branch where it finds nothing -- the one a stranger with no
+     * fluid-soundfont-gm actually meets -- cannot be reached on a machine that
+     * has a SoundFont installed, because the candidates are fixed paths. This
+     * asserts the half that is reachable either way.
+     */
+    void findsOnlyASoundFontThatExists()
+    {
+        const QString found = Render::findSoundFont();
+        if (found.isEmpty()) {
+            QSKIP("no SoundFont on this machine: the search has nothing to offer");
+        }
+        QVERIFY2(QFileInfo::exists(found), qPrintable(found));
     }
 
     void refusesAnEmptyScore()

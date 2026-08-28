@@ -185,6 +185,15 @@ WavReader::WavReader(const QString &path)
             m_channels = readU16(bytes + body + 2);
             m_sampleRate = int(readU32(bytes + body + 4));
             bits = readU16(bytes + body + 14);
+            // "Extensible" names no format itself: the real one is the first
+            // two bytes of the SubFormat GUID, twenty-four bytes into the
+            // chunk. It has to be read rather than guessed from the bit
+            // depth, because 32-bit integer and 32-bit float are both 32 bits
+            // and reading one as the other is silence or noise -- not an
+            // error, which is the worst way for a sample to be wrong.
+            if (format == 0xFFFE && size >= 40 && body + 26 <= all.size()) {
+                format = readU16(bytes + body + 24);
+            }
         } else if (tagIs(bytes + at, "data")) {
             dataAt = body;
             dataSize = std::min<qint64>(size, all.size() - body);
@@ -199,9 +208,10 @@ WavReader::WavReader(const QString &path)
         return;
     }
 
-    // 1 is PCM and 3 is float; 0xFFFE is "extensible", whose real format is
-    // buried further in and which libraries do use.
-    const bool isFloat = format == 3 || (format == 0xFFFE && bits == 32);
+    // 1 is PCM and 3 is float, whether they were named directly or through an
+    // extensible header. Anything still calling itself 0xFFFE here had a
+    // SubFormat nobody could read, and is refused by name like any other.
+    const bool isFloat = format == 3;
     if (format != 1 && !isFloat) {
         m_error = QStringLiteral("%1: WAV format %2 is not one this reads")
                       .arg(path)
