@@ -721,7 +721,7 @@ interface at all, which is the only honest definition of a foundation.
 sudo apt install build-essential cmake ninja-build pkg-config \
     extra-cmake-modules qt6-base-dev qt6-declarative-dev \
     libkf6archive-dev libkf6coreaddons-dev libkf6i18n-dev \
-    libkf6kirigami-dev \
+    libkirigami-dev \
     zlib1g-dev libfluidsynth-dev fluid-soundfont-gm
 
 # Optional. Without lilv there are no per-track LV2 chains; without
