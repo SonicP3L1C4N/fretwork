@@ -197,19 +197,28 @@ void Session::rebuildPlayer()
 {
     m_player.reset();
     if (m_editor.score().isEmpty()) {
+        // Nothing to play is not the same as being unable to play: an empty
+        // score is where every new one starts.
+        setProblem(QString());
         return;
     }
 
     Player::Options options;
+    options.soundFont = m_soundFont;
     options.samplers = m_samplers;
     options.effects = m_effects;
     options.perTrackPorts = m_ports || m_following;
     options.followTransport = m_following;
     auto player = std::make_unique<Player>(m_editor.score(), m_order, options);
     if (!player->isValid()) {
+        // Both channels: the status bar says it now, and the problem keeps
+        // saying it -- including to somebody who has closed the status bar,
+        // for whom this is the only thing that will open it again.
         setStatus(player->error());
+        setProblem(player->error());
         return;
     }
+    setProblem(QString());
     m_player = std::move(player);
 
     // Whatever the knobs were left at. A new Player is what happens when a
@@ -262,6 +271,14 @@ void Session::setStatus(const QString &status)
     }
 }
 
+void Session::setProblem(const QString &problem)
+{
+    if (m_problem != problem) {
+        m_problem = problem;
+        Q_EMIT problemChanged();
+    }
+}
+
 QString Session::title() const
 {
     return m_editor.score().title.isEmpty() ? m_fileName : m_editor.score().title;
@@ -285,6 +302,11 @@ bool Session::hasScore() const
 QString Session::status() const
 {
     return m_status;
+}
+
+QString Session::problem() const
+{
+    return m_problem;
 }
 
 QStringList Session::trackNames() const
@@ -405,6 +427,15 @@ QVariantList Session::chainHere() const
                                  {QStringLiteral("controls"), knobs}});
     }
     return chain;
+}
+
+void Session::useSoundFont(const QString &file)
+{
+    if (m_soundFont == file) {
+        return;
+    }
+    m_soundFont = file;
+    rebuildPlayer();
 }
 
 void Session::applyRig(const QVariantMap &samplers, const QVariantMap &effects)

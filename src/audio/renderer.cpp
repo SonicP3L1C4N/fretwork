@@ -10,6 +10,8 @@
 #include "tracksynth.h"
 #include "wav.h"
 
+#include <KLocalizedString>
+
 #include <QDir>
 #include <QFileInfo>
 #include <QRegularExpression>
@@ -56,14 +58,15 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
     }
     if (options.soundFont.isEmpty()) {
         if (error) {
-            *error = QStringLiteral("no SoundFont found: install fluid-soundfont-gm, "
-                                    "or name one with --soundfont");
+            *error = i18n("No SoundFont is installed, so there is nothing to render "
+                          "the score with. Install fluid-soundfont-gm, or name one "
+                          "with --soundfont.");
         }
         return false;
     }
     if (score.isEmpty()) {
         if (error) {
-            *error = QStringLiteral("there is nothing to render");
+            *error = i18n("there is nothing to render");
         }
         return false;
     }
@@ -71,7 +74,7 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
     QDir folder(directory);
     if (!folder.mkpath(QStringLiteral("."))) {
         if (error) {
-            *error = QStringLiteral("cannot make %1").arg(directory);
+            *error = i18n("cannot make %1", directory);
         }
         return false;
     }
@@ -117,8 +120,8 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
                 std::make_unique<Sampler>(instrument, messages, clock, samplerOptions);
             if (!sampler->isValid()) {
                 if (error) {
-                    *error = QStringLiteral("%1: %2").arg(
-                        sfz, why.isEmpty() ? sampler->error() : why);
+                    *error = i18nc("a file, and what is wrong with it", "%1: %2",
+                                   sfz, why.isEmpty() ? sampler->error() : why);
                 }
                 return false;
             }
@@ -128,7 +131,7 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
         }
         if (!voice->isValid()) {
             if (error) {
-                *error = QStringLiteral("could not load %1").arg(options.soundFont);
+                *error = i18n("could not load %1", options.soundFont);
             }
             return false;
         }
@@ -162,7 +165,8 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
         auto writer = std::make_unique<WavWriter>(path, options.sampleRate);
         if (!writer->isOpen()) {
             if (error) {
-                *error = QStringLiteral("%1: %2").arg(path, writer->error());
+                *error = i18nc("a file, and what is wrong with it", "%1: %2",
+                               path, writer->error());
             }
             return false;
         }
@@ -178,7 +182,8 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
             dryWriter = std::make_unique<WavWriter>(dryPath, options.sampleRate);
             if (!dryWriter->isOpen()) {
                 if (error) {
-                    *error = QStringLiteral("%1: %2").arg(dryPath, dryWriter->error());
+                    *error = i18nc("a file, and what is wrong with it", "%1: %2",
+                                   dryPath, dryWriter->error());
                 }
                 return false;
             }
@@ -205,7 +210,7 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
                                          synthOptions);
         if (!voice->isValid()) {
             if (error) {
-                *error = QStringLiteral("could not load %1").arg(options.soundFont);
+                *error = i18n("could not load %1", options.soundFont);
             }
             return false;
         }
@@ -215,7 +220,8 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
         auto writer = std::make_unique<WavWriter>(path, options.sampleRate);
         if (!writer->isOpen()) {
             if (error) {
-                *error = QStringLiteral("%1: %2").arg(path, writer->error());
+                *error = i18nc("a file, and what is wrong with it", "%1: %2",
+                               path, writer->error());
             }
             return false;
         }
@@ -229,7 +235,8 @@ bool Render::stems(const Score &score, const QList<int> &order, const QString &d
     WavWriter mix(mixPath, options.sampleRate);
     if (!mix.isOpen()) {
         if (error) {
-            *error = QStringLiteral("%1: %2").arg(mixPath, mix.error());
+            *error = i18nc("a file, and what is wrong with it", "%1: %2",
+                           mixPath, mix.error());
         }
         return false;
     }

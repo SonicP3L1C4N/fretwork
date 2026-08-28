@@ -29,6 +29,9 @@ Kirigami.ApplicationWindow {
     property var initialSamplers: ({})
     property var initialEffects: ({})
 
+    /** And the SoundFont, if one was named. Empty means the usual search. */
+    property string initialSoundFont: ""
+
     /**
      * The mixer has no per-track model, because the player's state lives in
      * atomics that the audio thread reads. Bumping this on every change is
@@ -120,6 +123,11 @@ Kirigami.ApplicationWindow {
     }
 
     Component.onCompleted: {
+        // Before the score, so the first player built is built with it rather
+        // than being thrown away and built again.
+        if (initialSoundFont.length > 0) {
+            session.useSoundFont(initialSoundFont)
+        }
         if (initialFile.length > 0) {
             session.open(initialFile)
             session.applyRig(initialSamplers, initialEffects)
@@ -2894,7 +2902,11 @@ Kirigami.ApplicationWindow {
     Rectangle {
         Layout.fillWidth: true
         implicitHeight: Kirigami.Units.gridUnit * 1.9
-        visible: panels.status
+        // A problem overrides the panel toggle. The bar is closeable and is
+        // remembered closed, which is right for chatter and wrong for "there
+        // is no SoundFont, so nothing you press will make a sound": that has
+        // to reach somebody who closed this bar last week.
+        visible: panels.status || session.problem !== ""
         color: Ink.ink
 
         RowLayout {
@@ -2913,10 +2925,15 @@ Kirigami.ApplicationWindow {
                 visible: session.hasScore
             }
 
+            // The problem when there is one, the chatter when there is not.
+            // In the accent rather than in Ink.faint, because a reason the
+            // program is silent should not be set in the colour reserved for
+            // bar numbers and things nobody needs to read.
             QQC2.Label {
                 Layout.fillWidth: true
-                text: session.status
-                color: Ink.faint
+                text: session.problem !== "" ? session.problem : session.status
+                color: session.problem !== "" ? Ink.accentOnInk : Ink.faint
+                font.weight: session.problem !== "" ? Font.DemiBold : Font.Normal
                 elide: Text.ElideRight
                 font.pointSize: Kirigami.Theme.smallFont.pointSize
             }

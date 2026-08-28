@@ -47,6 +47,24 @@ class Session : public QObject
     Q_PROPERTY(QString status READ status NOTIFY statusChanged)
 
     /**
+     * What is wrong, if anything is: empty when the score can be played.
+     *
+     * Separate from `status` because the two have different lifetimes. A
+     * status is chatter -- "Capo off", "Tempo 120 from bar 3" -- and the next
+     * one replaces it. A problem is a condition: there is no SoundFont, or the
+     * audio device would not open, and it is still true a minute later. It is
+     * set when the player cannot be built and cleared when one is, so the
+     * window can keep saying so for as long as it holds.
+     *
+     * The status bar is a panel a user can close, and it is remembered closed.
+     * That is fine for chatter and wrong for this: a first run with no
+     * SoundFont installed is silent, and a silent program that has also been
+     * told not to show its status bar has no way left to say why. The window
+     * shows the bar regardless while this is set.
+     */
+    Q_PROPERTY(QString problem READ problem NOTIFY problemChanged)
+
+    /**
      * The tempo in force where the caret is, in crotchets a minute.
      *
      * What the bar would be played at, whether the bar writes a change of its
@@ -302,6 +320,15 @@ public:
      * somebody rebuild by hand what they just typed on a command line.
      */
     Q_INVOKABLE void applyRig(const QVariantMap &samplers, const QVariantMap &effects);
+
+    /**
+     * The SoundFont named on the command line, for the window as well.
+     *
+     * `--soundfont` reached `--render` and `--play` and stopped there, so
+     * opening a window with it did nothing and said nothing. Empty means the
+     * usual search, which is what a window opened without one does.
+     */
+    Q_INVOKABLE void useSoundFont(const QString &file);
     QVariantList availableEffects() const;
 
     QVariantList voicings() const;
@@ -348,6 +375,7 @@ public:
     QString fileName() const;
     bool hasScore() const;
     QString status() const;
+    QString problem() const;
     QString caretText() const;
     QString tempoTermHere() const;
     int beatsHere() const;
@@ -523,6 +551,7 @@ public:
 Q_SIGNALS:
     void scoreChanged();
     void statusChanged();
+    void problemChanged();
     void currentTrackChanged();
     void playingChanged();
     void clickChanged();
@@ -539,6 +568,7 @@ private:
     void rebuildLayout();
     void rebuildPlayer();
     void setStatus(const QString &status);
+    void setProblem(const QString &problem);
 
     Editor m_editor;
     QList<int> m_order;
@@ -565,5 +595,7 @@ private:
     QString m_fileName;
     QString m_filePath;
     QString m_status;
+    QString m_problem;
+    QString m_soundFont;
     QTimer m_ticker;
 };

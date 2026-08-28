@@ -7,6 +7,8 @@
 #include "sfz.h"
 #include "timeline.h"
 
+#include <KLocalizedString>
+
 #include <fluidsynth.h>
 
 #ifdef FRETWORK_HAVE_PIPEWIRE
@@ -75,12 +77,13 @@ Player::Player(const Score &score, const QList<int> &order, const Options &optio
         m_options.soundFont = Render::findSoundFont();
     }
     if (m_options.soundFont.isEmpty()) {
-        m_error = QStringLiteral("no SoundFont found: install fluid-soundfont-gm, "
-                                 "or name one with --soundfont");
+        m_error = i18n("No SoundFont is installed, so there is nothing to play the "
+                       "score with. Install fluid-soundfont-gm, or name one with "
+                       "--soundfont.");
         return;
     }
     if (score.isEmpty()) {
-        m_error = QStringLiteral("there is nothing to play");
+        m_error = i18n("there is nothing to play");
         return;
     }
 
@@ -114,8 +117,8 @@ Player::Player(const Score &score, const QList<int> &order, const Options &optio
             auto sampler =
                 std::make_unique<Sampler>(instrument, messages, clock, samplerOptions);
             if (!sampler->isValid()) {
-                m_error = QStringLiteral("%1: %2").arg(
-                    sfz, why.isEmpty() ? sampler->error() : why);
+                m_error = i18nc("an instrument file, and what is wrong with it",
+                                "%1: %2", sfz, why.isEmpty() ? sampler->error() : why);
                 return;
             }
             channel->synth = std::move(sampler);
@@ -125,7 +128,7 @@ Player::Player(const Score &score, const QList<int> &order, const Options &optio
                                              synthOptions);
         }
         if (!channel->synth->isValid()) {
-            m_error = QStringLiteral("could not load %1").arg(m_options.soundFont);
+            m_error = i18n("could not load %1", m_options.soundFont);
             return;
         }
 
@@ -221,8 +224,8 @@ Player::Player(const Score &score, const QList<int> &order, const Options &optio
         }
     }
     if (!m_driver) {
-        m_error = QStringLiteral("could not open an audio device; tried %1")
-                      .arg(candidates.join(QStringLiteral(", ")));
+        m_error = i18n("could not open an audio device; tried %1",
+                       candidates.join(QStringLiteral(", ")));
     }
 }
 

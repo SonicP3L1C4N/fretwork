@@ -1039,9 +1039,11 @@ int main(int argc, char *argv[])
         for (auto entry = effects.constBegin(); entry != effects.constEnd(); ++entry) {
             effectRig.insert(QString::number(entry.key()), entry.value());
         }
-        engine.setInitialProperties({{QStringLiteral("initialFile"), files.value(0)},
-                                     {QStringLiteral("initialSamplers"), samplerRig},
-                                     {QStringLiteral("initialEffects"), effectRig}});
+        engine.setInitialProperties(
+            {{QStringLiteral("initialFile"), files.value(0)},
+             {QStringLiteral("initialSamplers"), samplerRig},
+             {QStringLiteral("initialEffects"), effectRig},
+             {QStringLiteral("initialSoundFont"), parser.value(soundFont)}});
         engine.loadFromModule("org.kde.fretwork", "Main");
         if (engine.rootObjects().isEmpty()) {
             error << i18n("fretwork: the window could not be created\n");

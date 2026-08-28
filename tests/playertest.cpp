@@ -224,6 +224,24 @@ private Q_SLOTS:
                  qPrintable(player.error()));
     }
 
+    /**
+     * The playback half of the same question the renderer answers.
+     *
+     * A stranger who presses play with no SoundFont installed hears nothing,
+     * and the only thing standing between that and "the program is broken" is
+     * this message. It has to name the file it could not load.
+     */
+    void saysWhichSoundFontItCouldNotLoad()
+    {
+        const Score score = threeTracks();
+        Player::Options bad = options();
+        bad.soundFont = QStringLiteral("/nowhere/absent.sf2");
+        Player player(score, Timeline::playedOrder(score), bad);
+        QVERIFY(!player.isValid());
+        QVERIFY2(player.error().contains(QStringLiteral("absent.sf2")),
+                 qPrintable(player.error()));
+    }
+
     void refusesAnEmptyScore()
     {
         Player player(Score(), {}, options());
