@@ -1,0 +1,145 @@
+# SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The main build. Arch is used because it always carries a current Qt6 and
+  # KF6; the project's minimums are Qt 6.6 and KF 6.0, which Ubuntu LTS does
+  # not meet. The matrix is the point of this job: the two optional
+  # dependencies are removed by hiding their pkg-config files, which is the
+  # only honest way to prove the CMake fallbacks work.
+  build:
+    name: build (${{ matrix.config }})
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [full, no-lilv, no-pipewire]
+
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel cmake ninja git pkgconf \
+            extra-cmake-modules \
+            qt6-base qt6-declarative qt6-tools \
+            karchive kcoreaddons ki18n kirigami \
+            fluidsynth soundfont-fluid \
+            lilv pipewire zlib
+
+      - uses: actions/checkout@v4
+
+      - name: Remove optional dependency
+        if: matrix.config != 'full'
+        run: |
+          case "${{ matrix.config }}" in
+            no-lilv)     pc=lilv-0 ;;
+            no-pipewire) pc=libpipewire-0.3 ;;
+          esac
+          # Hide the .pc file rather than uninstalling: fluidsynth pulls some
+          # of these in transitively, and the question being asked is what
+          # CMake does when pkg_check_modules cannot find it.
+          find /usr/lib /usr/share -name "$pc.pc" -exec mv {} {}.hidden \;
+          echo "Hidden $pc.pc"
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build
+        run: cmake --build build
+
+      # No corpus here — transcriptions are not committed and never will be.
+      # The corpus assertion runs in corpus.yml on a self-hosted runner.
+      # These tests must SKIP with a message naming FRETWORK_CORPUS, and a
+      # skip is not a pass: --output-on-failure plus the summary makes that
+      # visible in the log.
+      - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_LOGGING_RULES: "*.debug=false"
+        run: ctest --test-dir build --output-on-failure --no-tests=error
+
+      - name: Report skipped tests
+        if: always()
+        run: |
+          ctest --test-dir build --show-only=json-v1 > /dev/null || true
+          echo "::notice::Corpus tests skip in CI by design. See corpus.yml."
+
+  # This job exists to catch undocumented dependencies, and nothing else. It
+  # runs the README's apt line verbatim on a KDE-current Ubuntu base. If the
+  # README grows out of date with CMakeLists.txt, this is what says so.
+  readme:
+    name: README build instructions
+    runs-on: ubuntu-latest
+    container: invent-registry.kde.org/neon/docker-images/plasma:unstable
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract the apt line from README.md
+        id: deps
+        run: |
+          # The first apt line in the first fenced block under "## Building"
+          # is the contract. Only the first: the second is the optional pair,
+          # and the question this job asks is whether a stranger who installs
+          # nothing but the required set can build.
+          awk '
+              /^## Building/ {f=1; next}
+              !f {next}
+              /^```/ {c++; next}
+              c != 1 {next}
+              /apt install/ && !seen {inb=1; seen=1}
+              inb && NF == 0 {inb=0}
+              inb
+          ' README.md \
+            | sed -e 's/^sudo //' -e 's/^apt install *//' \
+            | tr -d '\\' > /tmp/deps.txt
+          cat /tmp/deps.txt
+
+      - name: Install exactly what the README says
+        run: |
+          apt-get update
+          # Unquoted on purpose: the line breaks and indentation the README
+          # uses for legibility collapse into one argument list.
+          apt-get install -y $(cat /tmp/deps.txt)
+
+      - name: Build as a stranger would
+        run: |
+          cmake -B build -G Ninja
+          cmake --build build
+
+  reuse:
+    name: REUSE compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: fsfe/reuse-action@v5
+
+  metadata:
+    name: Desktop and AppStream metadata
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install validators
+        run: pacman -Syu --noconfirm --needed appstream desktop-file-utils
+
+      - uses: actions/checkout@v4
+
+      - name: Validate the desktop entry
+        run: desktop-file-validate src/io.github.sonicp3l1c4n.fretwork.desktop
+
+      - name: Validate the AppStream metainfo
+        run: |
+          appstreamcli validate --pedantic --explain \
+            src/io.github.sonicp3l1c4n.fretwork.metainfo.xml

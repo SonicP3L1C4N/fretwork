@@ -100,3 +100,13 @@ if(DESKTOP_FILE_VALIDATE)
                 ${CMAKE_SOURCE_DIR}/src/io.github.sonicp3l1c4n.fretwork.desktop
     )
 endif()
+
+# --no-net matters: the screenshots are remote URLs, and a test suite has no
+# business reaching out to GitHub to run.
+find_program(APPSTREAMCLI appstreamcli)
+if(APPSTREAMCLI)
+    add_test(NAME metainfotest
+        COMMAND ${APPSTREAMCLI} validate --pedantic --no-net
+                ${CMAKE_SOURCE_DIR}/src/io.github.sonicp3l1c4n.fretwork.metainfo.xml
+    )
+endif()

@@ -651,9 +651,15 @@ interface at all, which is the only honest definition of a foundation.
 ## Building
 
 ```
-sudo apt install build-essential cmake ninja-build extra-cmake-modules \
-    qt6-base-dev libkf6archive-dev libkf6coreaddons-dev libkf6i18n-dev \
+sudo apt install build-essential cmake ninja-build pkg-config \
+    extra-cmake-modules qt6-base-dev qt6-declarative-dev \
+    libkf6archive-dev libkf6coreaddons-dev libkf6i18n-dev \
+    libkf6kirigami-dev \
     zlib1g-dev libfluidsynth-dev fluid-soundfont-gm
+
+# Optional. Without lilv there are no per-track LV2 chains; without
+# PipeWire's headers there is no transport.
+sudo apt install liblilv-dev libpipewire-0.3-dev
 
 cmake -B build -G Ninja
 cmake --build build

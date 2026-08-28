@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
+
+# The corpus assertion, on a machine that has the corpus.
+#
+# docs/architecture.md says the corpus is checked on every commit. Nothing in
+# the repository made that true, because the corpus is transcriptions the
+# author owns and is neither committed nor redistributable. This workflow is
+# the mechanism: a self-hosted runner on a machine where the files already
+# live, with FRETWORK_CORPUS pointing at them.
+#
+# Setting it up, once:
+#   Settings -> Actions -> Runners -> New self-hosted runner
+#   Label it `corpus`. Then, on that machine:
+#     echo "FRETWORK_CORPUS=/path/to/your/gp/files" >> ~/actions-runner/.env
+#
+# Until that runner exists this workflow will simply not run, which is a
+# truthful state to be in. It is better than a claim with nothing behind it.
+
+name: Corpus
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 19 * * 0"   # Monday morning, Sydney
+  workflow_dispatch:
+
+jobs:
+  corpus:
+    name: Import and round-trip the real corpus
+    runs-on: [self-hosted, corpus]
+    if: github.repository == 'SonicP3L1C4N/fretwork'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Refuse to run without a corpus
+        run: |
+          if [ -z "$FRETWORK_CORPUS" ]; then
+            echo "::error::FRETWORK_CORPUS is not set on this runner."
+            exit 1
+          fi
+          count=$(find "$FRETWORK_CORPUS" -maxdepth 1 -name '*.gp' | wc -l)
+          echo "::notice::$count .gp files in the corpus"
+          [ "$count" -gt 0 ]
+
+      - name: Configure and build
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build
+
+      # These are the two suites with a corpus loop: gpiftest imports every
+      # file, fwformattest imports it, writes .fw, reopens it and asserts the
+      # music is the same. Everything else has already run in ci.yml.
+      - name: Corpus tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          ctest --test-dir build --output-on-failure --no-tests=error \
+            -R 'gpiftest|fwformattest'
+
+      # Failures name files. Files are transcriptions. The log is public.
+      - name: Scrub filenames from the log on failure
+        if: failure()
+        run: |
+          echo "::warning::A corpus test failed. Filenames may appear above."
+          echo "Consider making this repository's Actions logs private, or"
+          echo "running this workflow manually only."
+
+      - name: Make sure nothing crept into the tree
+        if: always()
+        run: |
+          if git status --porcelain --ignored | grep -E '\.(gp|gpx|gp[3-5])$'; then
+            echo "::error::A transcription is sitting in the working tree."
+            exit 1
+          fi

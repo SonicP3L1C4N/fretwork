@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
+
+SPDX-License-Identifier: CC0-1.0
+-->
+<component type="desktop-application">
+  <id>io.github.sonicp3l1c4n.fretwork</id>
+
+  <name>Fretwork</name>
+  <summary>Play every track of a tab as its own stem</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL</project_license>
+
+  <developer id="io.github.sonicp3l1c4n">
+    <name>Gary Bissett</name>
+  </developer>
+
+  <description>
+    <p>
+      Fretwork is a tablature program for Linux that treats a score as a
+      multitrack session. It reads Guitar Pro files, converts them to a format
+      of its own, and renders each track through a separate synthesised
+      instrument — so a track can be soloed, sent through its own amplifier
+      simulation, and exported as an independent audio file.
+    </p>
+    <p>
+      That last part is the reason the program exists. Linux already has a
+      tablature editor. What it has not had is a tablature program that gives
+      you one synth per track, per-track LV2 effects, and real stems out the
+      other end.
+    </p>
+    <p>Fretwork will:</p>
+    <ul>
+      <li>Open a Guitar Pro file and draw the tablature, with the bar being played lit up as it goes</li>
+      <li>Give every track its own synthesiser, so solo and mute take effect while it plays</li>
+      <li>Let you edit — fret entry, rhythm, bars, selection, copy and paste, undo, transposition, tuning and capo</li>
+      <li>Export one audio file per track, wet or dry, or a backing track with a part removed</li>
+      <li>Tune your instrument from the audio input</li>
+    </ul>
+    <p>
+      Where a score asks for something Fretwork cannot honestly play, it says
+      so rather than approximating it. The list of what those things are is in
+      the documentation, and it is short and getting shorter.
+    </p>
+    <p>
+      "Guitar Pro" is a trademark of Arobas Music. Fretwork is not affiliated
+      with them, not derived from their software, and ships none of their
+      soundbanks or artwork.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">io.github.sonicp3l1c4n.fretwork.desktop</launchable>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/SonicP3L1C4N/fretwork/main/docs/window.png</image>
+      <caption>Tablature on the left, a mixer on the right, and the bar grid along the bottom</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/SonicP3L1C4N/fretwork/main/docs/window-repeats.png</image>
+      <caption>Repeats expanded, so the bar grid is the piece as it is played</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/SonicP3L1C4N/fretwork/main/docs/window-tuner.png</image>
+      <caption>The tuner, listening to the audio input</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/SonicP3L1C4N/fretwork/main/docs/page-direction.png</image>
+      <caption>A page of the score, laid out for reading and for print</caption>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://github.com/SonicP3L1C4N/fretwork</url>
+  <url type="bugtracker">https://github.com/SonicP3L1C4N/fretwork/issues</url>
+  <url type="vcs-browser">https://github.com/SonicP3L1C4N/fretwork</url>
+
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>Music</category>
+  </categories>
+
+  <keywords>
+    <keyword>guitar</keyword>
+    <keyword>tablature</keyword>
+    <keyword>tab</keyword>
+    <keyword>bass</keyword>
+    <keyword>stem</keyword>
+    <keyword>multitrack</keyword>
+    <keyword>LV2</keyword>
+  </keywords>
+
+  <provides>
+    <binary>fretwork</binary>
+  </provides>
+
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <!-- Update the date to the day you tag, and keep this in step with
+         project(fretwork VERSION ...) in CMakeLists.txt. appstreamcli will
+         not catch a mismatch; the release checklist will. -->
+    <release version="0.1.0" date="2026-09-01" type="development">
+      <description>
+        <p>
+          First release. A tablature editor and player with per-track
+          synthesis and stem export. Per-track LV2 chains and SFZ sampling are
+          present and experimental.
+        </p>
+      </description>
+      <url type="details">https://github.com/SonicP3L1C4N/fretwork/blob/main/CHANGELOG.md</url>
+    </release>
+  </releases>
+</component>

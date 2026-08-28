@@ -145,3 +145,8 @@ target_compile_definitions(fretwork PRIVATE FRETWORK_VERSION="${PROJECT_VERSION}
 install(TARGETS fretwork ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
 install(PROGRAMS io.github.sonicp3l1c4n.fretwork.desktop
         DESTINATION ${KDE_INSTALL_APPDIR})
+
+# Without this a software centre will not list the program at all -- the
+# .desktop file alone is enough to put it in a menu and nowhere else.
+install(FILES io.github.sonicp3l1c4n.fretwork.metainfo.xml
+        DESTINATION ${KDE_INSTALL_METAINFODIR})

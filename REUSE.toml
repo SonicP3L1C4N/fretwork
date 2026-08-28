@@ -25,3 +25,12 @@ path = "LICENSES/**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Gary Bissett <gary.bissett@gmail.com>"
 SPDX-License-Identifier = "GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL"
+
+# The test and evaluation agents. A Claude Code agent file must open with its
+# YAML frontmatter on the first line, so there is nowhere in them to put a
+# header -- which is what this file is for.
+[[annotations]]
+path = ".claude/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Gary Bissett <gary.bissett@gmail.com>"
+SPDX-License-Identifier = "GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL"
