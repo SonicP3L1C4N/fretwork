@@ -1784,223 +1784,349 @@ Kirigami.ApplicationWindow {
             id: tunerPanel
 
             Layout.fillWidth: true
-            Layout.preferredHeight: Kirigami.Units.gridUnit * 6
+            Layout.preferredHeight: Kirigami.Units.gridUnit * 13
             visible: panels.tuner
-            color: Ink.panelDeep
+            // Ink, unlike the panels either side of it. A tuner is read at
+            // arm's length while both hands are busy, and the ladder is a row
+            // of lit blocks -- which is a thing that glows on a dark ground
+            // and a thing that stains on a light one.
+            color: Ink.ink
 
-            Kirigami.Separator {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                color: Ink.rule
-            }
+            /** How far out the ladder reads, either side of the mark. */
+            readonly property real span: 50
+            /** Blocks each side of the centre. One block is `span / steps` cents. */
+            readonly property int steps: 10
 
-            RowLayout {
+            ColumnLayout {
                 anchors.fill: parent
-                anchors.leftMargin: Kirigami.Units.largeSpacing * 2
-                anchors.rightMargin: Kirigami.Units.largeSpacing * 2
-                anchors.topMargin: Kirigami.Units.largeSpacing
-                anchors.bottomMargin: Kirigami.Units.largeSpacing
+                anchors.leftMargin: Kirigami.Units.largeSpacing * 3
+                anchors.rightMargin: Kirigami.Units.largeSpacing * 3
+                anchors.topMargin: Kirigami.Units.largeSpacing * 2
+                anchors.bottomMargin: Kirigami.Units.largeSpacing * 2
                 spacing: Kirigami.Units.largeSpacing * 2
 
-                ColumnLayout {
-                    Layout.alignment: Qt.AlignVCenter
-                    spacing: 0
+                // ---- what is being tuned, and whether anything is listening ----
 
-                    Kirigami.Heading {
-                        level: 2
-                        text: i18n("Tuner")
-                        color: Ink.ink
-                    }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.largeSpacing * 1.5
 
                     QQC2.Label {
-                        Layout.maximumWidth: Kirigami.Units.gridUnit * 9
-                        text: session.hasScore ? session.trackNames[session.currentTrack]
-                                               : i18n("standard tuning")
-                        color: Ink.quiet
+                        text: i18nc("the name of this panel", "TUNER")
+                        color: Ink.faint
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                        font.letterSpacing: 2
+                    }
+
+                    // The part, how it is tuned, where its capo is and what A
+                    // is taken to be. The last of those is the only assumption
+                    // in the tuner worth arguing about, so it is said out loud
+                    // rather than left for somebody to discover.
+                    QQC2.Label {
+                        Layout.fillWidth: true
+                        text: session.hasScore
+                            ? i18nc("part, tuning, capo and concert pitch",
+                                    "%1 · %2 · capo %3 · A = 440",
+                                    session.trackNames[session.currentTrack],
+                                    session.tuningHere, session.capoHere)
+                            : i18n("standard tuning · A = 440")
+                        color: Ink.faint
                         elide: Text.ElideRight
                         font.pointSize: Kirigami.Theme.smallFont.pointSize
                     }
+
+                    ChromeToggle {
+                        text: tuner.running ? i18n("Listening") : i18n("Listen")
+                        checked: tuner.listening
+                        onToggled: panels.tuner = checked
+                    }
                 }
 
-                // Every string of the part on the page, and which one is
-                // sounding. Lowest first, the way the score writes them down.
+                // ---- the note, and the ladder it is read on ----
+
                 RowLayout {
-                    Layout.alignment: Qt.AlignVCenter
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: Kirigami.Units.largeSpacing * 3
+
+                    ColumnLayout {
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.minimumWidth: Kirigami.Units.gridUnit * 7
+                        spacing: Kirigami.Units.smallSpacing
+
+                        QQC2.Label {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: tuner.heard ? tuner.noteName : "—"
+                            color: tuner.heard ? Ink.paper : Ink.edge
+                            font.pointSize: Kirigami.Theme.defaultFont.pointSize * 3.4
+                            font.weight: Font.DemiBold
+                            opacity: tuner.fresh || !tuner.heard ? 1 : 0.55
+                        }
+
+                        /**
+                         * How far out, which way, and which way to turn.
+                         *
+                         * In the colour of the direction it names, so that the
+                         * sentence and the ladder agree without either being
+                         * read twice. "Tighten" and "slacken" rather than
+                         * "sharp" and "flat" alone: the two words name the
+                         * thing to do, and the ladder has already said which
+                         * side of the mark it is on.
+                         */
+                        QQC2.Label {
+                            Layout.alignment: Qt.AlignHCenter
+                            visible: tuner.heard
+                            text: tuner.inTune
+                                ? i18n("in tune")
+                                : i18nc("how far out, and which way to turn the peg",
+                                        "%1 ¢ %2 — %3", Math.round(Math.abs(tuner.cents)),
+                                        tuner.cents < 0 ? i18n("flat") : i18n("sharp"),
+                                        tuner.cents < 0 ? i18n("tighten") : i18n("slacken"))
+                            color: tuner.inTune ? Ink.arrived
+                                                : (tuner.cents < 0 ? Ink.flatNearest
+                                                                   : Ink.accentOnInk)
+                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                            font.features: ({ "tnum": 1 })
+                            opacity: tuner.fresh ? 1 : 0.55
+                        }
+
+                        // What the input is doing while nothing is sounding,
+                        // so that a dead cable does not read as a quiet room.
+                        QQC2.Label {
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.maximumWidth: Kirigami.Units.gridUnit * 9
+                            visible: !tuner.heard
+                            text: tuner.message
+                            color: tuner.error.length > 0 ? Ink.accentOnInk : Ink.quiet
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.WordWrap
+                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignVCenter
+                        spacing: Kirigami.Units.smallSpacing
+
+                        /**
+                         * Twenty-one blocks: ten either side of the mark, and
+                         * the mark itself wider than the rest.
+                         *
+                         * They light from where the string is inward to the
+                         * mark rather than out from the mark, because what is
+                         * being watched is the gap closing. Taller toward the
+                         * centre for the same reason a ruler's inch marks are
+                         * taller than its eighths -- the eye finds the middle
+                         * without reading anything.
+                         */
+                        RowLayout {
+                            id: ladder
+
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: Kirigami.Units.gridUnit * 2.6
+                            spacing: 2
+
+                            /** Blocks from the mark to where the string is. */
+                            readonly property int reach:
+                                tuner.heard && !tuner.inTune
+                                    ? Math.min(tunerPanel.steps,
+                                               Math.ceil(Math.abs(tuner.cents)
+                                                         / (tunerPanel.span / tunerPanel.steps)))
+                                    : 0
+
+                            Repeater {
+                                model: tunerPanel.steps * 2 + 1
+
+                                delegate: Rectangle {
+                                    id: block
+
+                                    required property int index
+
+                                    /** Negative is flat, zero is the mark. */
+                                    readonly property int fromCentre:
+                                        block.index - tunerPanel.steps
+                                    readonly property int distance: Math.abs(block.fromCentre)
+                                    readonly property bool centre: block.distance === 0
+
+                                    /**
+                                     * Lit where it lies between the mark and
+                                     * the reading, on the reading's own side.
+                                     */
+                                    readonly property bool lit:
+                                        !block.centre && ladder.reach > 0
+                                        && block.distance <= ladder.reach
+                                        && (block.fromCentre < 0) === (tuner.cents < 0)
+
+                                    readonly property var flatRamp: [Ink.flatNearest,
+                                                                     Ink.flatNearer,
+                                                                     Ink.flatNear, Ink.flat]
+                                    readonly property var sharpRamp: [Ink.accentOnInk,
+                                                                      Ink.sharpNearer,
+                                                                      Ink.sharpNear, Ink.accent]
+
+                                    Layout.fillWidth: true
+                                    // The mark is wider as well as taller: it
+                                    // is the one block somebody is trying to
+                                    // land on.
+                                    Layout.preferredWidth: block.centre ? 1.4 : 1
+                                    Layout.preferredHeight: block.centre
+                                        ? ladder.height
+                                        : (block.distance <= 3 ? ladder.height * 0.77
+                                                               : block.distance <= 6
+                                                                   ? ladder.height * 0.64
+                                                                   : ladder.height * 0.5)
+                                    Layout.alignment: Qt.AlignVCenter
+                                    radius: 1
+
+                                    color: block.centre
+                                        ? (tuner.inTune ? Ink.arrived : Ink.well)
+                                        : block.lit
+                                            ? (block.fromCentre < 0
+                                                   ? block.flatRamp[Math.min(3, block.distance - 1)]
+                                                   : block.sharpRamp[Math.min(3, block.distance - 1)])
+                                            : Ink.well
+                                    // The mark keeps its ring whether or not
+                                    // anything has landed on it, so the thing
+                                    // being aimed at is visible before the aim.
+                                    border.width: block.centre ? 1 : 0
+                                    border.color: Ink.arrived
+                                    opacity: !block.lit || tuner.fresh ? 1 : 0.55
+
+                                    Behavior on color {
+                                        ColorAnimation { duration: 90 }
+                                    }
+                                }
+                            }
+                        }
+
+                        /**
+                         * The scale, built on the ladder's own slots.
+                         *
+                         * One invisible cell per block, with a number in every
+                         * fifth: a row of five labels spaced by hand lands
+                         * them near the quarters rather than on them, and a
+                         * scale whose nought is not over the mark is a scale
+                         * saying something false about the thing beside it.
+                         */
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: ladder.spacing
+
+                            Repeater {
+                                model: tunerPanel.steps * 2 + 1
+
+                                delegate: QQC2.Label {
+                                    id: mark
+
+                                    required property int index
+
+                                    readonly property int fromCentre:
+                                        mark.index - tunerPanel.steps
+
+                                    Layout.fillWidth: true
+                                    Layout.preferredWidth: mark.fromCentre === 0 ? 1.4 : 1
+                                    horizontalAlignment: Text.AlignHCenter
+                                    text: switch (mark.fromCentre) {
+                                        case -tunerPanel.steps:
+                                            return i18nc("fifty cents flat", "♭ −50")
+                                        case -tunerPanel.steps / 2: return "−25"
+                                        case 0: return "0"
+                                        case tunerPanel.steps / 2: return "+25"
+                                        case tunerPanel.steps:
+                                            return i18nc("fifty cents sharp", "+50 ♯")
+                                        default: return ""
+                                    }
+                                    color: mark.fromCentre === 0
+                                        ? Ink.arrived
+                                        : mark.fromCentre === -tunerPanel.steps
+                                            ? Ink.flatNearer
+                                            : mark.fromCentre === tunerPanel.steps
+                                                ? Ink.accentOnInk
+                                                : Ink.quiet
+                                    font.pointSize: Kirigami.Theme.smallFont.pointSize
+                                    font.features: ({ "tnum": 1 })
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ---- the strings of the part, and how loud the input is ----
+
+                RowLayout {
+                    Layout.fillWidth: true
                     spacing: Kirigami.Units.smallSpacing
+
+                    QQC2.Label {
+                        Layout.rightMargin: Kirigami.Units.smallSpacing
+                        text: i18n("Strings")
+                        color: Ink.faint
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    }
 
                     Repeater {
                         model: tuner.stringNames
 
                         delegate: Rectangle {
-                            id: pill
+                            id: chip
 
                             required property int index
                             required property string modelData
 
                             readonly property bool lit: tuner.heard && tuner.string === index
 
-                            implicitWidth: Kirigami.Units.gridUnit * 2.4
-                            implicitHeight: Kirigami.Units.gridUnit * 2
+                            implicitWidth: chipLabel.implicitWidth
+                                           + Kirigami.Units.largeSpacing * 2
+                            implicitHeight: Kirigami.Units.gridUnit * 1.7
                             radius: Ink.radius
-                            color: pill.lit ? (tuner.inTune ? Ink.accent : Ink.accentTint)
-                                            : "transparent"
-                            border.width: pill.lit ? 0 : 1
-                            border.color: Ink.staff
+                            color: chip.lit ? Ink.accent : "transparent"
+                            border.width: 1
+                            border.color: chip.lit ? Ink.accent : Ink.edge
                             // A held reading fades rather than vanishing: the
                             // person reading this is looking at a machine head.
-                            opacity: !pill.lit || tuner.fresh ? 1 : 0.55
+                            opacity: !chip.lit || tuner.fresh ? 1 : 0.55
 
                             QQC2.Label {
+                                id: chipLabel
+
                                 anchors.centerIn: parent
-                                text: pill.modelData
-                                color: pill.lit ? (tuner.inTune ? Ink.paper : Ink.accentDeep)
-                                                : Ink.ink
-                                font.weight: pill.lit ? Font.DemiBold : Font.Normal
+                                text: chip.modelData
+                                color: chip.lit ? Ink.paper : Ink.faint
+                                font.weight: chip.lit ? Font.DemiBold : Font.Normal
                             }
                         }
                     }
-                }
 
-                /**
-                 * The needle, fifty cents either side of the mark.
-                 *
-                 * Fifty because that is where the answer stops being "this
-                 * string is out" and starts being "that is a different note":
-                 * a scale somebody reads while turning a peg wants to be over
-                 * the range they are turning it through.
-                 */
-                Item {
-                    id: needle
-
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.minimumWidth: Kirigami.Units.gridUnit * 10
-
-                    readonly property real span: width / 2 - Kirigami.Units.gridUnit
-                    readonly property real offset:
-                        Math.max(-1, Math.min(1, tuner.cents / 50)) * needle.span
+                    Item { Layout.fillWidth: true }
 
                     QQC2.Label {
-                        id: heardNote
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.top: parent.top
-                        text: tuner.heard ? tuner.noteName : ""
-                        color: tuner.inTune ? Ink.accentDeep : Ink.ink
-                        font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.6
-                        font.weight: Font.DemiBold
-                        opacity: tuner.fresh ? 1 : 0.55
-                    }
-
-                    QQC2.Label {
-                        anchors.verticalCenter: heardNote.verticalCenter
-                        anchors.left: heardNote.right
-                        anchors.leftMargin: Kirigami.Units.largeSpacing
                         visible: tuner.heard
-                        text: tuner.inTune
-                            ? i18n("in tune")
-                            : i18nc("how far out of tune, in cents", "%1%2 ¢",
-                                    tuner.cents > 0 ? "+" : "", Math.round(tuner.cents))
+                        text: i18nc("a frequency in hertz", "%1 Hz", tuner.hertz.toFixed(1))
                         color: Ink.quiet
-                        // Tabular figures: a needle whose label shuffled
-                        // sideways as it settled would be its own distraction.
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
                         font.features: ({ "tnum": 1 })
                     }
 
-                    // Not "scale": every Item has a property of that name, and
-                    // an id that collides with one is an id the bindings inside
-                    // a delegate quietly resolve the wrong way.
-                    Rectangle {
-                        id: dial
-
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-                        // Room for the marker, which stands half its height
-                        // above and below the groove and would otherwise be
-                        // painted over by the panel underneath.
-                        anchors.bottomMargin: Kirigami.Units.gridUnit
-                        height: Ink.groove
-                        radius: height / 2
-                        color: Ink.rule
-
-                        Repeater {
-                            model: [-50, -25, 0, 25, 50]
-
-                            delegate: Rectangle {
-                                required property int modelData
-
-                                readonly property bool centre: modelData === 0
-
-                                width: centre ? 3 : 2
-                                height: centre ? Kirigami.Units.gridUnit * 1.3
-                                               : Kirigami.Units.gridUnit * 0.7
-                                radius: width / 2
-                                // The mark itself is darker than the rest, and
-                                // goes magenta when the string is on it: the
-                                // scale should say where in tune is even while
-                                // nothing is being played at it.
-                                color: centre ? (tuner.inTune ? Ink.accent : Ink.quiet)
-                                              : Ink.staff
-                                x: dial.width / 2 + modelData / 50 * needle.span - width / 2
-                                y: dial.height / 2 - height / 2
-                            }
-                        }
-
-                        Rectangle {
-                            width: 5
-                            height: Kirigami.Units.gridUnit * 1.6
-                            radius: width / 2
-                            color: tuner.inTune ? Ink.accent : Ink.accentDeep
-                            x: dial.width / 2 + needle.offset - width / 2
-                            y: dial.height / 2 - height / 2
-                            opacity: tuner.heard ? (tuner.fresh ? 1 : 0.45) : 0
-
-                            Behavior on x {
-                                NumberAnimation { duration: 90; easing.type: Easing.OutQuad }
-                            }
-                            Behavior on opacity {
-                                NumberAnimation { duration: 160 }
-                            }
-                        }
-                    }
-                }
-
-                ColumnLayout {
-                    Layout.alignment: Qt.AlignVCenter
-                    Layout.maximumWidth: Kirigami.Units.gridUnit * 12
-                    spacing: Kirigami.Units.smallSpacing
-
-                    // The frequency while something is sounding, and what the
-                    // input is doing while nothing is. Not "flat" and "sharp":
-                    // the needle points and the number is signed, and a third
-                    // way of saying the same thing is one too many.
                     QQC2.Label {
-                        Layout.fillWidth: true
-                        text: tuner.heard
-                            ? i18nc("a frequency in hertz", "%1 Hz", tuner.hertz.toFixed(1))
-                            : tuner.message
-                        color: tuner.error.length > 0 ? Ink.accentDeep : Ink.quiet
-                        wrapMode: Text.WordWrap
-                        horizontalAlignment: Text.AlignRight
-                        font.features: ({ "tnum": 1 })
+                        Layout.leftMargin: Kirigami.Units.largeSpacing
+                        text: i18nc("the input level", "level")
+                        color: Ink.faint
                         font.pointSize: Kirigami.Theme.smallFont.pointSize
                     }
 
-                    // How loud the input is, so that a dead cable and a quiet
-                    // room do not look the same as each other.
                     Rectangle {
-                        Layout.fillWidth: true
+                        Layout.preferredWidth: Kirigami.Units.gridUnit * 5
                         implicitHeight: Ink.groove
                         radius: height / 2
-                        color: Ink.rule
+                        color: Ink.well
                         visible: tuner.running
 
                         Rectangle {
                             width: parent.width * tuner.level
                             height: parent.height
                             radius: parent.radius
-                            color: Ink.staff
+                            color: Ink.accentOnInk
 
                             Behavior on width {
                                 NumberAnimation { duration: 80 }

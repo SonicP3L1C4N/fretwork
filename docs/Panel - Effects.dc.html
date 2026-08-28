@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/broadsheet-7f6eabd3-ede0-4a99-8e12-3d76c0f8758a/styles.css">
+  <script src="_ds/broadsheet-7f6eabd3-ede0-4a99-8e12-3d76c0f8758a/_ds_bundle.js"></script>
+  <style>a{color:var(--color-accent)} a:hover{color:var(--color-accent-700)}</style>
+</helmet>
+<div style="min-height:100vh;background:var(--color-bg);font-family:var(--font-body);color:var(--color-text);padding:40px 48px;display:flex;flex-direction:column;gap:22px">
+  <div style="max-width:760px">
+    <h1 style="font-family:var(--font-heading);font-weight:600;font-size:26px;margin:0 0 6px">Effects panel</h1>
+    <p style="font-size:13px;line-height:1.6;color:var(--color-neutral-700);margin:0">Per-track LV2 chain in signal order, first plugin nearest the instrument. Binds <code>chainHere</code> (module list), <code>setEffectControl</code> (knobs/selects, ranges from the plugin's own manifest) and <code>applyVoicing</code> (the cassette: one tape turns several knobs at once; <code>Gx::Fitting.declined</code> names what a voicing left behind). The rig is kept in a file beside the score, not inside it: it names plugins by URI and samples by path, which are facts about one machine.</p>
+  </div>
+  <div style="width:100%;max-width:1180px;background:#201e1d;border-radius:2px" data-screen-label="Effects panel">
+<div style="padding:24px 28px;color:#f3f2f2;display:flex;flex-direction:column;gap:20px">
+  <div style="display:flex;align-items:baseline;gap:14px">
+    <span style="font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--color-neutral-500)">Effects</span>
+    <span style="font-size:12px;color:var(--color-neutral-500)">Guitar I · kept beside the score</span>
+    <span style="margin-left:auto;display:flex;gap:8px">
+      <button type="button" class="btn" style="border:1px solid var(--color-neutral-700);color:#f3f2f2;font-size:12px;padding:4px 12px">Add effect ▾</button>
+      <button type="button" class="btn" style="border:1px solid var(--color-neutral-700);color:#f3f2f2;font-size:12px;padding:4px 12px">Remove last</button>
+      <button type="button" class="btn" style="border:1px solid var(--color-neutral-700);color:var(--color-neutral-400);font-size:12px;padding:4px 12px">Clear</button>
+    </span>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px;overflow-x:auto;padding-bottom:6px">
+    <div style="flex:none;display:flex;flex-direction:column;gap:4px;align-items:center;width:84px">
+      <img src="icons/instrument-guitar-paper.svg" alt="" style="width:22px;height:22px">
+      <span style="font-size:11px;color:var(--color-neutral-500);text-align:center">Guitar I<br>SFZ sampler</span>
+    </div>
+    <span style="color:var(--color-neutral-600);font-size:18px">→</span>
+    <div style="flex:none;background:#2a2827;border:1px solid #45413f;border-radius:4px;padding:14px 18px;display:flex;gap:20px">
+      <div style="flex:none;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:var(--font-heading);font-weight:600;font-size:14px">1 · GxAmp</span><span style="font-size:11px;color:var(--color-neutral-500)">mono, run twice</span></div>
+        <svg viewBox="0 0 260 164" width="236" role="img" aria-label="Loaded voicing tape: Bass — Come Together">
+          <rect x="2" y="2" width="256" height="160" rx="10" fill="#33302f" stroke="#4a4645"></rect>
+          <circle cx="14" cy="14" r="2.5" fill="#1a1918"></circle><circle cx="246" cy="14" r="2.5" fill="#1a1918"></circle><circle cx="14" cy="150" r="2.5" fill="#1a1918"></circle><circle cx="246" cy="150" r="2.5" fill="#1a1918"></circle>
+          <rect x="22" y="14" width="216" height="92" rx="5" fill="#f3f2f2"></rect>
+          <text x="130" y="31" text-anchor="middle" font-size="8.5" letter-spacing="2.2" fill="#8a8583" font-family="Source Serif 4,serif">GUITARIX VOICING</text>
+          <text x="130" y="54" text-anchor="middle" font-size="17" font-style="italic" font-weight="600" fill="#201e1d" font-family="Source Serif 4,serif">Bass — Come Together</text>
+          <rect x="40" y="64" width="180" height="34" rx="17" fill="#201e1d"></rect>
+          <circle cx="86" cy="81" r="14" fill="#3a2a22"></circle><circle cx="174" cy="81" r="9" fill="#3a2a22"></circle>
+          <circle cx="86" cy="81" r="7" fill="#f3f2f2"></circle><circle cx="86" cy="81" r="2.6" fill="#201e1d"></circle>
+          <circle cx="174" cy="81" r="7" fill="#f3f2f2"></circle><circle cx="174" cy="81" r="2.6" fill="#201e1d"></circle>
+          <rect x="22" y="99" width="216" height="7" fill="#d6006c"></rect>
+          <path d="M78 162 L88 122 h84 l10 40 z" fill="#2a2827" stroke="#4a4645"></path>
+          <circle cx="104" cy="146" r="4" fill="#1a1918"></circle><circle cx="156" cy="146" r="4" fill="#1a1918"></circle>
+        </svg>
+        <button type="button" class="btn" style="border:1px solid var(--color-neutral-700);color:#f3f2f2;font-size:12px;padding:4px 12px;align-self:center">⏏ Voicings…</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px;justify-content:center">
+        <div style="display:flex;gap:18px">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:5px"><div style="width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#454140,#2a2827);border:1px solid #56514f;position:relative"><div style="position:absolute;left:21px;top:4px;width:2px;height:14px;background:#f3f2f2;transform-origin:1px 19px;transform:rotate(-40deg)"></div></div><span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-500)">Pregain</span><span style="font-size:11px;font-feature-settings:'tnum' 1">−6 dB</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:5px"><div style="width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#454140,#2a2827);border:1px solid #56514f;position:relative"><div style="position:absolute;left:21px;top:4px;width:2px;height:14px;background:#f3f2f2;transform-origin:1px 19px;transform:rotate(18deg)"></div></div><span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-500)">Drive</span><span style="font-size:11px;font-feature-settings:'tnum' 1">0.42</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:5px"><div style="width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#454140,#2a2827);border:1px solid #56514f;position:relative"><div style="position:absolute;left:21px;top:4px;width:2px;height:14px;background:#f3f2f2;transform-origin:1px 19px;transform:rotate(0deg)"></div></div><span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-500)">Bass</span><span style="font-size:11px;font-feature-settings:'tnum' 1">0.50</span></div>
+        </div>
+        <div style="display:flex;gap:18px">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:5px"><div style="width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#454140,#2a2827);border:1px solid #56514f;position:relative"><div style="position:absolute;left:21px;top:4px;width:2px;height:14px;background:#f3f2f2;transform-origin:1px 19px;transform:rotate(27deg)"></div></div><span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-500)">Middle</span><span style="font-size:11px;font-feature-settings:'tnum' 1">0.60</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:5px"><div style="width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#454140,#2a2827);border:1px solid #56514f;position:relative"><div style="position:absolute;left:21px;top:4px;width:2px;height:14px;background:#f3f2f2;transform-origin:1px 19px;transform:rotate(13deg)"></div></div><span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-500)">Treble</span><span style="font-size:11px;font-feature-settings:'tnum' 1">0.55</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:5px"><div style="width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#454140,#2a2827);border:1px solid #56514f;position:relative"><div style="position:absolute;left:21px;top:4px;width:2px;height:14px;background:#f3f2f2;transform-origin:1px 19px;transform:rotate(-22deg)"></div></div><span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-500)">Master</span><span style="font-size:11px;font-feature-settings:'tnum' 1">−3 dB</span></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:2px">
+          <span style="display:flex;justify-content:space-between;gap:12px;border:1px solid var(--color-neutral-700);border-radius:2px;padding:4px 10px;font-size:12px"><span style="color:var(--color-neutral-500)">valve</span><span>6V6 ▾</span></span>
+          <span style="display:flex;justify-content:space-between;gap:12px;border:1px solid var(--color-neutral-700);border-radius:2px;padding:4px 10px;font-size:12px"><span style="color:var(--color-neutral-500)">tone stack</span><span>Bassman ▾</span></span>
+        </div>
+      </div>
+    </div>
+    <span style="color:var(--color-neutral-600);font-size:18px">→</span>
+    <div style="flex:none;background:#2a2827;border:1px solid #45413f;border-radius:4px;padding:14px 18px;display:flex;flex-direction:column;gap:14px;align-self:stretch">
+      <div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:var(--font-heading);font-weight:600;font-size:14px">2 · GxCabinet</span><span style="font-size:11px;color:var(--color-neutral-500)">mono, run twice</span></div>
+      <svg viewBox="0 0 120 110" width="118" style="align-self:center" role="img" aria-label="4 by 12 cabinet">
+        <rect x="3" y="3" width="114" height="104" rx="6" fill="#33302f" stroke="#4a4645"></rect>
+        <rect x="12" y="12" width="96" height="86" rx="3" fill="#26231f" stroke="#45413f"></rect>
+        <g fill="#1c1a18" stroke="#56514f"><circle cx="37" cy="34" r="18"></circle><circle cx="83" cy="34" r="18"></circle><circle cx="37" cy="76" r="18"></circle><circle cx="83" cy="76" r="18"></circle></g>
+        <g fill="none" stroke="#45413f"><circle cx="37" cy="34" r="11"></circle><circle cx="83" cy="34" r="11"></circle><circle cx="37" cy="76" r="11"></circle><circle cx="83" cy="76" r="11"></circle></g>
+        <g fill="#3a3736"><circle cx="37" cy="34" r="4.5"></circle><circle cx="83" cy="34" r="4.5"></circle><circle cx="37" cy="76" r="4.5"></circle><circle cx="83" cy="76" r="4.5"></circle></g>
+      </svg>
+      <span style="display:flex;justify-content:space-between;gap:12px;border:1px solid var(--color-neutral-700);border-radius:2px;padding:4px 10px;font-size:12px"><span style="color:var(--color-neutral-500)">cabinet</span><span>4×12 ▾</span></span>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:5px;margin-top:auto"><div style="width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#454140,#2a2827);border:1px solid #56514f;position:relative"><div style="position:absolute;left:21px;top:4px;width:2px;height:14px;background:#f3f2f2;transform-origin:1px 19px;transform:rotate(35deg)"></div></div><span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-500)">Level</span><span style="font-size:11px;font-feature-settings:'tnum' 1">+2 dB</span></div>
+    </div>
+    <span style="color:var(--color-neutral-600);font-size:18px">→</span>
+    <div style="flex:none;display:flex;flex-direction:column;gap:4px;align-items:center;width:84px">
+      <svg width="22" height="22" viewBox="0 0 22 22"><circle cx="11" cy="11" r="8" fill="none" stroke="#f3f2f2" stroke-width="1.4"></circle><circle cx="11" cy="11" r="2.5" fill="#f3f2f2"></circle></svg>
+      <span style="font-size:11px;color:var(--color-neutral-500);text-align:center">stem out<br>ports 1–2</span>
+    </div>
+  </div>
+  <div style="display:flex;align-items:baseline;gap:10px;padding-top:12px;border-top:1px solid #35322f;font-size:12px">
+    <span style="color:var(--color-accent-2-400)">Voicing "Bass — Come Together" carried the amplifier.</span>
+    <span style="color:var(--color-neutral-500)">Left behind: shaper, jconv convolver, stereoverb — no LV2 plugin ships them, so the label says so.</span>
+  </div>
+</div>
+  </div>
+  <p style="font-size:12px;color:var(--color-neutral-600);margin:0;max-width:760px">Build notes: the panel fills the width it is given up to 1180px, and the chain row scrolls sideways rather than shrinking — a knob is 46px whatever the window is, so the cards must not squash and a chain can be longer than the panel is wide. Module cards on #2a2827 with #45413f border; knobs 46px radial-gradient dials, pointer rotation −40°…+40° maps min→max; magenta stripe on the tape label marks the loaded voicing; the footer line reports what a voicing applied and declined.</p>
+</div>
+
+</x-dc>
+</body>
+</html>

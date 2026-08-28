@@ -280,7 +280,7 @@ same samples under two names.
 **It listens**, which is new: the first thing in the program that wants a
 guitar lead rather than a speaker.
 
-![The tuner across the bottom of the window: the score's tuning as six strings with the one being played lit, a needle eleven cents flat of it, and the frequency](docs/window-tuner.png)
+![The tuner across the bottom of the window: the score's tuning as six strings with the one being played lit, a ladder of blocks lit blue twelve cents flat of the mark, and the frequency](docs/window-tuner.png)
 
 A band across the bottom rather than a panel beside the score, because tuning
 is a thing done to the instrument and not to the document: it wants to be wide,
@@ -288,6 +288,37 @@ read from across the room, and gone again when it is finished with. The input is
 open only while the panel is, because nothing about reading a tab justifies
 holding a microphone open behind a closed one — and it is the one panel that
 starts closed, for the same reason.
+
+**Which way, before how far.** Everywhere else in this window one accent is
+enough, because everywhere else the question is which of these is the one. A
+tuner is asked something different: "twelve cents" says how far and not which
+way, and a hand already on a machine head needs which way first. So direction
+is a colour here.
+
+![The same string read three ways: twelve cents flat with the ladder lit blue, in tune with the centre block filled amber, and eleven cents sharp with the ladder lit magenta](docs/tuner-directions.png)
+
+Flat is cold, sharp is the accent the rest of the window already uses, and both
+brighten as the string comes in. The blocks light from where the string is
+*inward to the mark* rather than out from it, because the thing being watched
+is the gap closing. They stand taller toward the middle for the reason a
+ruler's inch marks are taller than its eighths — the eye finds the centre
+without reading anything.
+
+Arriving is amber: a third colour rather than the brightest step of the other
+two, because arriving is not "very slightly flat". It is the thing being aimed
+at, and it should not look like the last of a series it is the end of. The
+centre block keeps its amber ring whether or not anything has landed on it, so
+the target is visible before the aim, and within three cents it fills and
+holds. It is the only warm colour in the program.
+
+The sentence beside the note says the same thing in words — `12 ¢ flat —
+tighten` — in the colour of the direction it names, so the ladder and the
+sentence agree without either being read twice. "Tighten" and "slacken" rather
+than "sharp" and "flat" alone: those two words name the thing to do, and the
+ladder has already said which side of the mark it is on. The scale under the
+blocks is built on the ladder's own slots rather than spaced by hand, because a
+nought that is not over the mark is a scale saying something false about the
+thing beside it.
 
 It is on the command line too, and needs no window there either:
 

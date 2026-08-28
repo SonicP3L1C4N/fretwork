@@ -40,6 +40,34 @@ QtObject {
     readonly property color line: "#444141"
     readonly property color well: "#2d2b2b"         //< a field sunk into ink
 
+    // The tuner, and only the tuner.
+    //
+    // Everywhere else in this window one accent is enough, because everywhere
+    // else the question is "which of these is the one" and an accent answers
+    // it. A tuner is asked a different question. "Twelve cents" says how far
+    // and not which way, and a hand already on a machine head needs which way
+    // before it needs how far -- so direction is a colour here, cold for flat
+    // and the window's own accent for sharp, each brightening as the string
+    // comes in.
+    //
+    // Arriving is a third colour rather than the brightest step of the other
+    // two, because arriving is not "very slightly flat": it is the thing being
+    // aimed at, and it should not look like the last of a series it is the end
+    // of. Amber against ink, and the only warm colour in the program.
+    readonly property color flat: "#2b62c4"         //< as flat as this reads
+    readonly property color flatNear: "#4f83d9"
+    readonly property color flatNearer: "#7ea6e8"
+    readonly property color flatNearest: "#b1c9f2"  //< the step before the mark
+    readonly property color arrived: "#f0a400"      //< within three cents, and held
+
+    // The sharp side is the accent the window already owns, so its ends are
+    // `accent` and `accentOnInk` and only the two steps between them are new.
+    // Written out rather than computed: Qt.lighter walks a hue as well as a
+    // brightness, and a ramp that drifts orange on the way up would meet the
+    // amber coming the other way.
+    readonly property color sharpNear: "#e63d84"
+    readonly property color sharpNearer: "#f56a9c"
+
     // The design is built on a small number of sizes; naming them is what
     // stops the fourth button from being two pixels wider than the other three.
     readonly property int radius: 2

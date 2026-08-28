@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/broadsheet-7f6eabd3-ede0-4a99-8e12-3d76c0f8758a/styles.css">
+  <script src="_ds/broadsheet-7f6eabd3-ede0-4a99-8e12-3d76c0f8758a/_ds_bundle.js"></script>
+  <style>a{color:var(--color-accent)} a:hover{color:var(--color-accent-700)}</style>
+</helmet>
+<div style="min-height:100vh;background:var(--color-bg);font-family:var(--font-body);color:var(--color-text);padding:40px 48px;display:flex;flex-direction:column;gap:22px">
+  <div style="max-width:760px">
+    <h1 style="font-family:var(--font-heading);font-weight:600;font-size:26px;margin:0 0 6px">Bars strip (ruler)</h1>
+    <p style="font-size:13px;line-height:1.6;color:var(--color-neutral-700);margin:0">The 8b ruler: ticks and whitespace, section names flush-left in the serif italic at each section start (tall tick), minor bars as short ticks with sparse numerals below. The playing bar is the one printed element — a magenta lozenge riding the ruler line. The caret (selected bar) is an outlined magenta box around its numeral. Sits under the score, full window width; sections come from the score, playhead from the transport.</p>
+  </div>
+  <div style="width:1180px;border-radius:2px;overflow:hidden" data-screen-label="Bars strip">
+<div style="padding:14px 24px 10px;background:var(--color-neutral-200)">
+  <svg viewBox="0 0 1120 74" style="width:100%;display:block" role="img" aria-label="Bar ruler, 24 bars shown, caret on bar 1, bar 9 playing">
+    <line x1="10" y1="46" x2="1110" y2="46" stroke="#bab6b6" stroke-width="1"></line>
+    <g stroke="#8d8987" stroke-width="1">
+      <line x1="10" y1="34" x2="10" y2="46"></line><line x1="56" y1="40" x2="56" y2="46"></line><line x1="102" y1="40" x2="102" y2="46"></line><line x1="148" y1="40" x2="148" y2="46"></line>
+      <line x1="194" y1="34" x2="194" y2="46"></line><line x1="240" y1="40" x2="240" y2="46"></line><line x1="286" y1="40" x2="286" y2="46"></line><line x1="332" y1="40" x2="332" y2="46"></line>
+      <line x1="378" y1="40" x2="378" y2="46"></line><line x1="424" y1="40" x2="424" y2="46"></line><line x1="470" y1="40" x2="470" y2="46"></line><line x1="516" y1="40" x2="516" y2="46"></line>
+      <line x1="562" y1="34" x2="562" y2="46"></line><line x1="608" y1="40" x2="608" y2="46"></line><line x1="654" y1="40" x2="654" y2="46"></line><line x1="700" y1="40" x2="700" y2="46"></line>
+      <line x1="746" y1="40" x2="746" y2="46"></line><line x1="792" y1="40" x2="792" y2="46"></line><line x1="838" y1="40" x2="838" y2="46"></line><line x1="884" y1="40" x2="884" y2="46"></line>
+      <line x1="930" y1="34" x2="930" y2="46"></line><line x1="976" y1="40" x2="976" y2="46"></line><line x1="1022" y1="40" x2="1022" y2="46"></line><line x1="1068" y1="40" x2="1068" y2="46"></line>
+    </g>
+    <g font-size="12" font-style="italic" font-family="Source Serif 4,serif" fill="#201e1d">
+      <text x="10" y="24">Intro</text><text x="194" y="24">Verse</text><text x="562" y="24">Chorus</text><text x="930" y="24">Verse</text>
+    </g>
+    <g font-size="11" font-family="Source Serif 4,serif" fill="#9b9797">
+      <text x="102" y="64" text-anchor="middle">3</text><text x="286" y="64" text-anchor="middle">7</text><text x="470" y="64" text-anchor="middle">11</text><text x="654" y="64" text-anchor="middle">15</text><text x="838" y="64" text-anchor="middle">19</text><text x="1022" y="64" text-anchor="middle">23</text>
+    </g>
+    <rect x="2" y="52" width="17" height="16" rx="2" fill="none" stroke="#d6006c" stroke-width="1.4"></rect>
+    <text x="10.5" y="64" text-anchor="middle" font-size="11" font-weight="600" font-family="Source Serif 4,serif" fill="#aa0b56">1</text>
+    <rect x="364" y="30" width="28" height="20" rx="10" fill="#d6006c"></rect>
+    <text x="378" y="44" text-anchor="middle" font-size="12" font-weight="600" font-family="Source Serif 4,serif" fill="#f3f2f2">9</text>
+  </svg>
+</div>
+  </div>
+  <p style="font-size:12px;color:var(--color-neutral-600);margin:0;max-width:760px">Build notes: 46px per bar at this density; tall ticks (12px) at section starts, short ticks (6px) elsewhere; numerals every 4th bar. Lozenge is 28×20 rx 10, slides continuously with the playhead. If the score has no sections (hasSections false), drop the name row and keep uniform short ticks. Ground is --color-neutral-200 against the paper score above.</p>
+</div>
+
+</x-dc>
+</body>
+</html>

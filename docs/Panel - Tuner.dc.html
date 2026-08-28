@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/broadsheet-7f6eabd3-ede0-4a99-8e12-3d76c0f8758a/styles.css">
+  <script src="_ds/broadsheet-7f6eabd3-ede0-4a99-8e12-3d76c0f8758a/_ds_bundle.js"></script>
+  <style>a{color:var(--color-accent)} a:hover{color:var(--color-accent-700)}</style>
+</helmet>
+<div style="min-height:100vh;background:var(--color-bg);font-family:var(--font-body);color:var(--color-text);padding:40px 48px;display:flex;flex-direction:column;gap:22px">
+  <div style="max-width:640px">
+    <h1 style="font-family:var(--font-heading);font-weight:600;font-size:26px;margin:0 0 6px">Tuner panel</h1>
+    <p style="font-size:13px;line-height:1.6;color:var(--color-neutral-700);margin:0">Docks below the score, ink ground. Binds the <code>Tuning</code> API: note + cents offset drive the ladder; string targets come from the score's tuning (drop C shown). Segment colours: flat lights blue (#2b62c4→#b1c9f2 brightening toward centre), sharp lights magenta (#ff90b1 side), within ±3¢ only the amber-ringed (#f0a400) centre block fills and holds.</p>
+  </div>
+  <div style="width:640px;background:#201e1d;border-radius:2px" data-screen-label="Tuner panel">
+<div style="padding:28px 30px;color:#f3f2f2;display:flex;flex-direction:column;gap:22px">
+  <div style="display:flex;align-items:baseline;gap:14px">
+    <span style="font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--color-neutral-500)">Tuner</span>
+    <span style="font-size:12px;color:var(--color-neutral-500)">Guitar I · drop C · capo 0 · A = 440</span>
+    <button type="button" class="btn" style="margin-left:auto;background:var(--color-accent-2);color:#f3f2f2;font-size:12px;padding:4px 12px">Listening</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:28px">
+    <div style="flex:none;text-align:center">
+      <p style="font-family:var(--font-heading);font-weight:600;font-size:72px;line-height:1;margin:0">G3</p>
+      <p style="font-size:13px;color:#b1c9f2;margin:8px 0 0">12¢ flat — tighten</p>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:flex-end;gap:4px;height:44px">
+        <div style="flex:1;height:22px;background:var(--color-neutral-800);border-radius:1px"></div><div style="flex:1;height:22px;background:var(--color-neutral-800);border-radius:1px"></div><div style="flex:1;height:22px;background:var(--color-neutral-800);border-radius:1px"></div><div style="flex:1;height:22px;background:var(--color-neutral-800);border-radius:1px"></div><div style="flex:1;height:28px;background:var(--color-neutral-800);border-radius:1px"></div><div style="flex:1;height:28px;background:#2b62c4;border-radius:1px"></div><div style="flex:1;height:28px;background:#2b62c4;border-radius:1px"></div><div style="flex:1;height:34px;background:#4f83d9;border-radius:1px"></div><div style="flex:1;height:34px;background:#7ea6e8;border-radius:1px"></div><div style="flex:1;height:34px;background:#b1c9f2;border-radius:1px"></div>
+        <div style="flex:1.4;height:44px;background:var(--color-neutral-800);border:1px solid #f0a400;border-radius:1px"></div>
+        <div style="flex:1;height:34px;background:var(--color-neutral-800);border-radius:1px"></div><div style="flex:1;height:34px;background:var(--color-neutral-800);border-radius:1px"></div><div style="flex:1;height:34px;background:var(--color-neutral-800);border-radius:1px"></div><div style="flex:1;height:28px;background:var(--color-neutral-800);border-radius:1px"></div><div style="flex:1;height:28px;background:var(--color-neutral-800);border-radius:1px"></div><div style="flex:1;height:28px;background:var(--color-neutral-800);border-radius:1px"></div><div style="flex:1;height:22px;background:var(--color-neutral-800);border-radius:1px"></div><div style="flex:1;height:22px;background:var(--color-neutral-800);border-radius:1px"></div><div style="flex:1;height:22px;background:var(--color-neutral-800);border-radius:1px"></div><div style="flex:1;height:22px;background:var(--color-neutral-800);border-radius:1px"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;font-feature-settings:'tnum' 1"><span style="color:#7ea6e8">♭ −50¢</span><span style="color:var(--color-neutral-500)">−25</span><span style="color:#f0a400">0</span><span style="color:var(--color-neutral-500)">+25</span><span style="color:#ff90b1">+50¢ ♯</span></div>
+      <p style="font-size:11px;color:var(--color-neutral-500);margin:2px 0 0">Colour by direction: flat lights blue, sharp lights magenta, brightening toward the centre. Within ±3¢ the amber-ringed centre block alone fills amber, and holds.</p>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <span style="font-size:12px;color:var(--color-neutral-500);margin-right:4px">Strings</span>
+    <span style="border:1px solid var(--color-neutral-700);border-radius:2px;padding:6px 12px;font-size:14px">C2</span><span style="border:1px solid var(--color-neutral-700);border-radius:2px;padding:6px 12px;font-size:14px">F2</span><span style="border:1px solid var(--color-neutral-700);border-radius:2px;padding:6px 12px;font-size:14px">A♯2</span><span style="border:1px solid var(--color-neutral-700);border-radius:2px;padding:6px 12px;font-size:14px">D♯3</span><span style="background:var(--color-accent-2);border:1px solid var(--color-accent-2);border-radius:2px;padding:6px 12px;font-size:14px;font-weight:600">G3</span><span style="border:1px solid var(--color-neutral-700);border-radius:2px;padding:6px 12px;font-size:14px">C4</span>
+    <span style="margin-left:auto;display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--color-neutral-500)">level</span><div style="width:80px;height:4px;border-radius:2px;background:var(--color-neutral-800);position:relative"><div style="position:absolute;inset:0 45% 0 0;background:#ff90b1;border-radius:2px"></div></div></span>
+  </div>
+</div>
+  </div>
+  <p style="font-size:12px;color:var(--color-neutral-600);margin:0;max-width:640px">Build notes: 21 ladder segments (centre block flex 1.4), heights step 22/28/34/44px outward-in. Detected string chip fills magenta; level meter is input gain. "Listening" button toggles the mic; idle state greys the ladder.</p>
+</div>
+
+</x-dc>
+</body>
+</html>
