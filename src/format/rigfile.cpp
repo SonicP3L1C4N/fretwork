@@ -11,6 +11,8 @@
 #include <QJsonObject>
 #include <QJsonParseError>
 
+#include <algorithm>
+
 namespace
 {
 QString versionKey()
@@ -90,6 +92,21 @@ bool Rig::write(const Document &rig, const QString &path, QString *error)
                 knobs.append(one);
             }
             object.insert(QStringLiteral("knobs"), knobs);
+        }
+        if (!track.voicings.isEmpty()) {
+            QJsonArray voicings;
+            // Sorted, so that two rigs describing the same thing are the same
+            // file: a QHash iterates in whatever order it likes, and a diff
+            // that changes every time it is written is a diff nobody reads.
+            QList<int> stages = track.voicings.keys();
+            std::sort(stages.begin(), stages.end());
+            for (const int stage : stages) {
+                QJsonObject one;
+                one.insert(QStringLiteral("stage"), stage);
+                one.insert(QStringLiteral("name"), track.voicings.value(stage));
+                voicings.append(one);
+            }
+            object.insert(QStringLiteral("voicings"), voicings);
         }
         tracks.append(object);
     }
@@ -190,6 +207,16 @@ Rig::Document Rig::read(const QString &path, QString *error)
                 continue;
             }
             track.knobs.append(knob);
+        }
+        const QJsonArray voicings = object.value(QStringLiteral("voicings")).toArray();
+        for (const QJsonValue &value : voicings) {
+            const QJsonObject one = value.toObject();
+            const int stage = one.value(QStringLiteral("stage")).toInt(-1);
+            const QString name = one.value(QStringLiteral("name")).toString();
+            if (stage < 0 || name.isEmpty()) {
+                continue;
+            }
+            track.voicings.insert(stage, name);
         }
         rig.tracks.append(track);
     }

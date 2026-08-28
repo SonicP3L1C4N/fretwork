@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <QHash>
 #include <QList>
 #include <QString>
 #include <QStringList>
@@ -57,6 +58,18 @@ struct Track {
     /** LV2 URIs in order, the first nearest the instrument. */
     QStringList chain;
     QList<Knob> knobs;
+
+    /**
+     * The guitarix voicing each stage was set from, where one was, by stage.
+     *
+     * The knobs already carry the sound -- a voicing *is* knob positions, and
+     * they are written out one by one above. This is the label on the tape,
+     * kept so that a chain reopened tomorrow can still say what it was built
+     * from rather than presenting a row of numbers nobody remembers choosing.
+     * A stage whose knobs have been turned since keeps its name, the way an
+     * amplifier set up from a preset is still that preset with the treble up.
+     */
+    QHash<int, QString> voicings;
 };
 
 struct Document {

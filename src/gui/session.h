@@ -330,6 +330,18 @@ public:
      * usual search, which is what a window opened without one does.
      */
     Q_INVOKABLE void useSoundFont(const QString &file);
+
+    /**
+     * The knobs and voicings named on the command line, applied once the chain
+     * they refer to exists.
+     *
+     * Taken as written -- `0:0:Drive=0.8` and `0:0=Iron Man` -- because a
+     * control is named by the symbol its plugin publishes, and nothing can
+     * turn that into a port number until the plugin has been loaded. Anything
+     * naming a track, a stage or a control that is not there is passed over:
+     * a command line that half fits a score is still worth the half that fits.
+     */
+    Q_INVOKABLE void applyKnobs(const QStringList &knobs, const QStringList &voicings);
     QVariantList availableEffects() const;
 
     QVariantList voicings() const;
@@ -344,6 +356,18 @@ public:
      * listening is the one who needs to know.
      */
     Q_INVOKABLE void applyVoicing(int stage, const QString &name);
+
+    /**
+     * What a stage was voiced from, and what that voicing could not carry.
+     *
+     * A voicing *is* knob positions, and applying one flattens into the knobs
+     * -- so the sound needs no memory of where it came from. The label does:
+     * a chain reopened tomorrow showing a row of numbers nobody remembers
+     * choosing is a chain nobody trusts. Empty where the stage was built by
+     * hand.
+     */
+    Q_INVOKABLE QString voicingOn(int stage) const;
+    Q_INVOKABLE QStringList voicingDeclinedOn(int stage) const;
 
     /** Puts a plugin on the end of the current part's chain. */
     Q_INVOKABLE void addEffect(const QString &uri);
@@ -604,6 +628,8 @@ private:
     QHash<int, QStringList> m_effects;
     QList<Gx::Voicing> m_voicings;
     QHash<int, QHash<int, QHash<quint32, float>>> m_knobs;
+    QHash<int, QHash<int, QString>> m_voicingNames;
+    QHash<int, QHash<int, QStringList>> m_voicingDeclined;
     QList<Lv2::Description> m_plugins;
     QList<Sfz::Library> m_libraries;
     double m_clickGain = 1.0;

@@ -32,6 +32,10 @@ Kirigami.ApplicationWindow {
     /** And the SoundFont, if one was named. Empty means the usual search. */
     property string initialSoundFont: ""
 
+    /** And the knobs and voicings, as typed: `0:0:Drive=0.8`, `0:0=Iron Man`. */
+    property var initialKnobs: []
+    property var initialVoicings: []
+
     /**
      * The mixer has no per-track model, because the player's state lives in
      * atomics that the audio thread reads. Bumping this on every change is
@@ -131,6 +135,12 @@ Kirigami.ApplicationWindow {
         if (initialFile.length > 0) {
             session.open(initialFile)
             session.applyRig(initialSamplers, initialEffects)
+            // After the rig, because a knob names a control on a plugin that
+            // the rig is what loaded.
+            if (initialKnobs.length > 0 || initialVoicings.length > 0) {
+                session.applyKnobs(initialKnobs, initialVoicings)
+                root.effectsRevision++
+            }
         }
     }
 
@@ -436,6 +446,262 @@ Kirigami.ApplicationWindow {
                     origin.x: 1
                     origin.y: inkKnob.height * 0.37
                     angle: inkKnob.angle
+                }
+            }
+        }
+    }
+
+    /**
+     * The tape a voicing came on.
+     *
+     * A voicing is knob positions and nothing else, so the knobs beside this
+     * already are the sound. What they are not is a name: a chain reopened
+     * tomorrow is a row of numbers unless something says what it was built
+     * from, and a label somebody wrote on a cassette is exactly the kind of
+     * thing that says it.
+     *
+     * Drawn at a fixed 260 by 164 and scaled, so every measurement below is
+     * the one from the design and none of them drift when the card resizes.
+     */
+    component VoicingTape: Item {
+        id: tape
+
+        property string name
+
+        readonly property real unit: width / 260
+
+        implicitWidth: Kirigami.Units.gridUnit * 13
+        implicitHeight: implicitWidth * 164 / 260
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 10 * tape.unit
+            color: Ink.shell
+            border.width: 1
+            border.color: Ink.line
+        }
+
+        // The four screws that hold a shell together.
+        Repeater {
+            model: [[14, 14], [246, 14], [14, 150], [246, 150]]
+
+            delegate: Rectangle {
+                required property var modelData
+
+                x: (modelData[0] - 2.5) * tape.unit
+                y: (modelData[1] - 2.5) * tape.unit
+                width: 5 * tape.unit
+                height: width
+                radius: width / 2
+                color: Ink.recess
+            }
+        }
+
+        // The paper label, which is the whole reason a cassette can be named.
+        Rectangle {
+            x: 22 * tape.unit
+            y: 14 * tape.unit
+            width: 216 * tape.unit
+            height: 92 * tape.unit
+            radius: 5 * tape.unit
+            color: Ink.paper
+
+            QQC2.Label {
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: 12 * tape.unit
+                text: i18nc("printed on the label of a voicing tape",
+                            "GUITARIX VOICING")
+                color: Ink.quiet
+                font.pointSize: Kirigami.Theme.smallFont.pointSize * 0.85
+                font.letterSpacing: 2.2 * tape.unit
+            }
+
+            QQC2.Label {
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.margins: 8 * tape.unit
+                y: 30 * tape.unit
+                width: parent.width - 16 * tape.unit
+                text: tape.name
+                color: Ink.ink
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+                font.italic: true
+                font.weight: Font.DemiBold
+                font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.05
+            }
+
+            // The window, and the two reels behind it: one nearly full and one
+            // nearly empty, which is what a tape part way through looks like.
+            Rectangle {
+                x: 18 * tape.unit
+                y: 50 * tape.unit
+                width: 180 * tape.unit
+                height: 34 * tape.unit
+                radius: height / 2
+                color: Ink.ink
+
+                Repeater {
+                    model: [[68, 14], [156, 9]]
+
+                    delegate: Item {
+                        required property var modelData
+
+                        x: modelData[0] * tape.unit
+                        y: 17 * tape.unit
+
+                        Rectangle {
+                            x: -modelData[1] * tape.unit
+                            y: -modelData[1] * tape.unit
+                            width: modelData[1] * 2 * tape.unit
+                            height: width
+                            radius: width / 2
+                            color: Ink.spool
+                        }
+                        Rectangle {
+                            x: -7 * tape.unit
+                            y: -7 * tape.unit
+                            width: 14 * tape.unit
+                            height: width
+                            radius: width / 2
+                            color: Ink.paper
+                        }
+                        Rectangle {
+                            x: -2.6 * tape.unit
+                            y: -2.6 * tape.unit
+                            width: 5.2 * tape.unit
+                            height: width
+                            radius: width / 2
+                            color: Ink.ink
+                        }
+                    }
+                }
+            }
+
+            // The stripe along the bottom of the label, in the accent: the one
+            // thing on the tape that says this is Fretwork's and not a prop.
+            Rectangle {
+                x: 0
+                y: 85 * tape.unit
+                width: parent.width
+                height: 7 * tape.unit
+                color: Ink.accent
+            }
+        }
+
+        // The lower half of the shell, narrower than the top, the way the
+        // bottom of a cassette is.
+        Canvas {
+            anchors.fill: parent
+            onPaint: {
+                const context = getContext("2d")
+                const u = tape.unit
+                context.reset()
+                context.beginPath()
+                context.moveTo(78 * u, 162 * u)
+                context.lineTo(88 * u, 122 * u)
+                context.lineTo(172 * u, 122 * u)
+                context.lineTo(182 * u, 162 * u)
+                context.closePath()
+                context.fillStyle = Ink.well
+                context.fill()
+                context.strokeStyle = Ink.line
+                context.lineWidth = 1
+                context.stroke()
+            }
+            Component.onCompleted: requestPaint()
+            onWidthChanged: requestPaint()
+        }
+
+        Repeater {
+            model: [104, 156]
+
+            delegate: Rectangle {
+                required property int modelData
+
+                x: (modelData - 4) * tape.unit
+                y: 142 * tape.unit
+                width: 8 * tape.unit
+                height: width
+                radius: width / 2
+                color: Ink.recess
+            }
+        }
+    }
+
+    /**
+     * A four by twelve, drawn because a cabinet is a box with speakers in it
+     * and a row of knobs says none of that.
+     *
+     * The same fixed geometry and scaling as the tape, from the same design.
+     */
+    component SpeakerCabinet: Item {
+        id: cabinet
+
+        readonly property real unit: width / 120
+
+        implicitWidth: Kirigami.Units.gridUnit * 6
+        implicitHeight: implicitWidth * 110 / 120
+
+        Rectangle {
+            x: 3 * cabinet.unit
+            y: 3 * cabinet.unit
+            width: 114 * cabinet.unit
+            height: 104 * cabinet.unit
+            radius: 6 * cabinet.unit
+            color: Ink.shell
+            border.width: 1
+            border.color: Ink.line
+        }
+
+        // The grille cloth, sunk into the front.
+        Rectangle {
+            x: 12 * cabinet.unit
+            y: 12 * cabinet.unit
+            width: 96 * cabinet.unit
+            height: 86 * cabinet.unit
+            radius: 3 * cabinet.unit
+            color: Ink.ink
+            border.width: 1
+            border.color: Ink.line
+        }
+
+        Repeater {
+            model: [[37, 34], [83, 34], [37, 76], [83, 76]]
+
+            delegate: Item {
+                required property var modelData
+
+                x: modelData[0] * cabinet.unit
+                y: modelData[1] * cabinet.unit
+
+                // The cone, the surround, and the dust cap.
+                Rectangle {
+                    x: -18 * cabinet.unit
+                    y: -18 * cabinet.unit
+                    width: 36 * cabinet.unit
+                    height: width
+                    radius: width / 2
+                    color: Ink.recess
+                    border.width: 1
+                    border.color: Ink.edge
+                }
+                Rectangle {
+                    x: -11 * cabinet.unit
+                    y: -11 * cabinet.unit
+                    width: 22 * cabinet.unit
+                    height: width
+                    radius: width / 2
+                    color: "transparent"
+                    border.width: 1
+                    border.color: Ink.line
+                }
+                Rectangle {
+                    x: -4.5 * cabinet.unit
+                    y: -4.5 * cabinet.unit
+                    width: 9 * cabinet.unit
+                    height: width
+                    radius: width / 2
+                    color: Ink.line
                 }
             }
         }
@@ -2168,12 +2434,17 @@ Kirigami.ApplicationWindow {
              * A plugin has as many knobs as it has -- guitarix's amplifier has
              * eight and a cabinet has three -- so a fixed height is either a
              * band of empty ink or an amplifier with its bottom row cut off.
-             * Capped at two fifths of the window, because the score is what
-             * the window is for.
+             * Capped, because the score is what the window is for -- but at
+             * over half of it rather than under, because an amplifier drawn
+             * with its bottom row cut off is worse than a shorter score. A
+             * guitarix amplifier is nine knobs, two lists and two switches,
+             * and a deck that cannot show one of those cannot show the thing
+             * this program is for.
              */
             Layout.preferredHeight: Math.min(
-                root.height * 0.45,
+                root.height * 0.55,
                 deckHeader.implicitHeight + deckRow.implicitHeight
+                    + (deckNotes.visible ? deckNotes.implicitHeight : 0)
                     + Kirigami.Units.largeSpacing * 3)
             visible: panels.effects && session.hasScore
             color: Ink.ink
@@ -2255,6 +2526,13 @@ Kirigami.ApplicationWindow {
                         checkable: false
                         enabled: (root.effectsRevision, session.effectsHere.length > 0)
                         onClicked: session.removeLastEffect()
+                    }
+
+                    ChromeToggle {
+                        text: i18n("Clear")
+                        checkable: false
+                        enabled: (root.effectsRevision, session.effectsHere.length > 0)
+                        onClicked: session.clearEffects()
                     }
                 }
 
@@ -2355,14 +2633,37 @@ Kirigami.ApplicationWindow {
                                             Layout.fillWidth: true
                                             spacing: Kirigami.Units.largeSpacing
 
-                                            QQC2.Label {
+                                            ColumnLayout {
                                                 Layout.fillWidth: true
-                                                text: i18n("%1 \u00b7 %2",
-                                                           stageCard.modelData.stage + 1,
-                                                           stageCard.modelData.name)
-                                                color: Ink.paper
-                                                elide: Text.ElideRight
-                                                font.weight: Font.DemiBold
+                                                spacing: 0
+
+                                                QQC2.Label {
+                                                    Layout.fillWidth: true
+                                                    text: i18n("%1 \u00b7 %2",
+                                                               stageCard.modelData.stage + 1,
+                                                               stageCard.modelData.name)
+                                                    color: Ink.paper
+                                                    elide: Text.ElideRight
+                                                    font.weight: Font.DemiBold
+                                                }
+
+                                                // A mono plugin in a stereo
+                                                // chain is instantiated twice,
+                                                // one per side, and somebody
+                                                // reading the panel should not
+                                                // have to know that to
+                                                // understand what they are
+                                                // looking at.
+                                                QQC2.Label {
+                                                    Layout.fillWidth: true
+                                                    text: stageCard.modelData.stereo
+                                                        ? i18n("stereo")
+                                                        : i18n("mono, run twice")
+                                                    color: Ink.quiet
+                                                    elide: Text.ElideRight
+                                                    font.pointSize:
+                                                        Kirigami.Theme.smallFont.pointSize
+                                                }
                                             }
 
                                             /**
@@ -2409,19 +2710,81 @@ Kirigami.ApplicationWindow {
                                         }
 
                                         /**
+                                         * The picture beside the controls, not
+                                         * over them.
+                                         *
+                                         * A cassette is the height of eight
+                                         * knobs, and a card carrying one above
+                                         * the other is twice as tall as the
+                                         * window has to give it. Side by side
+                                         * a card is as tall as its taller
+                                         * column, which is what the design
+                                         * draws and the only arrangement that
+                                         * fits an amplifier and a cabinet on
+                                         * one band.
+                                         */
+                                        RowLayout {
+                                        spacing: Kirigami.Units.largeSpacing
+
+                                        ColumnLayout {
+                                            Layout.alignment: Qt.AlignTop
+                                            spacing: Kirigami.Units.smallSpacing
+                                            visible: tape.visible || cab.visible
+
+                                            VoicingTape {
+                                                id: tape
+
+                                                Layout.alignment: Qt.AlignHCenter
+                                                visible: name.length > 0
+                                                name: (root.effectsRevision,
+                                                       session.voicingOn(
+                                                           stageCard.modelData.stage))
+                                            }
+
+                                            /**
+                                             * A cabinet, drawn as one.
+                                             *
+                                             * By URI rather than by name,
+                                             * because a name is what somebody
+                                             * called a plugin and a URI is
+                                             * what it is. Only where there is
+                                             * no tape: a card carrying both
+                                             * would be two pictures of one
+                                             * stage.
+                                             */
+                                            SpeakerCabinet {
+                                                id: cab
+
+                                                Layout.alignment: Qt.AlignHCenter
+                                                visible: !tape.visible
+                                                    && String(stageCard.modelData.uri)
+                                                           .toLowerCase().includes("cab")
+                                            }
+                                        }
+
+                                        ColumnLayout {
+                                            Layout.alignment: Qt.AlignTop
+                                            spacing: Kirigami.Units.smallSpacing
+
+                                        /**
                                          * The knobs, in a block rather than a
                                          * column.
                                          *
-                                         * Wrapped into rows of four, which is
+                                         * Wrapped into rows of five, which is
                                          * about the width of an amplifier: a
                                          * plugin with a dozen controls in one
                                          * line would push everything after it
                                          * off the window, and one with three
-                                         * would leave a hole.
+                                         * would leave a hole. Five rather than
+                                         * four because guitarix's amplifier
+                                         * has nine, and nine over four is
+                                         * three rows -- one taller than the
+                                         * band has to give it once a cassette
+                                         * is sitting alongside.
                                          */
                                         GridLayout {
                                             Layout.alignment: Qt.AlignHCenter
-                                            columns: 4
+                                            columns: 5
                                             columnSpacing: Kirigami.Units.smallSpacing
                                             rowSpacing: 0
 
@@ -2462,8 +2825,7 @@ Kirigami.ApplicationWindow {
                                                     // labels tall would set
                                                     // every other knob on the
                                                     // panel lower to match.
-                                                    // The full name and the
-                                                    // value are on the
+                                                    // The full name is on the
                                                     // tooltip.
                                                     QQC2.Label {
                                                         Layout.alignment: Qt.AlignHCenter
@@ -2475,16 +2837,60 @@ Kirigami.ApplicationWindow {
                                                         font.pointSize:
                                                             Kirigami.Theme.smallFont.pointSize
                                                     }
+
+                                                    /**
+                                                     * Where the knob is, in
+                                                     * figures.
+                                                     *
+                                                     * A pointer says roughly,
+                                                     * and roughly is what a
+                                                     * hand wants while it is
+                                                     * turning. A number is
+                                                     * what the same person
+                                                     * wants afterwards, to see
+                                                     * whether two cards are
+                                                     * set the same -- and it
+                                                     * should not cost hovering
+                                                     * over each one in turn to
+                                                     * find out.
+                                                     */
+                                                    QQC2.Label {
+                                                        Layout.alignment: Qt.AlignHCenter
+                                                        text: knobCell.modelData.integer
+                                                            ? Math.round(
+                                                                knobCell.modelData.value)
+                                                            : knobCell.modelData.value.toFixed(2)
+                                                        color: Ink.quiet
+                                                        font.pointSize:
+                                                            Kirigami.Theme.smallFont.pointSize
+                                                        font.features: ({ "tnum": 1 })
+                                                    }
                                                 }
                                             }
                                         }
 
-                                        // The switches and the named choices,
-                                        // which are not knobs and should not
-                                        // be drawn as one: a valve model is a
-                                        // list of names, and a slider from
-                                        // nought to eleven labelled nothing is
-                                        // a worse way to ask which one.
+                                        /**
+                                         * The switches and the named choices,
+                                         * which are not knobs and should not
+                                         * be drawn as one: a valve model is a
+                                         * list of names, and a slider from
+                                         * nought to eleven labelled nothing is
+                                         * a worse way to ask which one.
+                                         *
+                                         * Two to a line. Guitarix's amplifier
+                                         * has five of these between its lists
+                                         * and its switches, and five lines of
+                                         * one is taller than the band -- which
+                                         * shows as an amplifier with its last
+                                         * switch cut off rather than as
+                                         * anything a person could act on.
+                                         */
+                                        GridLayout {
+                                        Layout.fillWidth: true
+                                        columns: 2
+                                        columnSpacing: Kirigami.Units.largeSpacing
+                                        rowSpacing: Kirigami.Units.smallSpacing
+
                                         Repeater {
                                             model: stageCard.modelData.controls.filter(
                                                 control => control.toggled
@@ -2576,6 +2982,9 @@ Kirigami.ApplicationWindow {
                                                 }
                                             }
                                         }
+                                        }
+                                        }
+                                        }
 
                                     }
                                 }
@@ -2619,6 +3028,81 @@ Kirigami.ApplicationWindow {
                         : i18n("No LV2 effects were found on this machine.")
                     color: Ink.quiet
                     horizontalAlignment: Text.AlignHCenter
+                }
+
+                /**
+                 * What a voicing carried, and what it left behind.
+                 *
+                 * The honesty this program is built on, in the one place it is
+                 * easiest to be dishonest: a preset named after a record, most
+                 * of which arrived, is not that sound and should not be
+                 * presented as though it were. The status bar says this once
+                 * when a voicing is applied and is then wanted for something
+                 * else; the deck keeps saying it for as long as the tape is on
+                 * the card.
+                 */
+                RowLayout {
+                    id: deckNotes
+
+                    Layout.fillWidth: true
+                    Layout.topMargin: Kirigami.Units.smallSpacing
+                    spacing: Kirigami.Units.largeSpacing
+                    visible: deckFooter.carried.length > 0
+
+                    QQC2.Label {
+                        id: deckFooter
+
+                        /** Every stage that came off a tape, named. */
+                        readonly property var carried: {
+                            root.effectsRevision
+                            const named = []
+                            const chain = session.chainHere
+                            for (let index = 0; index < chain.length; ++index) {
+                                const voicing = session.voicingOn(chain[index].stage)
+                                if (voicing.length > 0) {
+                                    named.push(voicing)
+                                }
+                            }
+                            return named
+                        }
+
+                        /** And everything those voicings could not reproduce. */
+                        readonly property var declined: {
+                            root.effectsRevision
+                            const missing = []
+                            const chain = session.chainHere
+                            for (let index = 0; index < chain.length; ++index) {
+                                for (const part of
+                                         session.voicingDeclinedOn(chain[index].stage)) {
+                                    if (!missing.includes(part)) {
+                                        missing.push(part)
+                                    }
+                                }
+                            }
+                            return missing
+                        }
+
+                        text: i18np("Voicing \u201c%2\u201d carried this chain.",
+                                    "Voicings %2 carried this chain.",
+                                    deckFooter.carried.length,
+                                    deckFooter.carried.join(i18nc(
+                                        "between two voicing names", "\u201d and \u201c")))
+                        color: Ink.accentOnInk
+                        elide: Text.ElideRight
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    }
+
+                    QQC2.Label {
+                        Layout.fillWidth: true
+                        visible: deckFooter.declined.length > 0
+                        // Printed as they arrive. `Gx::Fitting` writes whole
+                        // sentences -- "Not carried: bassEnhancer, eq." -- so
+                        // a heading in front of them would say it twice.
+                        text: deckFooter.declined.join(" ")
+                        color: Ink.quiet
+                        elide: Text.ElideRight
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    }
                 }
             }
         }

@@ -68,6 +68,18 @@ QtObject {
     readonly property color sharpNear: "#e63d84"
     readonly property color sharpNearer: "#f56a9c"
 
+    // Equipment, which is drawn rather than styled.
+    //
+    // The effects deck draws two things that are objects instead of controls:
+    // a cassette carrying the voicing a stage was set from, and a speaker
+    // cabinet. Three greys the chrome had no use for -- the moulded shell of a
+    // thing, the dark of a hole in it, and the brown of a tape spool, which is
+    // the only place in the program that is neither ink, paper nor accent.
+    // They belong to the drawings and to nothing else.
+    readonly property color shell: "#33302f"        //< the case of a thing
+    readonly property color recess: "#1a1918"       //< a screw head, a speaker
+    readonly property color spool: "#3a2a22"        //< tape, wound on a reel
+
     // The design is built on a small number of sizes; naming them is what
     // stops the fourth button from being two pixels wider than the other three.
     readonly property int radius: 2

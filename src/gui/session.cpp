@@ -442,7 +442,13 @@ QVariantList Session::chainHere() const
                 {QStringLiteral("choiceValues"), QVariant::fromValue(control.choiceValues)},
             });
         }
+        // The URI as well as the name: a window that wants to draw a cabinet
+        // as a cabinet has to know which plugin it is looking at, and a name
+        // is what somebody called it rather than what it is.
         chain.append(QVariantMap{{QStringLiteral("name"), stages.at(index).name},
+                                 {QStringLiteral("uri"), stages.at(index).uri},
+                                 {QStringLiteral("stereo"),
+                                  Lv2::describe(stages.at(index).uri).audioInputs == 2},
                                  {QStringLiteral("stage"), index},
                                  {QStringLiteral("controls"), knobs}});
     }
@@ -478,6 +484,12 @@ Rig::Document Session::currentRig() const
         one.track = track;
         one.sampler = m_samplers.value(track);
         one.chain = m_effects.value(track);
+        for (auto stage = m_voicingNames.value(track).constBegin();
+             stage != m_voicingNames.value(track).constEnd(); ++stage) {
+            if (stage.key() < one.chain.size() && !stage.value().isEmpty()) {
+                one.voicings.insert(stage.key(), stage.value());
+            }
+        }
 
         // Knobs are held by port index and written by symbol. The plugin's own
         // manifest is what maps one to the other, and reading it costs nothing
@@ -520,6 +532,8 @@ void Session::restoreRig()
     m_samplers.clear();
     m_effects.clear();
     m_knobs.clear();
+    m_voicingNames.clear();
+    m_voicingDeclined.clear();
     if (m_filePath.isEmpty()) {
         return;
     }
@@ -547,6 +561,12 @@ void Session::restoreRig()
         if (!track.chain.isEmpty()) {
             m_effects.insert(track.track, track.chain);
         }
+        for (auto stage = track.voicings.constBegin();
+             stage != track.voicings.constEnd(); ++stage) {
+            if (stage.key() < track.chain.size()) {
+                m_voicingNames[track.track].insert(stage.key(), stage.value());
+            }
+        }
         for (const Rig::Knob &knob : track.knobs) {
             if (knob.stage >= track.chain.size()) {
                 continue;
@@ -562,6 +582,68 @@ void Session::restoreRig()
             }
         }
     }
+}
+
+QString Session::voicingOn(int stage) const
+{
+    return m_voicingNames.value(m_currentTrack).value(stage);
+}
+
+QStringList Session::voicingDeclinedOn(int stage) const
+{
+    return m_voicingDeclined.value(m_currentTrack).value(stage);
+}
+
+void Session::applyKnobs(const QStringList &knobs, const QStringList &voicings)
+{
+    if (!m_player) {
+        return;
+    }
+
+    // Voicings first: one sets a handful of controls at once, and a `--knob`
+    // after it is somebody correcting the preset rather than being overruled
+    // by it.
+    for (const QString &given : voicings) {
+        const qsizetype equals = given.indexOf(QLatin1Char('='));
+        const qsizetype colon = given.indexOf(QLatin1Char(':'));
+        if (equals < 0 || colon < 0 || colon > equals) {
+            continue;
+        }
+        const int track = QStringView(given).left(colon).toInt();
+        const int stage = QStringView(given).mid(colon + 1, equals - colon - 1).toInt();
+        if (track != m_currentTrack) {
+            continue;
+        }
+        applyVoicing(stage, given.mid(equals + 1));
+    }
+
+    for (const QString &given : knobs) {
+        // track:stage:Symbol=value
+        const qsizetype equals = given.indexOf(QLatin1Char('='));
+        if (equals < 0) {
+            continue;
+        }
+        const QStringList where = given.left(equals).split(QLatin1Char(':'));
+        if (where.size() != 3) {
+            continue;
+        }
+        const int track = where.at(0).toInt();
+        const int stage = where.at(1).toInt();
+        if (track != m_currentTrack) {
+            continue;
+        }
+        const QList<Lv2::Stage> stages = m_player->chainOn(track);
+        if (stage < 0 || stage >= stages.size()) {
+            continue;
+        }
+        for (const Lv2::Control &control : stages.at(stage).controls) {
+            if (control.symbol == where.at(2)) {
+                setEffectControl(stage, int(control.index), given.mid(equals + 1).toDouble());
+                break;
+            }
+        }
+    }
+    Q_EMIT effectsChanged();
 }
 
 void Session::useSoundFont(const QString &file)
@@ -590,6 +672,8 @@ void Session::applyRig(const QVariantMap &samplers, const QVariantMap &effects)
         // is the other case and deliberately keeps them; this is not that.
         if (m_effects.value(track) != entry.value().toStringList()) {
             m_knobs.remove(track);
+            m_voicingNames.remove(track);
+            m_voicingDeclined.remove(track);
         }
         m_effects.insert(track, entry.value().toStringList());
     }
@@ -671,6 +755,8 @@ void Session::applyVoicing(int stage, const QString &name)
             }
         }
 
+        m_voicingNames[m_currentTrack].insert(stage, name);
+        m_voicingDeclined[m_currentTrack].insert(stage, fitting.declined);
         rememberRig();
         setStatus(fitting.declined.isEmpty()
                       ? i18n("%1: %2 settings.", name, QString::number(fitting.settings.size()))
@@ -724,9 +810,13 @@ void Session::removeLastEffect()
     // The knobs on the plugin that just left go with it, so that a different
     // plugin put in its place does not inherit its settings by port number.
     m_knobs[m_currentTrack].remove(chain.size());
+    m_voicingNames[m_currentTrack].remove(chain.size());
+    m_voicingDeclined[m_currentTrack].remove(chain.size());
     if (chain.isEmpty()) {
         m_effects.remove(m_currentTrack);
         m_knobs.remove(m_currentTrack);
+        m_voicingNames.remove(m_currentTrack);
+        m_voicingDeclined.remove(m_currentTrack);
     } else {
         m_effects.insert(m_currentTrack, chain);
     }
@@ -744,6 +834,8 @@ void Session::clearEffects()
     m_effects.remove(m_currentTrack);
     // Dry means dry: nothing kept from the chain that has just gone.
     m_knobs.remove(m_currentTrack);
+    m_voicingNames.remove(m_currentTrack);
+    m_voicingDeclined.remove(m_currentTrack);
     stop();
     rebuildPlayer();
     rememberRig();

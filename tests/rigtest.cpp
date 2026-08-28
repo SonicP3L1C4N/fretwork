@@ -52,6 +52,8 @@ private:
                         {0, QStringLiteral("Bass"), 0.25f},
                         {1, QStringLiteral("Level"), 0.5f}};
 
+        guitar.voicings.insert(0, QStringLiteral("Bass — Come Together"));
+
         Rig::Track bass;
         bass.track = 1;
         bass.sampler = QStringLiteral("/home/somebody/samples/Growlybass.sfz");
@@ -103,6 +105,47 @@ private Q_SLOTS:
         QCOMPARE(back.tracks.at(1).sampler,
                  QStringLiteral("/home/somebody/samples/Growlybass.sfz"));
         QVERIFY(back.tracks.at(1).chain.isEmpty());
+    }
+
+    /**
+     * The label on the tape survives the round trip.
+     *
+     * The knobs already carry the sound; this is what the stage was built
+     * from, and a chain reopened without it is a row of numbers nobody
+     * remembers choosing.
+     */
+    void remembersWhatEachStageWasVoicedFrom()
+    {
+        const QString file = path(QStringLiteral("voiced.rig"));
+        QString why;
+        QVERIFY2(Rig::write(twoTracks(), file, &why), qPrintable(why));
+
+        const Rig::Document back = Rig::read(file, &why);
+        QVERIFY2(why.isEmpty(), qPrintable(why));
+        QCOMPARE(back.tracks.at(0).voicings.value(0),
+                 QStringLiteral("Bass — Come Together"));
+        QVERIFY(back.tracks.at(1).voicings.isEmpty());
+    }
+
+    /** A voicing naming no stage, or no voicing, is read past. */
+    void readsPastVoicingsThatNameNothing()
+    {
+        const QString file = writeText(QStringLiteral("halfvoiced.rig"), R"({
+            "rig": 1,
+            "tracks": [
+                { "track": 0,
+                  "chain": ["urn:example:amp"],
+                  "voicings": [ { "stage": 0, "name": "" },
+                                { "name": "nowhere in particular" },
+                                { "stage": 0, "name": "Iron Man" } ] }
+            ]
+        })");
+
+        QString why;
+        const Rig::Document rig = Rig::read(file, &why);
+        QVERIFY2(why.isEmpty(), qPrintable(why));
+        QCOMPARE(rig.tracks.at(0).voicings.size(), 1);
+        QCOMPARE(rig.tracks.at(0).voicings.value(0), QStringLiteral("Iron Man"));
     }
 
     /** The order of a chain is the signal path, so it is not a set. */

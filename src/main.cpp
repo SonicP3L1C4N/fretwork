@@ -1039,11 +1039,17 @@ int main(int argc, char *argv[])
         for (auto entry = effects.constBegin(); entry != effects.constEnd(); ++entry) {
             effectRig.insert(QString::number(entry.key()), entry.value());
         }
+        // The knobs and the voicings as typed, verbatim. Parsed in the window
+        // rather than here, because a `--knob` names a control by the symbol
+        // its plugin publishes and nothing knows those until the chain the
+        // same command line asked for has been built.
         engine.setInitialProperties(
             {{QStringLiteral("initialFile"), files.value(0)},
              {QStringLiteral("initialSamplers"), samplerRig},
              {QStringLiteral("initialEffects"), effectRig},
-             {QStringLiteral("initialSoundFont"), parser.value(soundFont)}});
+             {QStringLiteral("initialSoundFont"), parser.value(soundFont)},
+             {QStringLiteral("initialKnobs"), parser.values(knob)},
+             {QStringLiteral("initialVoicings"), parser.values(voicing)}});
         engine.loadFromModule("org.kde.fretwork", "Main");
         if (engine.rootObjects().isEmpty()) {
             error << i18n("fretwork: the window could not be created\n");
