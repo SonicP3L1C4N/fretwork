@@ -93,6 +93,11 @@ ecm_add_test(timelinetest.cpp
     LINK_LIBRARIES Qt6::Test fretworkcore
 )
 
+ecm_add_test(rigtest.cpp
+    TEST_NAME rigtest
+    LINK_LIBRARIES Qt6::Test fretworkcore
+)
+
 find_program(DESKTOP_FILE_VALIDATE desktop-file-validate)
 if(DESKTOP_FILE_VALIDATE)
     add_test(NAME desktopfiletest

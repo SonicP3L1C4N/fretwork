@@ -24,6 +24,13 @@
 Session::Session(QObject *parent)
     : QObject(parent)
 {
+    // A rig is written a moment after it stops changing rather than while it
+    // is changing: a knob under a finger moves continuously, and the file is
+    // worth writing once when the finger comes off it.
+    m_rigWriter.setSingleShot(true);
+    m_rigWriter.setInterval(800);
+    connect(&m_rigWriter, &QTimer::timeout, this, &Session::writeRig);
+
     // Twenty times a second: enough that a playhead looks continuous, few
     // enough that it costs nothing. The audio thread is not involved.
     // An edit changes the page immediately and the sound the next time it is
@@ -82,7 +89,15 @@ Session::Session(QObject *parent)
     });
 }
 
-Session::~Session() = default;
+Session::~Session()
+{
+    // Whatever the timer was still holding. Quitting in the middle of a drag
+    // is exactly the moment this feature exists for.
+    if (m_rigWriter.isActive()) {
+        m_rigWriter.stop();
+        writeRig();
+    }
+}
 
 namespace
 {
@@ -153,9 +168,14 @@ bool Session::open(const QString &path)
     m_wasPlaying = false;
 
     rebuildLayout();
+    // Before the player, so the first one built is the one the rig describes
+    // rather than a dry one thrown away a moment later.
+    restoreRig();
     rebuildPlayer();
 
     Q_EMIT scoreChanged();
+    Q_EMIT effectsChanged();
+    Q_EMIT samplersChanged();
     Q_EMIT currentTrackChanged();
     Q_EMIT mixerChanged();
     // What the window should say the moment a score opens: what is true of the
@@ -429,6 +449,121 @@ QVariantList Session::chainHere() const
     return chain;
 }
 
+void Session::rememberRig()
+{
+    // A score with no file of its own has nowhere to keep a rig. Nothing is
+    // lost by saying so quietly: saving the score writes the rig beside it.
+    if (m_filePath.isEmpty()) {
+        return;
+    }
+    m_rigWriter.start();
+}
+
+Rig::Document Session::currentRig() const
+{
+    Rig::Document rig;
+
+    // Every track named by either half of a rig, in track order so the file
+    // reads the way the mixer does.
+    QList<int> tracks = m_samplers.keys();
+    for (const int track : m_effects.keys()) {
+        if (!tracks.contains(track)) {
+            tracks.append(track);
+        }
+    }
+    std::sort(tracks.begin(), tracks.end());
+
+    for (const int track : tracks) {
+        Rig::Track one;
+        one.track = track;
+        one.sampler = m_samplers.value(track);
+        one.chain = m_effects.value(track);
+
+        // Knobs are held by port index and written by symbol. The plugin's own
+        // manifest is what maps one to the other, and reading it costs nothing
+        // -- `controlsOf` does not instantiate anything.
+        const QHash<int, QHash<quint32, float>> &turned = m_knobs[track];
+        for (int stage = 0; stage < one.chain.size(); ++stage) {
+            if (!turned.contains(stage)) {
+                continue;
+            }
+            const QList<Lv2::Control> controls = Lv2::controlsOf(one.chain.at(stage));
+            const QHash<quint32, float> &values = turned[stage];
+            for (const Lv2::Control &control : controls) {
+                if (!values.contains(control.index)) {
+                    continue;
+                }
+                one.knobs.append({stage, control.symbol, values.value(control.index)});
+            }
+        }
+        rig.tracks.append(one);
+    }
+    return rig;
+}
+
+void Session::writeRig()
+{
+    if (m_filePath.isEmpty()) {
+        return;
+    }
+    QString why;
+    if (!Rig::write(currentRig(), Rig::pathFor(m_filePath), &why)) {
+        // Said once, in the status bar, and not turned into a problem: the
+        // score still plays, and a rig that could not be kept is a smaller
+        // thing than one that could not be built.
+        setStatus(i18n("The rig could not be kept: %1", why));
+    }
+}
+
+void Session::restoreRig()
+{
+    m_samplers.clear();
+    m_effects.clear();
+    m_knobs.clear();
+    if (m_filePath.isEmpty()) {
+        return;
+    }
+
+    QString why;
+    const Rig::Document rig = Rig::read(Rig::pathFor(m_filePath), &why);
+    if (!why.isEmpty()) {
+        setStatus(i18n("The rig beside this score could not be read: %1", why));
+        return;
+    }
+    if (rig.isEmpty()) {
+        return;
+    }
+
+    const int trackCount = int(m_editor.score().tracks.size());
+    for (const Rig::Track &track : rig.tracks) {
+        // A rig written against a score that has since lost a part names a
+        // track nobody has. Read past it rather than refusing the rest.
+        if (track.track >= trackCount) {
+            continue;
+        }
+        if (!track.sampler.isEmpty()) {
+            m_samplers.insert(track.track, track.sampler);
+        }
+        if (!track.chain.isEmpty()) {
+            m_effects.insert(track.track, track.chain);
+        }
+        for (const Rig::Knob &knob : track.knobs) {
+            if (knob.stage >= track.chain.size()) {
+                continue;
+            }
+            // Back from the symbol to the port index this build of the plugin
+            // uses, which is the whole reason the file holds the symbol.
+            const QList<Lv2::Control> controls = Lv2::controlsOf(track.chain.at(knob.stage));
+            for (const Lv2::Control &control : controls) {
+                if (control.symbol == knob.symbol) {
+                    m_knobs[track.track][knob.stage].insert(control.index, knob.value);
+                    break;
+                }
+            }
+        }
+    }
+}
+
 void Session::useSoundFont(const QString &file)
 {
     if (m_soundFont == file) {
@@ -447,7 +582,16 @@ void Session::applyRig(const QVariantMap &samplers, const QVariantMap &effects)
         m_samplers.insert(entry.key().toInt(), entry.value().toString());
     }
     for (auto entry = effects.constBegin(); entry != effects.constEnd(); ++entry) {
-        m_effects.insert(entry.key().toInt(), entry.value().toStringList());
+        const int track = entry.key().toInt();
+        // The knobs go with the chain they belonged to. A knob is held by port
+        // index, and an index means something only in the plugin it came from
+        // -- so keeping them across a chain being *replaced* would set
+        // somebody else's controls to numbers nobody chose. Appending a pedal
+        // is the other case and deliberately keeps them; this is not that.
+        if (m_effects.value(track) != entry.value().toStringList()) {
+            m_knobs.remove(track);
+        }
+        m_effects.insert(track, entry.value().toStringList());
     }
 
     rebuildPlayer();
@@ -458,6 +602,9 @@ void Session::applyRig(const QVariantMap &samplers, const QVariantMap &effects)
         m_effects.clear();
         rebuildPlayer();
     }
+    // What was typed on the command line is a rig like any other, and is kept
+    // beside the score the same way.
+    rememberRig();
     Q_EMIT samplersChanged();
     Q_EMIT effectsChanged();
 }
@@ -472,6 +619,7 @@ void Session::setEffectControl(int stage, int index, double value)
     // takes to load.
     m_player->setEffectControl(m_currentTrack, stage, quint32(index), float(value));
     m_knobs[m_currentTrack][stage].insert(quint32(index), float(value));
+    rememberRig();
 }
 
 QVariantList Session::voicings() const
@@ -523,6 +671,7 @@ void Session::applyVoicing(int stage, const QString &name)
             }
         }
 
+        rememberRig();
         setStatus(fitting.declined.isEmpty()
                       ? i18n("%1: %2 settings.", name, QString::number(fitting.settings.size()))
                       : i18n("%1: %2 settings. %3", name,
@@ -561,6 +710,7 @@ void Session::addEffect(const QString &uri)
     } else {
         setStatus(i18n("%1 on %2", Lv2::describe(uri).name, trackNameHere()));
     }
+    rememberRig();
     Q_EMIT effectsChanged();
 }
 
@@ -571,13 +721,18 @@ void Session::removeLastEffect()
         return;
     }
     chain.removeLast();
+    // The knobs on the plugin that just left go with it, so that a different
+    // plugin put in its place does not inherit its settings by port number.
+    m_knobs[m_currentTrack].remove(chain.size());
     if (chain.isEmpty()) {
         m_effects.remove(m_currentTrack);
+        m_knobs.remove(m_currentTrack);
     } else {
         m_effects.insert(m_currentTrack, chain);
     }
     stop();
     rebuildPlayer();
+    rememberRig();
     Q_EMIT effectsChanged();
 }
 
@@ -587,8 +742,11 @@ void Session::clearEffects()
         return;
     }
     m_effects.remove(m_currentTrack);
+    // Dry means dry: nothing kept from the chain that has just gone.
+    m_knobs.remove(m_currentTrack);
     stop();
     rebuildPlayer();
+    rememberRig();
     setStatus(i18n("%1 is dry again", trackNameHere()));
     Q_EMIT effectsChanged();
 }
@@ -656,6 +814,7 @@ void Session::setSamplerHere(const QString &path)
                       ? i18n("%1 is back on a General MIDI programme", trackNameHere())
                       : i18n("%1 is playing from %2", trackNameHere(), samplerHere()));
     }
+    rememberRig();
     Q_EMIT samplersChanged();
 }
 
@@ -1540,6 +1699,10 @@ bool Session::saveAs(const QString &path)
 
     m_filePath = target;
     m_fileName = QFileInfo(target).fileName();
+    // The rig goes with it. Saving under a new name is the one moment a score
+    // acquires a path it did not have, so it is also the moment a rig built
+    // before the first save has somewhere to live.
+    writeRig();
     m_editor.setUnmodified();
     setStatus(i18n("Saved to %1", m_fileName));
     Q_EMIT scoreChanged();

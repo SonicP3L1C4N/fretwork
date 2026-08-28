@@ -2087,9 +2087,17 @@ Kirigami.ApplicationWindow {
                     // plugins and paths that are facts about one machine --
                     // and somebody who spent an evening on a sound should find
                     // that out before they close the window rather than after.
+                    //
+                    // It is kept in a file beside the score, which means a
+                    // score that has never been saved has nowhere to keep one
+                    // yet. That is the one case where an evening's work can
+                    // still be lost, so it is the case that says so.
                     QQC2.Label {
                         Layout.fillWidth: true
-                        text: i18n("%1 \u00b7 session only", session.trackNameHere)
+                        text: session.filePath.length > 0
+                            ? i18n("%1 \u00b7 kept beside the score", session.trackNameHere)
+                            : i18n("%1 \u00b7 session only until the score is saved",
+                                   session.trackNameHere)
                         color: Ink.quiet
                         elide: Text.ElideRight
                         font.pointSize: Kirigami.Theme.smallFont.pointSize

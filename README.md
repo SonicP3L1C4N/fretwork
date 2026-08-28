@@ -426,6 +426,20 @@ A window opened with `--sfz` and `--lv2` comes up with that rig already on the
 part, rather than opening dry and asking somebody to rebuild by hand what they
 have just typed out.
 
+**And the rig is kept.** An evening spent getting a part to sound right is not
+work to do again tomorrow, so it is written to a file beside the score —
+`Horses.gp` gets `Horses.gp.rig` — and read back when the score is opened.
+Beside it rather than inside it, for the same reason the sample library is not
+in a `.fw`: a rig names plugins by URI and samples by path, and both of those
+are facts about one machine, whereas the score is the part that travels. The
+file is plain JSON and names each knob by the symbol its plugin publishes
+rather than by port number, so a rig still means what it meant after a plugin
+is rebuilt.
+
+A score that has never been saved has nowhere to keep a rig yet, and the
+effects panel says so rather than letting somebody find out by closing the
+window.
+
 **Somebody else's ears, as a starting point.** A chain at its defaults is an
 amplifier nobody has turned up. Guitarix ships nineteen presets named after the
 records they aim at, and the **Voicing** button on each plugin — or

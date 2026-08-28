@@ -5,6 +5,7 @@
 
 #include "editor.h"
 #include "gxpreset.h"
+#include "rigfile.h"
 #include "lv2chain.h"
 #include "sfz.h"
 #include "player.h"
@@ -570,6 +571,23 @@ private:
     void setStatus(const QString &status);
     void setProblem(const QString &problem);
 
+    /**
+     * Keeping the rig, which is the point of `Rig` -- see `rigfile.h` for why
+     * it lives beside the score rather than inside it.
+     *
+     * `rememberRig` is called wherever the rig changes and only schedules the
+     * write, because a knob being dragged changes it sixty times a second and
+     * a file written that often is a file being written while it is read.
+     * `writeRig` is what the timer runs, and the destructor, so quitting mid-
+     * drag does not lose the last turn of a knob.
+     */
+    void rememberRig();
+    void writeRig();
+    void restoreRig();
+
+    /** The rig as it stands, with knobs named by symbol rather than by port. */
+    Rig::Document currentRig() const;
+
     Editor m_editor;
     QList<int> m_order;
     bool m_playerStale = false;
@@ -598,4 +616,5 @@ private:
     QString m_problem;
     QString m_soundFont;
     QTimer m_ticker;
+    QTimer m_rigWriter;
 };

@@ -24,6 +24,7 @@ add_library(fretworkcore STATIC
     audio/tuner.cpp
     audio/wav.cpp
     format/fwformat.cpp
+    format/rigfile.cpp
     edit/cursor.cpp
     edit/editor.cpp
     render/tablayout.cpp

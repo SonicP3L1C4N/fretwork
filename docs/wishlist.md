@@ -56,12 +56,13 @@ says it cannot play. Each of these closes one of those admissions.
 
 P4 in the plan is three items. These are the rest of that thought.
 
-- **Keeping a rig.** The knobs turn and are remembered for as long as the
-  program is open, and then they are gone. Where a rig should be kept is the
-  question: not in the `.fw`, for the same reason the sample library is not --
-  it names plugins and paths that are facts about one machine -- but a
-  session file beside it, or a named preset of Fretwork's own, would both
-  work and are different promises.
+- **A rig under a name of its own.** Kept now, in a file beside the score, so
+  an evening's work survives the window closing. The other half of that
+  thought is not done: a rig that could be saved under a name and put on a
+  different score. The two are different promises and the per-score one was
+  the one worth making first, because it is the one that stops work being
+  lost. A named preset is the same document in a different place, which is
+  what `Rig` was shaped for.
 
 - **The rest of a guitarix rig.** The amplifier out of a `.gx` preset is
   carried now, and that is as far as the plugins allow: the modules the factory
