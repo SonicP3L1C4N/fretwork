@@ -694,12 +694,16 @@ separate stems.
 
 ## The stack, briefly
 
-C++20 with Qt 6 and KDE Frameworks 6 for the application; Rust behind a C ABI
-for the file importers, because that is the only code eating untrusted binary
-input; FluidSynth for synthesis, one instance per track; lilv and suil for
-per-track LV2 chains; PipeWire out. CMake and Ninja, KDE's own conventions,
-GPL — the reasoning for every line of that is in
-[docs/architecture.md](docs/architecture.md).
+C++20 with Qt 6 and KDE Frameworks 6 for the application; FluidSynth for
+synthesis, one instance per track; lilv for per-track LV2 chains; PipeWire out.
+CMake and Ninja, KDE's own conventions, GPL — the reasoning for every line of
+that is in [docs/architecture.md](docs/architecture.md).
+
+The importers that exist are C++, because GP7 and GP8 are a ZIP and some XML
+rather than hand-rolled binary. **Rust behind a C ABI is the plan for GP3–GP5
+and GPX** — the only code here that would read untrusted bytes by hand, and
+where `cargo fuzz` finds what review does not. It is written down as a plan
+rather than as a line of the stack because none of it exists yet.
 
 ## The plan
 
