@@ -38,12 +38,27 @@ private:
     }
 
 private Q_SLOTS:
+    /**
+     * A chain naming a plugin nobody has refuses, and says which one.
+     *
+     * Where this copy was built without lilv there is no particular plugin to
+     * be missing: the refusal is that it hosts no effects at all, which is the
+     * honest answer and the only one that helps somebody on that build. The
+     * thing being tested is the same either way -- that it announces the
+     * refusal rather than going quietly dry -- so the assertion follows the
+     * build rather than accepting whichever message turns up.
+     */
     void saysSoWhenAPluginIsNotThere()
     {
         const Lv2::Chain chain({QStringLiteral("urn:fretwork:no-such-plugin")}, {});
         QVERIFY(!chain.isValid());
+#ifdef FRETWORK_HAVE_LILV
         QVERIFY2(chain.error().contains(QLatin1String("no-such-plugin")),
                  qPrintable(chain.error()));
+#else
+        QVERIFY2(chain.error().contains(QLatin1String("lilv")),
+                 qPrintable(chain.error()));
+#endif
     }
 
     void describesNothingAsNothing()

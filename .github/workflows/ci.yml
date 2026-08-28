@@ -52,7 +52,20 @@ jobs:
           # of these in transitively, and the question being asked is what
           # CMake does when pkg_check_modules cannot find it.
           find /usr/lib /usr/share -name "$pc.pc" -exec mv {} {}.hidden \;
-          echo "Hidden $pc.pc"
+
+          # And take it out of whatever else requires it. fluidsynth's own .pc
+          # names libpipewire-0.3 under Requires.private, so hiding that file
+          # alone makes *fluidsynth* unresolvable -- and fluidsynth is REQUIRED,
+          # which fails the configure at a question this job is not asking. A
+          # machine that genuinely had no PipeWire would be running a fluidsynth
+          # built without it, and this is what that machine looks like to
+          # pkg-config.
+          esc=$(printf '%s' "$pc" | sed 's/[.[\*^$]/\\&/g')
+          grep -rlE "^Requires(\.private)?:" /usr/lib/pkgconfig /usr/share/pkgconfig \
+              2>/dev/null \
+            | xargs -r sed -i -E "/^Requires(\.private)?:/ s/(^|[[:space:]])$esc([[:space:]]|\$)/ /g"
+
+          echo "Hidden $pc.pc, and removed $pc from every Requires that named it"
 
       - name: Configure
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
@@ -83,7 +96,11 @@ jobs:
   readme:
     name: README build instructions
     runs-on: ubuntu-latest
-    container: invent-registry.kde.org/neon/docker-images/plasma:unstable
+    # As root: the Neon image runs as an unprivileged user, and the whole
+    # point of this job is to run the README's own `apt install` line.
+    container:
+      image: invent-registry.kde.org/neon/docker-images/plasma:unstable
+      options: --user 0
     steps:
       - uses: actions/checkout@v4
 

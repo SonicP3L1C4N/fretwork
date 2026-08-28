@@ -52,6 +52,12 @@ ecm_add_test(lv2test.cpp
     TEST_NAME lv2test
     LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n
 )
+# The suite has to know which build it is testing: without lilv the chain
+# refuses everything by saying so, and that is a different sentence from the
+# one a build with lilv produces for a plugin that is merely absent.
+if(Lilv_FOUND)
+    target_compile_definitions(lv2test PRIVATE FRETWORK_HAVE_LILV)
+endif()
 
 ecm_add_test(midtest.cpp
     TEST_NAME midtest
