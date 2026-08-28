@@ -25,6 +25,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstring>
+#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -263,6 +264,24 @@ private:
                 return;
             }
             while (pop(m_requests, &message)) {
+                // One errand at a time, across every instance in the
+                // process. A thread per instance is what the extension is
+                // shaped for and what other hosts do, and it is wrong here for
+                // a reason the specification does not cover: the errand is the
+                // plugin's code, and that code is entitled to call a library
+                // with global state. Guitarix plans through FFTW, whose planner
+                // is the one part of that library that is not reentrant, and
+                // `process` starts the two sides of a mono plugin one line
+                // apart -- so two planners overlapped every first block, and
+                // eight coredumps came of it. A host cannot see what an errand
+                // touches, so it may not run two together.
+                //
+                // Paid for off the audio thread entirely: an errand exists
+                // because it is too slow for the callback, and the callback is
+                // not waiting for it. The whole argument, with the stacks and
+                // the measurement, is in docs/lv2-worker-crash.md.
+                static std::mutex errands;
+                const std::lock_guard<std::mutex> oneAtATime(errands);
                 m_interface->work(m_handle, respond, this, uint32_t(message.size()),
                                   message.data());
             }

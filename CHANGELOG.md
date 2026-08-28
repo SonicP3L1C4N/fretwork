@@ -8,6 +8,34 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## Unreleased — P3
 
+- **One LV2 errand at a time, across the whole process, and the eight crashes
+  that bought that rule.** A worker thread per plugin instance is what the
+  extension is shaped for and what other hosts do, and `process` starts the two
+  sides of a mono plugin one line apart — so two of somebody else's errands
+  overlapped every time a chain played its first block, and a chain of two on
+  four parts measured three at once. What they were overlapping inside was
+  FFTW's planner, which is documented as the one part of that library that is
+  not reentrant, and which Fretwork does not link: it arrives inside a guitarix
+  cabinet by way of zita-convolver, and its heap is this program's heap. Eight
+  coredumps in one afternoon, some in the planner, some in a plugin's `run`
+  reading a pointer the corruption had already eaten, and one jumping through a
+  program counter of `0x3246`.
+- **The host is the only place that serialisation could go.** A plugin's errand
+  is the plugin's code, and the plugin's code is entitled to call a library
+  with global state; the specification promises `work` a thread that is not the
+  audio thread and never promises it is the only one. So the lock is around the
+  errand rather than around FFTW — which this program cannot see to lock — and
+  it is process-wide rather than per chain, because two cabinets on two parts
+  are two callers of the same planner. It is paid for entirely off the audio
+  thread: an errand exists because it is too slow for the callback, and the
+  callback is not waiting for it. The stems rendered after the change are
+  byte-for-byte the stems rendered before it.
+- The crash itself is a coin toss — eighteen renders and sixteen workers after
+  the fact produced none — so it was found by counting overlapping errands
+  rather than by reproducing a dump, and the counting is written down in
+  [docs/lv2-worker-crash.md](docs/lv2-worker-crash.md) along with the stacks,
+  which existed only in a cache directory that gets cleaned.
+
 - **Every track is a row down the left, with a drawing of what it is.** A
   guitar, a bass, a drum kit, a keyboard, or a note for anything else, and the
   one on the page is filled in. Switching between the guitar, the bass and the
