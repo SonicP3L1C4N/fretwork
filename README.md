@@ -57,6 +57,28 @@ until you scroll, and then leaves you where you looked. The bar strip, the
 mixer and the status bar can each be put away from the toolbar, and stay put
 away.
 
+**The bar strip is a ruler, not a grid.** A hundred and seventy-six numbered
+boxes at a legible size is four rows and a scrollbar, and the map of the music
+was taking a third of the window away from the music.
+
+![The bar ruler: section names in italic over the bars they start, tall ticks there and short ticks elsewhere, a number every fourth bar, the playhead as a magenta lozenge riding the line and the caret as an outlined box below it](docs/window-bars.png)
+
+A ruler says the same thing in one line. A tick a bar; a number every fourth,
+eighth or thirty-second depending on what the width allows, far enough apart to
+read as a scale rather than as a row of numbers; and the section names in
+italic over the bar each one starts, because the reason anybody goes looking
+for bar 96 is that it is where the second chorus begins. A section start is
+twice the height of its neighbours and no darker — saying it a second time in
+ink would be the ruler insisting. A score nobody has named a section in keeps
+none of that room.
+
+The two marks say different things and are drawn differently on purpose. The
+playhead is a filled lozenge riding the line, carrying its own bar number so
+that watching it does not mean reading along the ruler to find out where it is.
+The caret is an outline below the line, in the row the numbers are in, around
+the number of the bar it is on — and it prints that number whether or not the
+spacing would otherwise have put one there.
+
 Where a score is beyond what it can honestly play, it says so rather than
 playing it wrongly:
 

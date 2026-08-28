@@ -2672,7 +2672,13 @@ Kirigami.ApplicationWindow {
              * a bar and leave a bare line at eighty.
              */
             readonly property int every: {
-                const wanted = Kirigami.Units.gridUnit * 2.75
+                // Far enough apart to read as a scale rather than as a row of
+                // numbers. Two and three quarters of a grid unit only keeps
+                // them from touching, which is a different and lower bar --
+                // the design asks for ticks and whitespace, and at its own
+                // density of a bar every forty-six pixels that means every
+                // fourth bar carries a number and the rest carry a tick.
+                const wanted = Kirigami.Units.gridUnit * 7
                 const steps = [1, 2, 4, 8, 16, 32, 64]
                 for (let index = 0; index < steps.length; ++index) {
                     if (steps[index] * step >= wanted) {
@@ -2682,7 +2688,18 @@ Kirigami.ApplicationWindow {
                 return 64
             }
 
-            readonly property int nameRow: Kirigami.Units.gridUnit * 1.1
+            /**
+             * Room for the section names, and none at all where there are
+             * none.
+             *
+             * A score nobody has named a section in is a ruler rather than a
+             * map, and a band of empty space over it is the room a map would
+             * have wanted. Asked of the whole score rather than bar by bar, so
+             * that the row cannot appear halfway along when the first named
+             * bar scrolls into view.
+             */
+            readonly property int nameRow:
+                session.hasSections ? Kirigami.Units.gridUnit * 1.1 : 0
             readonly property int tickRow: Kirigami.Units.gridUnit * 0.8
             readonly property int numberRow: Kirigami.Units.gridUnit * 1.2
             /** Kept whether or not there is a bar in it, so nothing jumps. */
@@ -2872,7 +2889,11 @@ Kirigami.ApplicationWindow {
                                 width: 1
                                 height: barTick.section.length > 0
                                     ? barPanel.tickRow : barPanel.tickRow / 2
-                                color: barTick.section.length > 0 ? Ink.quiet : Ink.staff
+                                // One colour for all of them. A section start
+                                // is already twice the height of its
+                                // neighbours, and saying it a second time in
+                                // ink would be the ruler insisting.
+                                color: Ink.faint
                             }
 
                             QQC2.Label {
@@ -2916,7 +2937,11 @@ Kirigami.ApplicationWindow {
 
                         visible: session.currentBar >= 0
                         x: rulerBody.place(session.currentBar, width)
-                        y: rulerBody.lineY - height - 2
+                        // Riding the line, not floating over it: the last
+                        // fifth of the lozenge is below it, so the ruler runs
+                        // through the playhead rather than stopping short of
+                        // it and leaving the mark adrift in the space above.
+                        y: rulerBody.lineY - height * 0.8
                         width: Math.max(height, playheadLabel.implicitWidth
                                                 + Kirigami.Units.largeSpacing)
                         height: Kirigami.Units.gridUnit * 1.15
