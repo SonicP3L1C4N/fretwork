@@ -6,6 +6,55 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 # Changelog
 
+## 0.2.0 — unreleased
+
+Three things about the rig, none of them fixes: the chain can be put in the
+order somebody wants it in, a sound can be kept under a name and used on
+another song, and the two side panels can change places.
+
+- **The order of a chain is most of what a chain is, and there was no way to
+  say it.** A plugin could be put on the end, taken off the end, or the whole
+  thing emptied — so a chain of three whose first plugin was wrong was a chain
+  to clear and build again, losing the settings on the two that were right. A
+  cabinet in front of an amplifier is a different sound, not the same sound
+  written differently. Each card now carries the two arrows that walk it along
+  the signal path and a cross that takes that one off, wherever it is.
+  Arrows rather than a drag, as the parts list already does it: a chain is
+  short, the move is one place at a time, and dragging a card whose every knob
+  is draggable is two gestures competing for one press.
+- **A stage owns what belongs to it, which is why the above is safe.** The
+  settings on a plugin used to live in three hashes beside the list of URIs —
+  the knobs, the voicing it came from, and what that voicing could not carry —
+  every one of them keyed by the stage's position in the chain. That is fine
+  while the only edits are at the end, and it does not survive a reorder:
+  moving stage 1 to stage 3 means permuting four containers in step, and the
+  failure when one is missed is silent and precise, a voicing's name left on
+  whatever plugin now stands at that number. The stage is one object now and
+  moves as one thing. `tests/sessiontest.cpp` is new and exists for this: it
+  drives a real session and asks whether the knob went where the plugin went.
+- **A rig under a name of its own**, which the wishlist has wanted since it was
+  written. The rig beside the score is what stops an evening's work being lost
+  and it belongs to one transcription; a sound does not. A chain can now be
+  kept under a name in the application's data folder and put on any part of any
+  score. It is the same document the reader already knew how to read, and the
+  conversions each way are shared with the rig beside the score rather than
+  written twice. Two refusals come with it: a name is text somebody typed and
+  becomes a path, so it is answered rather than trusted, and what comes back
+  from saving is the name it was actually kept under; and a rig naming a plugin
+  this machine has not got is refused whole, naming what is missing, rather
+  than applied with the amplifier quietly left out. A chain missing its
+  amplifier is not the rig on the label.
+- **The parts and the mixer can change sides**, remembered between runs like
+  the rest of the panel state. They are one setting because they are two ends
+  of one row. This is a swap and not a rearrangement, and the difference is
+  worth writing down: the bands across the bottom cannot be reordered, because
+  the three things in a row are laid out in the order they are written and QML
+  has no way to write them in another order at run time short of pulling each
+  panel out into a component of its own. Sixteen places in the window reach
+  across a panel boundary for an id, and an id does not cross a component
+  boundary — so that is a refactor with a swap hidden inside it, not a swap,
+  and it is not in this release.
+
 ## 0.1.0 — 2026-09-01
 
 The first release: a tablature editor and player that gives every track its own

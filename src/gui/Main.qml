@@ -91,6 +91,17 @@ Kirigami.ApplicationWindow {
         // room because it was last left listening to the room would be a
         // program nobody trusts twice.
         property bool tuner: false
+
+        /**
+         * Which side the parts list is on, and so which side the mixer is.
+         *
+         * The two are one setting because they are two ends of one row: the
+         * panel saying which part you are looking at and the panel saying what
+         * it sounds like belong on opposite sides of the score, and swapping
+         * one is swapping both. Left by default, which is where a list of
+         * things has been since before any of this.
+         */
+        property bool tracksLeft: true
     }
 
     Session {
@@ -1087,6 +1098,22 @@ Kirigami.ApplicationWindow {
                 checked: panels.status
                 onToggled: panels.status = checked
             }
+
+            // Which way round the two of them go. Beside the switches that say
+            // whether a panel is there at all, because "is the mixer showing"
+            // and "which side is it on" are the same question asked twice.
+            ChromeToggle {
+                text: "\u21c4"
+                checkable: false
+                enabled: session.hasScore && (panels.tracks || panels.mixer)
+                onClicked: panels.tracksLeft = !panels.tracksLeft
+
+                QQC2.ToolTip.text: panels.tracksLeft
+                    ? i18n("Put the parts on the right")
+                    : i18n("Put the parts on the left")
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+            }
         }
         }
     }
@@ -1105,6 +1132,27 @@ Kirigami.ApplicationWindow {
         RowLayout {
             anchors.fill: parent
             spacing: 0
+
+            /**
+             * Read right to left when somebody wants the parts on the right.
+             *
+             * Mirroring rather than moving. The three things in this row --
+             * the parts, the score, the mixer -- are laid out in the order
+             * they are written, and QML has no way to write them in a
+             * different order at run time short of pulling each panel out into
+             * a component of its own and loading them into ordered slots.
+             * That is a large change to a large file, and the ids these panels
+             * reach across each other for would all have to be untangled
+             * first, which is a refactor with a swap hidden inside it rather
+             * than a swap.
+             *
+             * `childrenInherit` is false on purpose: this reverses the order of
+             * the row and nothing else. A mixer whose faders ran right to left
+             * because its panel had moved would be a different fault from the
+             * one being fixed.
+             */
+            LayoutMirroring.enabled: !panels.tracksLeft
+            LayoutMirroring.childrenInherit: false
 
             // The parts, on the far side of the score from the mixer: one of
             // these panels says which part you are looking at and the other
