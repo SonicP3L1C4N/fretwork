@@ -12,6 +12,7 @@
 
 #include <KLocalizedString>
 
+#include <QDir>
 #include <QFileInfo>
 #include <QHash>
 #include <QRegularExpression>
@@ -515,33 +516,223 @@ Rig::Document Session::currentRig() const
     std::sort(tracks.begin(), tracks.end());
 
     for (const int track : tracks) {
-        Rig::Track one;
-        one.track = track;
-        one.sampler = m_samplers.value(track);
-        one.chain = chainOn(track);
-
-        const QList<Fitted> &chain = m_rig.value(track);
-        for (int stage = 0; stage < chain.size(); ++stage) {
-            if (!chain.at(stage).voicing.isEmpty()) {
-                one.voicings.insert(stage, chain.at(stage).voicing);
-            }
-
-            // Knobs are held by port index and written by symbol. The plugin's
-            // own manifest is what maps one to the other, and reading it costs
-            // nothing -- `controlsOf` does not instantiate anything.
-            const QHash<quint32, float> &values = chain.at(stage).knobs;
-            if (values.isEmpty()) {
-                continue;
-            }
-            for (const Lv2::Control &control : Lv2::controlsOf(chain.at(stage).uri)) {
-                if (values.contains(control.index)) {
-                    one.knobs.append({stage, control.symbol, values.value(control.index)});
-                }
-            }
-        }
-        rig.tracks.append(one);
+        rig.tracks.append(rigFor(track));
     }
     return rig;
+}
+
+namespace
+{
+/** Where rigs kept under a name live: one file each, beside nothing. */
+QString rigsDirectory()
+{
+    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+        + QStringLiteral("/rigs");
+}
+
+/**
+ * A file name for a rig somebody has typed the name of.
+ *
+ * A name is text a person chose and this one becomes a path, which is the
+ * shape of thing that has to be answered rather than trusted: "../../autostart"
+ * is a perfectly good name for a sound and a very bad thing to write. Letters,
+ * digits, spaces and the two punctuation marks people actually use in a preset
+ * name survive; everything else becomes a space, runs of spaces collapse, and
+ * what is left is trimmed.
+ *
+ * Empty where nothing survived, which the caller must treat as a refusal --
+ * a name of nothing but slashes is not a name this can quietly improve.
+ */
+QString rigFileNameOf(const QString &name)
+{
+    QString safe;
+    safe.reserve(name.size());
+    for (const QChar letter : name) {
+        safe.append(letter.isLetterOrNumber() || letter == QLatin1Char('-')
+                            || letter == QLatin1Char('_')
+                        ? letter
+                        : QLatin1Char(' '));
+    }
+    while (safe.contains(QLatin1String("  "))) {
+        safe.replace(QLatin1String("  "), QLatin1String(" "));
+    }
+    return safe.trimmed();
+}
+}
+
+QStringList Session::rigNames() const
+{
+    QStringList names;
+    const QDir directory(rigsDirectory());
+    for (const QFileInfo &file :
+         directory.entryInfoList({QStringLiteral("*.rig")}, QDir::Files, QDir::Name)) {
+        names.append(file.completeBaseName());
+    }
+    return names;
+}
+
+QString Session::saveRigAs(const QString &name)
+{
+    const QString safe = rigFileNameOf(name);
+    if (safe.isEmpty()) {
+        setStatus(i18n("A rig needs a name with something in it."));
+        return QString();
+    }
+    if (!QDir().mkpath(rigsDirectory())) {
+        setStatus(i18n("The rigs folder could not be made."));
+        return QString();
+    }
+
+    // One part, written as track 0, because a named rig is put on a part
+    // rather than on a score: the part it came off is an accident of where it
+    // was made and naming it in the file would only invite a rig to be applied
+    // to the wrong one.
+    Rig::Document document;
+    Rig::Track one = rigFor(m_currentTrack);
+    one.track = 0;
+    document.tracks.append(one);
+
+    QString why;
+    const QString path = rigsDirectory() + QLatin1Char('/') + safe + QStringLiteral(".rig");
+    if (!Rig::write(document, path, &why)) {
+        setStatus(i18n("\u201c%1\u201d could not be kept: %2", safe, why));
+        return QString();
+    }
+    setStatus(i18n("Kept as \u201c%1\u201d", safe));
+    Q_EMIT rigNamesChanged();
+    return safe;
+}
+
+void Session::applyNamedRig(const QString &name)
+{
+    const QString path =
+        rigsDirectory() + QLatin1Char('/') + rigFileNameOf(name) + QStringLiteral(".rig");
+    QString why;
+    const Rig::Document document = Rig::read(path, &why);
+    if (!why.isEmpty()) {
+        setStatus(i18n("\u201c%1\u201d could not be read: %2", name, why));
+        return;
+    }
+    if (document.tracks.isEmpty()) {
+        setStatus(i18n("\u201c%1\u201d has nothing on it.", name));
+        return;
+    }
+    const Rig::Track &wanted = document.tracks.first();
+
+    // Refused whole rather than applied in part. A rig naming a plugin this
+    // machine has not got is a sound that cannot be made here, and a chain
+    // with the amplifier quietly left out of it is not the rig on the label --
+    // which is the same argument the voicings make, one level up.
+    QStringList missing;
+    for (const QString &uri : wanted.chain) {
+        if (Lv2::describe(uri).name.isEmpty()) {
+            missing.append(uri);
+        }
+    }
+    if (!missing.isEmpty()) {
+        setStatus(i18np("\u201c%2\u201d wants a plugin this machine has not got: %3",
+                        "\u201c%2\u201d wants %1 plugins this machine has not got: %3",
+                        missing.size(), name, missing.join(QStringLiteral(", "))));
+        return;
+    }
+
+    const QHash<int, QList<Fitted>> was = m_rig;
+    const QHash<int, QString> wereSamplers = m_samplers;
+    if (wanted.chain.isEmpty()) {
+        m_rig.remove(m_currentTrack);
+    } else {
+        m_rig.insert(m_currentTrack, stagesFrom(wanted));
+    }
+    if (!wanted.sampler.isEmpty()) {
+        m_samplers.insert(m_currentTrack, wanted.sampler);
+    }
+
+    stop();
+    rebuildPlayer();
+    if (!canPlay()) {
+        // Back to the sound that worked. The status bar already carries what
+        // the host said about the one that did not.
+        m_rig = was;
+        m_samplers = wereSamplers;
+        rebuildPlayer();
+    } else {
+        setStatus(i18n("\u201c%1\u201d on %2", name, trackNameHere()));
+    }
+    rememberRig();
+    Q_EMIT samplersChanged();
+    Q_EMIT effectsChanged();
+}
+
+void Session::deleteNamedRig(const QString &name)
+{
+    const QString safe = rigFileNameOf(name);
+    if (safe.isEmpty()) {
+        return;
+    }
+    const QString path = rigsDirectory() + QLatin1Char('/') + safe + QStringLiteral(".rig");
+    if (QFile::remove(path)) {
+        setStatus(i18n("\u201c%1\u201d is gone.", safe));
+        Q_EMIT rigNamesChanged();
+    } else {
+        setStatus(i18n("\u201c%1\u201d could not be deleted.", safe));
+    }
+}
+
+Rig::Track Session::rigFor(int track) const
+{
+    Rig::Track one;
+    one.track = track;
+    one.sampler = m_samplers.value(track);
+    one.chain = chainOn(track);
+
+    const QList<Fitted> &chain = m_rig[track];
+    for (int stage = 0; stage < chain.size(); ++stage) {
+        if (!chain.at(stage).voicing.isEmpty()) {
+            one.voicings.insert(stage, chain.at(stage).voicing);
+        }
+
+        // Knobs are held by port index and written by symbol. The plugin's own
+        // manifest is what maps one to the other, and reading it costs nothing
+        // -- `controlsOf` does not instantiate anything.
+        const QHash<quint32, float> &values = chain.at(stage).knobs;
+        if (values.isEmpty()) {
+            continue;
+        }
+        for (const Lv2::Control &control : Lv2::controlsOf(chain.at(stage).uri)) {
+            if (values.contains(control.index)) {
+                one.knobs.append({stage, control.symbol, values.value(control.index)});
+            }
+        }
+    }
+    return one;
+}
+
+QList<Fitted> Session::stagesFrom(const Rig::Track &track) const
+{
+    QList<Fitted> chain;
+    for (const QString &uri : track.chain) {
+        chain.append(Fitted{uri, {}, {}, {}});
+    }
+    for (auto stage = track.voicings.constBegin(); stage != track.voicings.constEnd();
+         ++stage) {
+        if (stage.key() >= 0 && stage.key() < chain.size()) {
+            chain[stage.key()].voicing = stage.value();
+        }
+    }
+    for (const Rig::Knob &knob : track.knobs) {
+        if (knob.stage < 0 || knob.stage >= chain.size()) {
+            continue;
+        }
+        // Back from the symbol to the port index this build of the plugin
+        // uses, which is the whole reason the file holds the symbol.
+        for (const Lv2::Control &control : Lv2::controlsOf(chain.at(knob.stage).uri)) {
+            if (control.symbol == knob.symbol) {
+                chain[knob.stage].knobs.insert(control.index, knob.value);
+                break;
+            }
+        }
+    }
+    return chain;
 }
 
 void Session::writeRig()
@@ -589,30 +780,7 @@ void Session::restoreRig()
         if (track.chain.isEmpty()) {
             continue;
         }
-        QList<Fitted> chain;
-        for (const QString &uri : track.chain) {
-            chain.append(Fitted{uri, {}, {}, {}});
-        }
-        for (auto stage = track.voicings.constBegin();
-             stage != track.voicings.constEnd(); ++stage) {
-            if (stage.key() >= 0 && stage.key() < chain.size()) {
-                chain[stage.key()].voicing = stage.value();
-            }
-        }
-        for (const Rig::Knob &knob : track.knobs) {
-            if (knob.stage < 0 || knob.stage >= chain.size()) {
-                continue;
-            }
-            // Back from the symbol to the port index this build of the plugin
-            // uses, which is the whole reason the file holds the symbol.
-            for (const Lv2::Control &control : Lv2::controlsOf(chain.at(knob.stage).uri)) {
-                if (control.symbol == knob.symbol) {
-                    chain[knob.stage].knobs.insert(control.index, knob.value);
-                    break;
-                }
-            }
-        }
-        m_rig.insert(track.track, chain);
+        m_rig.insert(track.track, stagesFrom(track));
     }
 }
 

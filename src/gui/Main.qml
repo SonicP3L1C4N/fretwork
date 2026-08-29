@@ -2592,6 +2592,90 @@ Kirigami.ApplicationWindow {
                         }
                     }
 
+                    /**
+                     * The rigs kept under a name, and the way to keep one.
+                     *
+                     * The rig beside the score is what stops an evening's work
+                     * being lost, and it is tied to one transcription. A sound
+                     * is not: an amplifier somebody spent that evening on
+                     * belongs to them rather than to the song it was made for,
+                     * and the only way to have it on the next one was to build
+                     * it again from memory.
+                     *
+                     * One part's chain rather than the whole score's, because
+                     * a rig is put on a part. Which part it was made on is an
+                     * accident of where somebody happened to be standing.
+                     */
+                    ChromeToggle {
+                        text: i18n("Rigs\u2026")
+                        checkable: false
+                        onClicked: rigMenu.popup()
+
+                        QQC2.Menu {
+                            id: rigMenu
+
+                            QQC2.MenuItem {
+                                text: i18n("Keep this chain as\u2026")
+                                enabled: (root.effectsRevision,
+                                          session.effectsHere.length > 0)
+                                onTriggered: {
+                                    rigName.text = ""
+                                    rigName.visible = true
+                                    rigName.forceActiveFocus()
+                                }
+                            }
+
+                            QQC2.MenuSeparator { visible: session.rigNames.length > 0 }
+
+                            Repeater {
+                                model: session.rigNames
+                                delegate: QQC2.MenuItem {
+                                    required property string modelData
+                                    text: modelData
+                                    onTriggered: session.applyNamedRig(modelData)
+                                }
+                            }
+                        }
+                    }
+
+                    /**
+                     * Where the name is typed, in the band rather than over it.
+                     *
+                     * A modal box for one short word would be the only modal
+                     * box in this window, and the parts list already asks for
+                     * a name the same way: a field that appears where the
+                     * thing being named is, and goes when the work is done.
+                     * Escape leaves without keeping anything, because a person
+                     * who opened this by mistake should not have to name
+                     * something to get out of it.
+                     */
+                    QQC2.TextField {
+                        id: rigName
+
+                        Layout.preferredWidth: Kirigami.Units.gridUnit * 10
+                        visible: false
+                        color: Ink.paper
+                        placeholderText: i18n("Name this rig")
+
+                        background: Rectangle {
+                            radius: Ink.radius
+                            color: "transparent"
+                            border.width: 1
+                            border.color: rigName.activeFocus ? Ink.accent : Ink.line
+                        }
+
+                        onAccepted: {
+                            if (session.saveRigAs(text).length > 0) {
+                                visible = false
+                                view.forceActiveFocus()
+                            }
+                        }
+                        Keys.onEscapePressed: {
+                            visible = false
+                            view.forceActiveFocus()
+                        }
+                    }
+
                     ChromeToggle {
                         text: i18n("Clear")
                         checkable: false

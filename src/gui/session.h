@@ -440,6 +440,36 @@ public:
     /** The plugins on one part, in signal order: the names, without the settings. */
     QStringList chainOn(int track) const;
 
+    // ---- rigs kept under a name ----
+
+    /**
+     * Every rig saved under a name, alphabetically.
+     *
+     * The rig beside a score is the one that stops an evening's work being
+     * lost, and it was the half worth building first. This is the other half:
+     * a sound is not a property of one transcription, and somebody who spent
+     * that evening on an amplifier wants it on the next song rather than only
+     * on this one.
+     */
+    Q_PROPERTY(QStringList rigNames READ rigNames NOTIFY rigNamesChanged)
+    QStringList rigNames() const;
+
+    /**
+     * Keeps the current part's chain under a name, and answers with the name
+     * it was actually kept under -- empty where it could not be kept at all.
+     *
+     * A name typed by a person is not a file name, and this one becomes a path
+     * on disk. What comes back is what the list will show, so that nobody has
+     * to guess which of their rigs the one they just saved is.
+     */
+    Q_INVOKABLE QString saveRigAs(const QString &name);
+
+    /** Puts a saved rig on the current part, or says why it cannot. */
+    Q_INVOKABLE void applyNamedRig(const QString &name);
+
+    /** Forgets one, which is a file being deleted and says so. */
+    Q_INVOKABLE void deleteNamedRig(const QString &name);
+
     /** The same for every part, which is the shape `Player` is built from. */
     QHash<int, QStringList> chains() const;
 
@@ -645,6 +675,7 @@ public:
 Q_SIGNALS:
     void scoreChanged();
     void statusChanged();
+    void rigNamesChanged();
     void effectsShownChanged();
     void problemChanged();
     void currentTrackChanged();
@@ -681,6 +712,18 @@ private:
 
     /** The rig as it stands, with knobs named by symbol rather than by port. */
     Rig::Document currentRig() const;
+
+    /**
+     * One part, as the rig file writes it, and back again.
+     *
+     * A pair rather than two halves written twice. The rig beside the score
+     * and a rig saved under a name are the same document, so the conversion
+     * between a part's stages and a `Rig::Track` is the same conversion, and
+     * a second copy of it is a second place for the knob-by-symbol mapping to
+     * be got subtly differently.
+     */
+    Rig::Track rigFor(int track) const;
+    QList<Fitted> stagesFrom(const Rig::Track &track) const;
 
     Editor m_editor;
     QList<int> m_order;

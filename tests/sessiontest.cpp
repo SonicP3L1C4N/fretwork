@@ -8,7 +8,9 @@
 #include "renderer.h"
 #include "rigfile.h"
 
+#include <QDir>
 #include <QFile>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -116,6 +118,12 @@ private:
 private Q_SLOTS:
     void initTestCase()
     {
+        // Rigs kept under a name go to the application's data folder, which
+        // for a test is the user's real one. Test mode moves it somewhere
+        // disposable, and a suite that writes into somebody's saved sounds
+        // would be a suite nobody runs twice.
+        QStandardPaths::setTestModeEnabled(true);
+
         if (Render::findSoundFont().isEmpty()) {
             QSKIP("no SoundFont on this machine; install fluid-soundfont-gm");
         }
@@ -237,6 +245,95 @@ private Q_SLOTS:
         session.removeEffect(9);
         session.removeEffect(-1);
         QCOMPARE(session.chainOn(0), m_uris);
+    }
+
+    /** A sound is not a property of one transcription. */
+    void keepsAChainUnderANameAndPutsItOnAnotherScore()
+    {
+        Session session;
+        twoOnTheChain(session);
+        session.moveEffect(0, 1);
+        const QStringList wanted = session.chainOn(0);
+
+        QCOMPARE(session.saveRigAs(QStringLiteral("Dirty")), QStringLiteral("Dirty"));
+        QVERIFY(session.rigNames().contains(QStringLiteral("Dirty")));
+
+        Session elsewhere;
+        const QString other =
+            m_directory.path() + QStringLiteral("/other%1.fw").arg(++m_scores);
+        QVERIFY(Fw::write(oneTrack(), other));
+        QVERIFY(elsewhere.open(other));
+        QVERIFY(elsewhere.chainOn(0).isEmpty());
+
+        elsewhere.applyNamedRig(QStringLiteral("Dirty"));
+        QCOMPARE(elsewhere.chainOn(0), wanted);
+    }
+
+    /**
+     * A name is text somebody chose and becomes a path on disk, which is the
+     * shape of thing to answer rather than trust.
+     */
+    void willNotLetANameEscapeTheRigsFolder()
+    {
+        Session session;
+        twoOnTheChain(session);
+
+        const QString kept = session.saveRigAs(QStringLiteral("../../autostart/evil"));
+        QVERIFY(!kept.isEmpty());
+        QVERIFY(!kept.contains(QLatin1Char('/')));
+        QVERIFY(!kept.contains(QLatin1String("..")));
+        QVERIFY(session.rigNames().contains(kept));
+
+        // And on disk it is where the folder is, not above it.
+        const QDir rigs(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+                        + QStringLiteral("/rigs"));
+        QVERIFY(rigs.exists(kept + QStringLiteral(".rig")));
+    }
+
+    void refusesANameWithNothingInIt()
+    {
+        Session session;
+        twoOnTheChain(session);
+
+        QVERIFY(session.saveRigAs(QStringLiteral("///")).isEmpty());
+        QVERIFY(session.saveRigAs(QStringLiteral("   ")).isEmpty());
+        QVERIFY(session.saveRigAs(QString()).isEmpty());
+    }
+
+    /**
+     * Refused whole rather than applied in part: a chain with the amplifier
+     * quietly left out of it is not the rig on the label.
+     */
+    void refusesARigNamingAPluginThisMachineHasNot()
+    {
+        Session session;
+        twoOnTheChain(session);
+        const QStringList before = session.chainOn(0);
+
+        Rig::Document document;
+        Rig::Track one;
+        one.track = 0;
+        one.chain = {m_uris.at(0), QStringLiteral("http://example.invalid/nothing#here")};
+        document.tracks.append(one);
+
+        const QString rigs = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+            + QStringLiteral("/rigs");
+        QVERIFY(QDir().mkpath(rigs));
+        QVERIFY(Rig::write(document, rigs + QStringLiteral("/Absent.rig")));
+
+        session.applyNamedRig(QStringLiteral("Absent"));
+        QCOMPARE(session.chainOn(0), before);
+    }
+
+    void forgetsARigItIsAskedToForget()
+    {
+        Session session;
+        twoOnTheChain(session);
+        const QString kept = session.saveRigAs(QStringLiteral("Passing"));
+        QVERIFY(session.rigNames().contains(kept));
+
+        session.deleteNamedRig(kept);
+        QVERIFY(!session.rigNames().contains(kept));
     }
 
     /**
