@@ -48,6 +48,26 @@ class Session : public QObject
     Q_PROPERTY(QString status READ status NOTIFY statusChanged)
 
     /**
+     * Whether the effects deck is open, which decides how much the status bar
+     * has to say about a voicing.
+     *
+     * A voicing that left half of itself behind must say so -- that is the
+     * honesty the whole feature rests on -- but it must not say so twice. With
+     * the deck open the card carries it permanently, in full, beside the tape
+     * it is about; the status bar was then repeating the same sentence at the
+     * bottom of the window, both copies elided, neither one readable. So the
+     * bar keeps the short form while the deck is open and takes the whole of
+     * it when the deck is shut, which is the only time nothing else would say
+     * it at all.
+     *
+     * Set by the window because only the window knows. It is not a setting and
+     * is not remembered: `panels.effects` is the thing that is remembered, and
+     * this follows it.
+     */
+    Q_PROPERTY(bool effectsShown READ isEffectsShown WRITE setEffectsShown
+                   NOTIFY effectsShownChanged)
+
+    /**
      * What is wrong, if anything is: empty when the score can be played.
      *
      * Separate from `status` because the two have different lifetimes. A
@@ -400,6 +420,8 @@ public:
     QString fileName() const;
     bool hasScore() const;
     QString status() const;
+    bool isEffectsShown() const;
+    void setEffectsShown(bool shown);
     QString problem() const;
     QString caretText() const;
     QString tempoTermHere() const;
@@ -576,6 +598,7 @@ public:
 Q_SIGNALS:
     void scoreChanged();
     void statusChanged();
+    void effectsShownChanged();
     void problemChanged();
     void currentTrackChanged();
     void playingChanged();
@@ -639,6 +662,7 @@ private:
     QString m_fileName;
     QString m_filePath;
     QString m_status;
+    bool m_effectsShown = false;
     QString m_problem;
     QString m_soundFont;
     QTimer m_ticker;

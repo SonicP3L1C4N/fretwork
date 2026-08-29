@@ -324,6 +324,19 @@ QString Session::status() const
     return m_status;
 }
 
+bool Session::isEffectsShown() const
+{
+    return m_effectsShown;
+}
+
+void Session::setEffectsShown(bool shown)
+{
+    if (m_effectsShown != shown) {
+        m_effectsShown = shown;
+        Q_EMIT effectsShownChanged();
+    }
+}
+
 QString Session::problem() const
 {
     return m_problem;
@@ -434,6 +447,11 @@ QVariantList Session::chainHere() const
                 {QStringLiteral("maximum"), control.maximum},
                 {QStringLiteral("toggled"), control.toggled},
                 {QStringLiteral("integer"), control.integer},
+                // Empty for most plugins, which is why the panel sizes a
+                // reading by the control's range as well: a number with no
+                // unit still has a scale, and 20 out of 100 and 20 out of 20
+                // are not the same reading.
+                {QStringLiteral("unit"), control.unit},
                 {QStringLiteral("choices"), control.choices},
                 // The numbers behind the names. A control whose choices are
                 // 0, 2 and 5 is not a control whose choices are 0, 1 and 2,
@@ -773,7 +791,10 @@ void Session::applyVoicing(int stage, const QString &name)
     m_voicingNames[m_currentTrack].insert(stage, voicing.name);
     m_voicingDeclined[m_currentTrack].insert(stage, fitting.declined);
     rememberRig();
-    setStatus(fitting.declined.isEmpty()
+    // The whole of it, unless the deck is open and already saying the whole
+    // of it beside the tape. Two elided copies of one sentence is one sentence
+    // nobody can read.
+    setStatus(fitting.declined.isEmpty() || m_effectsShown
                   ? i18n("%1: %2 settings.", voicing.name,
                          QString::number(fitting.settings.size()))
                   : i18n("%1: %2 settings. %3", voicing.name,

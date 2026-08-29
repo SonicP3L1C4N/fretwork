@@ -81,6 +81,18 @@ struct Control {
     bool logarithmic = false;
 
     /**
+     * What the number is in, where the plugin troubles to say.
+     *
+     * The symbol as the manifest gives it -- "dB", "Hz", "ms" -- and empty
+     * where nothing was declared, which is the ordinary case rather than a
+     * fault: twenty-eight of the hundred and eighteen bundles on this machine
+     * declare a unit anywhere, and guitarix's amplifier describes nine
+     * controls and a unit for none of them. Anything reading this must be as
+     * legible without one as with, because usually there is not one.
+     */
+    QString unit;
+
+    /**
      * The choices, where the control is a list rather than a range.
      *
      * A guitarix amplifier picks its valve model this way, and a slider from

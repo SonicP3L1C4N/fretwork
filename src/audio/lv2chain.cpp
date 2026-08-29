@@ -15,6 +15,7 @@
 #include <lv2/buf-size/buf-size.h>
 #include <lv2/options/options.h>
 #include <lv2/parameters/parameters.h>
+#include <lv2/units/units.h>
 #include <lv2/urid/urid.h>
 #include <lv2/worker/worker.h>
 #endif
@@ -334,6 +335,8 @@ QList<Lv2::Control> readControls(const LilvPlugin *plugin, std::vector<float> &v
     LilvNode *enumeration = lilv_new_uri(world(), LV2_CORE__enumeration);
     LilvNode *logarithmic =
         lilv_new_uri(world(), "http://lv2plug.in/ns/ext/port-props#logarithmic");
+    LilvNode *unit = lilv_new_uri(world(), LV2_UNITS__unit);
+    LilvNode *unitSymbol = lilv_new_uri(world(), LV2_UNITS__symbol);
 
     const uint32_t total = lilv_plugin_get_num_ports(plugin);
     std::vector<float> minimums(total);
@@ -371,6 +374,21 @@ QList<Lv2::Control> readControls(const LilvPlugin *plugin, std::vector<float> &v
         control.integer = lilv_port_has_property(plugin, port, integer);
         control.logarithmic = lilv_port_has_property(plugin, port, logarithmic);
 
+        // The symbol rather than the label: a knob has room for "dB" and none
+        // for "decibels". Asked of the world rather than of the port, because
+        // the port names a unit and the unit -- which may be one of the ones
+        // the specification defines, described in a file this plugin does not
+        // ship -- is what carries the symbol.
+        if (LilvNodes *units = lilv_port_get_value(plugin, port, unit)) {
+            if (const LilvNode *which = lilv_nodes_get_first(units)) {
+                if (LilvNode *symbol = lilv_world_get(world(), which, unitSymbol, nullptr)) {
+                    control.unit = QString::fromUtf8(lilv_node_as_string(symbol));
+                    lilv_node_free(symbol);
+                }
+            }
+            lilv_nodes_free(units);
+        }
+
         if (lilv_port_has_property(plugin, port, enumeration)) {
             if (LilvScalePoints *points = lilv_port_get_scale_points(plugin, port)) {
                 // Sorted, because lilv hands these back in whatever order the
@@ -404,6 +422,8 @@ QList<Lv2::Control> readControls(const LilvPlugin *plugin, std::vector<float> &v
     lilv_node_free(integer);
     lilv_node_free(enumeration);
     lilv_node_free(logarithmic);
+    lilv_node_free(unit);
+    lilv_node_free(unitSymbol);
     return controls;
 }
 

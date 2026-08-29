@@ -95,6 +95,8 @@ Kirigami.ApplicationWindow {
 
     Session {
         id: session
+
+        effectsShown: panels.effects
     }
 
     /**
@@ -396,6 +398,31 @@ Kirigami.ApplicationWindow {
                 verticalAlignment: Text.AlignVCenter
             }
         }
+    }
+
+    /**
+     * A control's value, written out.
+     *
+     * Two decimals for everything was hiding the thing that matters, which is
+     * not the value but its scale: `20.00` was distortion four fifths of the
+     * way up a range of one to a hundred and, on the knob beside it, a cabinet
+     * halfway up a range of one to twenty. Both read as the same number.
+     *
+     * So the figures follow the span. A control that runs across a hundred
+     * has nothing to say in its hundredths, and one that runs from 0.01 to 1
+     * has nothing else to say. The unit goes on the end where the plugin
+     * declared one, which is seldom: of the plugins on this machine most
+     * declare none at all, guitarix's amplifier among them, and inventing a
+     * "dB" for a port that never claimed one would be this window asserting
+     * something it was not told.
+     */
+    function reading(control) {
+        if (control.integer) {
+            return Math.round(control.value) + (control.unit ? " " + control.unit : "")
+        }
+        const span = control.maximum - control.minimum
+        const places = span >= 100 ? 0 : (span >= 10 ? 1 : 2)
+        return control.value.toFixed(places) + (control.unit ? " " + control.unit : "")
     }
 
     /**
@@ -2427,6 +2454,9 @@ Kirigami.ApplicationWindow {
         Rectangle {
             id: deckPanel
 
+            /** Room at the far edge for an overlay scrollbar to lie in. */
+            readonly property int barRoom: Kirigami.Units.gridUnit
+
             Layout.fillWidth: true
             /**
              * As tall as the tallest thing on it, and no taller.
@@ -2441,11 +2471,52 @@ Kirigami.ApplicationWindow {
              * and a deck that cannot show one of those cannot show the thing
              * this program is for.
              */
-            Layout.preferredHeight: Math.min(
-                root.height * 0.55,
-                deckHeader.implicitHeight + deckRow.implicitHeight
+            /**
+             * Counted rather than guessed: the two margins `deckColumn` puts
+             * above and below itself, and one gap for each seam between the
+             * things stacked in it. Three was the standing figure and there
+             * are four seams to pay for once the footer is showing, so the
+             * band came up one gap short of its own contents -- which is a
+             * scrollbar on a card that fits, and the last row of it just under
+             * the fold.
+             */
+            readonly property int deckGaps: Kirigami.Units.largeSpacing
+                * (deckNotes.visible ? 4 : 3)
+
+            /** Everything on the band, at the size it says it wants to be. */
+            readonly property int deckNeed:
+                deckHeader.implicitHeight + deckRow.implicitHeight + deckPanel.barRoom
                     + (deckNotes.visible ? deckNotes.implicitHeight : 0)
-                    + Kirigami.Units.largeSpacing * 3)
+                    + deckPanel.deckGaps
+
+            Layout.preferredHeight: Math.min(root.height * 0.55, deckPanel.deckNeed)
+            /**
+             * And the height it asks for is the height it keeps.
+             *
+             * A preferred height on its own is a suggestion, and on a window
+             * short enough for the column to run out of room the deck was the
+             * thing that yielded -- squeezed to about half what it had asked
+             * for, which showed as an amplifier with its bottom row of knobs
+             * sliced through. The cap above was never reached; the band never
+             * got what the cap allowed.
+             *
+             * It is the right thing to yield last rather than first. The deck
+             * is shut by default and somebody looking at it has just opened
+             * it, whereas the score above it is legible at any height and goes
+             * on being a score when it is short.
+             *
+             * What it must not be is the preferred height above, though that
+             * is the obvious thing to write. A minimum is what the window may
+             * not be made smaller than, so a minimum reading `root.height`
+             * makes the window's least size depend on the window's size: it
+             * settles somewhere large and the window will not shrink past it
+             * afterwards. This one asks only what is on the band, and stops at
+             * a figure of its own so that a plugin with thirty knobs cannot
+             * set a floor under the whole window. Past that the deck yields
+             * again and the bars say what has gone under the fold.
+             */
+            Layout.minimumHeight: Math.min(deckPanel.deckNeed,
+                                           Kirigami.Units.gridUnit * 24)
             visible: panels.effects && session.hasScore
             color: Ink.ink
 
@@ -2551,12 +2622,37 @@ Kirigami.ApplicationWindow {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     clip: true
-                    contentWidth: deckRow.implicitWidth
-                    contentHeight: deckRow.implicitHeight
+                    // Room for the bars at the far edge, so an overlay bar
+                    // lies over ink rather than over the row of figures it is
+                    // there to help somebody reach.
+                    contentWidth: deckRow.implicitWidth + deckPanel.barRoom
+                    contentHeight: deckRow.implicitHeight + deckPanel.barRoom
                     // Sideways by design; downwards only when the window is
                     // too short for the amplifier, which the cap above allows.
                     flickableDirection: Flickable.HorizontalAndVerticalFlick
                     boundsBehavior: Flickable.StopAtBounds
+
+                    // Bars rather than bare flicking, because the deck can
+                    // still run past the band -- a long chain sideways, and on
+                    // a short window a tall plugin downwards. It scrolled
+                    // before this and gave no sign that it did, which turns a
+                    // card with its last switch below the fold into a card
+                    // that appears to have been drawn wrong.
+                    //
+                    // Whether to show one is the bar's own question to answer.
+                    // Asking it here instead -- content against viewport, in
+                    // numbers a layout arrived at -- is asking a second time
+                    // what `ScrollBar` already decides from its `size`, and a
+                    // second answer is one that can differ: a fraction of a
+                    // pixel of overflow reads as true and draws a full-length
+                    // handle beside a card that fits, which says the deck is
+                    // cut when it is not.
+                    QQC2.ScrollBar.vertical: QQC2.ScrollBar {
+                        policy: QQC2.ScrollBar.AsNeeded
+                    }
+                    QQC2.ScrollBar.horizontal: QQC2.ScrollBar {
+                        policy: QQC2.ScrollBar.AsNeeded
+                    }
 
                     RowLayout {
                         id: deckRow
@@ -2602,15 +2698,29 @@ Kirigami.ApplicationWindow {
                                 id: stageCard
                                 required property var modelData
 
-                                Layout.alignment: Qt.AlignTop
+                                Layout.fillHeight: true
                                 spacing: Kirigami.Units.largeSpacing
 
                                 Rectangle {
-                                    // Top-aligned, so a three-knob cabinet
-                                    // sits level with the amplifier beside it
-                                    // rather than floating in the middle of
-                                    // its own height.
-                                    Layout.alignment: Qt.AlignTop
+                                    /**
+                                     * One box the height of the row, with its
+                                     * contents at the top of it.
+                                     *
+                                     * The two are different things and the
+                                     * card had them the same way. A cabinet is
+                                     * three knobs and an amplifier is nine, so
+                                     * a box drawn to its own contents made a
+                                     * short card beside a tall one and a step
+                                     * in a row that is meant to read as a line
+                                     * of equipment. Stretching the box while
+                                     * `stageBody` stays anchored to its top
+                                     * keeps what the old comment here wanted
+                                     * -- the cabinet's knobs level with the
+                                     * amplifier's, not floating in the middle
+                                     * of their own height -- and squares the
+                                     * row off as well.
+                                     */
+                                    Layout.fillHeight: true
                                     implicitWidth: stageBody.implicitWidth
                                                    + Kirigami.Units.largeSpacing * 2
                                     implicitHeight: stageBody.implicitHeight
@@ -2797,6 +2907,27 @@ Kirigami.ApplicationWindow {
                                                     id: knobCell
                                                     required property var modelData
 
+                                                    /**
+                                                     * Every cell the same
+                                                     * width, so the rows are
+                                                     * columns.
+                                                     *
+                                                     * A cell sized to its own
+                                                     * label put BASS under the
+                                                     * middle of MASTERGAIN and
+                                                     * the row beneath a row of
+                                                     * five drifting left of
+                                                     * it, which reads as knobs
+                                                     * scattered on a panel
+                                                     * rather than as a panel.
+                                                     * The width is the widest
+                                                     * label worth keeping,
+                                                     * because it is the labels
+                                                     * and never the knobs that
+                                                     * decide it.
+                                                     */
+                                                    Layout.preferredWidth:
+                                                        Kirigami.Units.gridUnit * 4.5
                                                     spacing: 0
 
                                                     InkKnob {
@@ -2811,9 +2942,11 @@ Kirigami.ApplicationWindow {
                                                             knobCell.modelData.index, value)
 
                                                         QQC2.ToolTip.text: i18n(
-                                                            "%1 \u2014 %2",
+                                                            "%1 \u2014 %2 of %3 to %4",
                                                             knobCell.modelData.name,
-                                                            value.toFixed(2))
+                                                            root.reading(knobCell.modelData),
+                                                            knobCell.modelData.minimum,
+                                                            knobCell.modelData.maximum)
                                                         QQC2.ToolTip.visible: hovered
                                                         QQC2.ToolTip.delay:
                                                             Kirigami.Units.toolTipDelay
@@ -2828,9 +2961,8 @@ Kirigami.ApplicationWindow {
                                                     // The full name is on the
                                                     // tooltip.
                                                     QQC2.Label {
-                                                        Layout.alignment: Qt.AlignHCenter
-                                                        Layout.maximumWidth:
-                                                            Kirigami.Units.gridUnit * 4
+                                                        Layout.fillWidth: true
+                                                        horizontalAlignment: Text.AlignHCenter
                                                         text: knobCell.modelData.name.toUpperCase()
                                                         color: Ink.faint
                                                         elide: Text.ElideRight
@@ -2856,10 +2988,7 @@ Kirigami.ApplicationWindow {
                                                      */
                                                     QQC2.Label {
                                                         Layout.alignment: Qt.AlignHCenter
-                                                        text: knobCell.modelData.integer
-                                                            ? Math.round(
-                                                                knobCell.modelData.value)
-                                                            : knobCell.modelData.value.toFixed(2)
+                                                        text: root.reading(knobCell.modelData)
                                                         color: Ink.quiet
                                                         font.pointSize:
                                                             Kirigami.Theme.smallFont.pointSize
@@ -2903,9 +3032,20 @@ Kirigami.ApplicationWindow {
                                                 Layout.fillWidth: true
                                                 spacing: Kirigami.Units.smallSpacing
 
+                                                // "Tonestack Model" is what
+                                                // the plugin calls it and it
+                                                // did not fit, so the panel
+                                                // showed "Tonestack ..." and
+                                                // the reader learned nothing
+                                                // the word "Tonestack" had not
+                                                // already told them. Wide
+                                                // enough for the longest name
+                                                // guitarix's amplifier uses,
+                                                // which is the one that was
+                                                // being cut.
                                                 QQC2.Label {
                                                     Layout.preferredWidth:
-                                                        Kirigami.Units.gridUnit * 3.6
+                                                        Kirigami.Units.gridUnit * 5.6
                                                     text: pickRow.modelData.name
                                                     color: Ink.faint
                                                     elide: Text.ElideRight
@@ -2913,9 +3053,24 @@ Kirigami.ApplicationWindow {
                                                         Kirigami.Theme.smallFont.pointSize
                                                 }
 
+                                                // The state it is in, not the
+                                                // state it goes to. "BYPASS ·
+                                                // On" was the same three
+                                                // characters whichever way the
+                                                // switch was set, lit or
+                                                // unlit, and on a control
+                                                // called BYPASS the reader has
+                                                // to work out both what the
+                                                // button means and what a
+                                                // bypass that is on does to
+                                                // the sound. Saying "Off"
+                                                // when it is off answers the
+                                                // first question, and the
+                                                // second was never this
+                                                // window's to invent.
                                                 ChromeToggle {
                                                     visible: pickRow.modelData.toggled
-                                                    text: i18n("On")
+                                                    text: checked ? i18n("On") : i18n("Off")
                                                     implicitHeight: Ink.smallControl
                                                     checked: pickRow.modelData.value > 0.5
                                                     onToggled: session.setEffectControl(
@@ -3003,15 +3158,40 @@ Kirigami.ApplicationWindow {
                         // Where it comes out. Named rather than drawn, because
                         // what happens after the chain is the fader and the
                         // pair of ports, and both of those live elsewhere.
-                        QQC2.Label {
+                        //
+                        // Two words when the ports are open and one when they
+                        // are not, because they are two different endings: a
+                        // part that leaves this program on a pair of ports of
+                        // its own is the thing the program is for, and a part
+                        // going into the mix with the others is not that. The
+                        // sides are named beneath, since a pair is the whole
+                        // difference and "stem out" alone does not say it.
+                        ColumnLayout {
                             Layout.alignment: Qt.AlignTop
                             Layout.topMargin: Kirigami.Units.gridUnit * 2.1
-                            text: session.ports
-                                ? i18n("stem")
-                                : i18n("mix")
-                            color: Ink.faint
-                            font.pointSize: Kirigami.Theme.smallFont.pointSize
-                            font.letterSpacing: 1
+                            spacing: 0
+
+                            QQC2.Label {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: session.ports
+                                    ? i18nc("the end of the chain, on ports of its own",
+                                            "stem out")
+                                    : i18nc("the end of the chain, into the mix", "mix")
+                                color: Ink.faint
+                                font.pointSize: Kirigami.Theme.smallFont.pointSize
+                                font.letterSpacing: 1
+                            }
+
+                            // The graph names them by the part rather than by
+                            // number -- `01_Guitar_I_FL` -- so the sides are
+                            // what can be said here without saying it wrongly.
+                            QQC2.Label {
+                                Layout.alignment: Qt.AlignHCenter
+                                visible: session.ports
+                                text: i18nc("the two sides of a stereo pair", "FL / FR")
+                                color: Ink.quiet
+                                font.pointSize: Kirigami.Theme.smallFont.pointSize
+                            }
                         }
 
                         Item { Layout.fillWidth: true }
@@ -3100,6 +3280,13 @@ Kirigami.ApplicationWindow {
                         // a heading in front of them would say it twice.
                         text: deckFooter.declined.join(" ")
                         color: Ink.quiet
+                        // Wrapped rather than elided, and capped at two lines.
+                        // With the status bar no longer repeating it this is
+                        // the only copy, and a list of what a voicing could
+                        // not reproduce that stops at "stereoverb, graphi..."
+                        // is the half of the sentence that does not matter.
+                        wrapMode: Text.WordWrap
+                        maximumLineCount: 2
                         elide: Text.ElideRight
                         font.pointSize: Kirigami.Theme.smallFont.pointSize
                     }
