@@ -104,6 +104,15 @@ ecm_add_test(rigtest.cpp
     LINK_LIBRARIES Qt6::Test fretworkcore
 )
 
+# Runtime-loaded via dlopen regardless of whether this build linked
+# PipeWire's development package, so unlike the rest of the suite it always
+# builds and always runs -- what it finds depends on what this machine has,
+# not on what this build was configured with.
+ecm_add_test(jacktransporttest.cpp
+    TEST_NAME jacktransporttest
+    LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n
+)
+
 find_program(DESKTOP_FILE_VALIDATE desktop-file-validate)
 if(DESKTOP_FILE_VALIDATE)
     add_test(NAME desktopfiletest
