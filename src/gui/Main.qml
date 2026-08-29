@@ -2593,13 +2593,6 @@ Kirigami.ApplicationWindow {
                     }
 
                     ChromeToggle {
-                        text: i18n("Remove last")
-                        checkable: false
-                        enabled: (root.effectsRevision, session.effectsHere.length > 0)
-                        onClicked: session.removeLastEffect()
-                    }
-
-                    ChromeToggle {
                         text: i18n("Clear")
                         checkable: false
                         enabled: (root.effectsRevision, session.effectsHere.length > 0)
@@ -2743,6 +2736,66 @@ Kirigami.ApplicationWindow {
                                             Layout.fillWidth: true
                                             spacing: Kirigami.Units.largeSpacing
 
+                                            /**
+                                             * Where the stage sits, and the
+                                             * two ways to move it.
+                                             *
+                                             * On the card rather than in the
+                                             * header, because the header can
+                                             * only ever mean the last one:
+                                             * "Remove last" was the whole
+                                             * vocabulary for taking a plugin
+                                             * off, so a chain of three whose
+                                             * first was wrong had to be
+                                             * emptied and built again, and
+                                             * the two that were right lost
+                                             * their settings on the way.
+                                             *
+                                             * Arrows rather than a drag, as
+                                             * the parts list does it. A chain
+                                             * is short and the move is one
+                                             * place at a time, which is a
+                                             * button; dragging a card whose
+                                             * knobs are all draggable is two
+                                             * gestures competing for one
+                                             * press.
+                                             */
+                                            RowLayout {
+                                                Layout.alignment: Qt.AlignTop
+                                                spacing: 0
+
+                                                ChromeToggle {
+                                                    text: "\u2039"
+                                                    checkable: false
+                                                    implicitHeight: Ink.smallControl
+                                                    enabled: stageCard.modelData.stage > 0
+                                                    onClicked: session.moveEffect(
+                                                        stageCard.modelData.stage, -1)
+
+                                                    QQC2.ToolTip.text: i18n(
+                                                        "Nearer the instrument")
+                                                    QQC2.ToolTip.visible: hovered
+                                                    QQC2.ToolTip.delay:
+                                                        Kirigami.Units.toolTipDelay
+                                                }
+
+                                                ChromeToggle {
+                                                    text: "\u203a"
+                                                    checkable: false
+                                                    implicitHeight: Ink.smallControl
+                                                    enabled: (root.effectsRevision,
+                                                              stageCard.modelData.stage
+                                                                  < session.chainHere.length - 1)
+                                                    onClicked: session.moveEffect(
+                                                        stageCard.modelData.stage, 1)
+
+                                                    QQC2.ToolTip.text: i18n("Nearer the output")
+                                                    QQC2.ToolTip.visible: hovered
+                                                    QQC2.ToolTip.delay:
+                                                        Kirigami.Units.toolTipDelay
+                                                }
+                                            }
+
                                             ColumnLayout {
                                                 Layout.fillWidth: true
                                                 spacing: 0
@@ -2816,6 +2869,22 @@ Kirigami.ApplicationWindow {
                                                         }
                                                     }
                                                 }
+                                            }
+
+                                            // Taking this one off, rather than
+                                            // taking the end off until this
+                                            // one is the end.
+                                            ChromeToggle {
+                                                text: "\u2715"
+                                                checkable: false
+                                                implicitHeight: Ink.smallControl
+                                                onClicked: session.removeEffect(
+                                                    stageCard.modelData.stage)
+
+                                                QQC2.ToolTip.text: i18n("Take %1 off",
+                                                                        stageCard.modelData.name)
+                                                QQC2.ToolTip.visible: hovered
+                                                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                                             }
                                         }
 

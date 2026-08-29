@@ -36,6 +36,29 @@
  * direction for this to flow: the audio thread must not know that a user
  * interface exists.
  */
+/**
+ * One plugin on one part: what it is, and everything that belongs to it.
+ *
+ * Held together because it travels together. The knobs are by port index,
+ * which means something only inside the plugin they came from, so a stage
+ * carrying its own is a stage that can be moved, removed from the middle or
+ * written to a rig without any of them being matched up by position
+ * afterwards.
+ */
+struct Fitted {
+    QString uri;
+
+    /** Where the knobs are, by the plugin's own port index. */
+    QHash<quint32, float> knobs;
+
+    /**
+     * The voicing this stage was set from, and what that voicing could not
+     * carry. Both empty where the stage was built by hand.
+     */
+    QString voicing;
+    QStringList declined;
+};
+
 class Session : public QObject
 {
     Q_OBJECT
@@ -392,9 +415,33 @@ public:
     /** Puts a plugin on the end of the current part's chain. */
     Q_INVOKABLE void addEffect(const QString &uri);
 
-    /** Takes the last one off, which is the one a person just regretted. */
-    Q_INVOKABLE void removeLastEffect();
+    /**
+     * Takes one stage off, wherever it is in the chain.
+     *
+     * Not only the last. A chain of three whose first plugin is wrong was a
+     * chain to be cleared and built again, losing the settings on the two that
+     * were right, because taking the end off is the only edit that needs no
+     * thought about what the indices mean.
+     */
+    Q_INVOKABLE void removeEffect(int stage);
+
+    /**
+     * Moves a stage along the signal path by `by` places.
+     *
+     * The order is not an arrangement of the chain; it is most of what the
+     * chain is. A cabinet in front of an amplifier is a different sound rather
+     * than the same sound written differently, and there was no way to say so
+     * without emptying the chain and starting again.
+     */
+    Q_INVOKABLE void moveEffect(int stage, int by);
+
     Q_INVOKABLE void clearEffects();
+
+    /** The plugins on one part, in signal order: the names, without the settings. */
+    QStringList chainOn(int track) const;
+
+    /** The same for every part, which is the shape `Player` is built from. */
+    QHash<int, QStringList> chains() const;
 
     QStringList instrumentNames() const;
     QStringList instrumentIds() const;
@@ -648,11 +695,30 @@ private:
     bool m_ports = false;
     bool m_following = false;
     QHash<int, QString> m_samplers;
-    QHash<int, QStringList> m_effects;
     QList<Gx::Voicing> m_voicings;
-    QHash<int, QHash<int, QHash<quint32, float>>> m_knobs;
-    QHash<int, QHash<int, QString>> m_voicingNames;
-    QHash<int, QHash<int, QStringList>> m_voicingDeclined;
+
+    /**
+     * The chain on each part, in signal order, nearest the instrument first.
+     *
+     * One list of whole stages rather than the four structures this replaced
+     * -- a list of URIs and three hashes of knobs, voicing names and what a
+     * voicing declined, every one of them keyed by the stage's position in the
+     * chain. That worked for as long as the only edits were appending to the
+     * end and taking off the end, which is all there was.
+     *
+     * It does not survive a chain being reordered. Moving stage 1 to stage 3
+     * under that arrangement means permuting four containers in step, and the
+     * failure when one is forgotten is silent and specific: a voicing's name
+     * left on the plugin that used to be at that index, or a knob set by port
+     * number on a plugin that never had that port. `removeLastEffect` already
+     * carried a comment about clearing three of them for exactly this reason,
+     * which is the sort of comment that is really a design saying what it
+     * costs.
+     *
+     * A stage that owns its own settings moves as one thing, and the whole
+     * class of fault goes with the indices.
+     */
+    QHash<int, QList<Fitted>> m_rig;
     QList<Lv2::Description> m_plugins;
     QList<Sfz::Library> m_libraries;
     double m_clickGain = 1.0;

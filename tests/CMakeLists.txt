@@ -104,6 +104,18 @@ ecm_add_test(rigtest.cpp
     LINK_LIBRARIES Qt6::Test fretworkcore
 )
 
+# `session.cpp` is compiled into the test rather than linked, because it
+# belongs to the executable: it is the window's own object and the QML module
+# that registers it is declared on the application target. Compiling it here is
+# what makes the chain editing testable at all, and the alternative -- moving
+# it into the library so a test can link it -- would move a GUI object into a
+# library that has no GUI in it for the sake of the test.
+ecm_add_test(sessiontest.cpp ../src/gui/session.cpp
+    TEST_NAME sessiontest
+    LINK_LIBRARIES Qt6::Test Qt6::Qml fretworkcore KF6::I18n
+)
+target_include_directories(sessiontest PRIVATE ${CMAKE_SOURCE_DIR}/src/gui)
+
 # Runtime-loaded via dlopen regardless of whether this build linked
 # PipeWire's development package, so unlike the rest of the suite it always
 # builds and always runs -- what it finds depends on what this machine has,
