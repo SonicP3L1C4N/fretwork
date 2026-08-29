@@ -6,7 +6,85 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 # Changelog
 
-## Unreleased — P3
+## 0.1.0 — 2026-09-01
+
+The first release: a tablature editor and player that gives every track its own
+synthesiser, and so its own stem. Per-track LV2 chains and SFZ sampling are
+present and experimental, which is meant as it is written — they are the reason
+the program exists and the least settled thing in it.
+
+Built in four phases, kept below as they were written rather than flattened
+into one list, because the order the parts arrived in is most of the argument
+for why they are shaped the way they are. What the release pass found on the
+way out is in [docs/release-0.1.0.md](docs/release-0.1.0.md).
+
+### P3 — the editor
+
+- **Every `.gp` is a file somebody sent you, and two of them could stop the
+  program without crashing it.** A score of nothing but nested empty elements
+  — 875 bytes on disk at 100,000 deep — took twelve seconds to fail, and
+  200,000 deep took a minute and a half, all of it inside `QDomDocument`
+  building a tree before anybody had asked it anything. Nothing crashed, which
+  is exactly what made it worth fixing: a crash is a thing a person can report,
+  and a program that has simply stopped answering over a file that arrived
+  looking like a song is a program that appears broken with nothing to say
+  about why. Refused now by a depth scan in front of the parser — a pull
+  parser, which is linear and keeps no tree, stopping at the first element past
+  the limit rather than reading to the end. Real gpif nests about ten deep and
+  the limit is a hundred; 200,000 now fails in a tenth of a second and says
+  what was wrong with it.
+- **A cap on the size of a file is not a cap on the size of what it becomes.**
+  `MaximumArchiveSize` refuses a `.gp` over 256 MB on disk, and that is the
+  number the sender did not choose. Deflated zeroes run to about a thousand
+  times their own length, so 285 KB of perfectly well-formed archive took the
+  process to a gigabyte of resident memory in seven tenths of a second, and the
+  `.fw` reader shares the same entry path, so both formats were open to it.
+  There is now a limit on what an entry *claims to unpack to*, checked before
+  anything is allocated to hold it — the same argument as the cap above it, one
+  level further down, where compression makes the two numbers different. The
+  same file is refused in a tenth of a second and never becomes resident.
+- **The window and the command line disagreed about what a voicing was
+  called.** `--voicing 0:0=Iron Man` set the amplifier for `--render` and did
+  nothing at all when the window opened, both of them reading the same nineteen
+  presets off the same disk. The command line resolves a name three ways —
+  exactly, then ignoring case, then as a fragment, with an ambiguous fragment
+  refused and every candidate named — because "Bass - Come Together" is a lot
+  to type accurately. The window compared for equality and, finding nothing,
+  returned without a word: no amplifier, no message, and nothing written to the
+  rig. The preset is called "Distortion - Iron Man" and the short name is the
+  one everybody reaches for. Both ends call the same resolver now, the window
+  has the two refusals it never had, and what goes into the rig is the name the
+  bank uses rather than the fragment somebody typed — because a rig saying
+  "iron" is unambiguous only until another bank is installed. Where two paths
+  answer one question, the cost of the second copy is not the duplication; it
+  is that only one of them was ever taught to say no.
+- **`--track banana` drew the first track, wrote the file and reported
+  success.** `QString::toInt()` without its flag answers 0 for anything it
+  cannot read, and 0 is also what `--track` means when nobody has said
+  anything, so the typo and the default were indistinguishable. `--page` had
+  the same shape. Three switches in the same file — `--sfz`, `--lv2`,
+  `--knob` — already take the flag and refuse by name; these two now do too,
+  before any file is opened. A wrong answer given confidently is the failure
+  this program can least afford, and it had one.
+- All four were found by a release pass over the tree rather than by anything
+  going wrong in use. The two importer limits have tests that were watched
+  failing with the limits lifted before they were believed — a document nested
+  past the limit, and an entry claiming to unpack to half a gigabyte. The JACK
+  transport gained a suite of its own at the same time, which is not a
+  regression test for any of this: it is the one piece loaded at runtime rather
+  than linked, so it is the most likely thing to behave differently on somebody
+  else's machine, and what it asserts is the contract its header promises
+  rather than what this machine happens to have installed. The pass itself,
+  including what it found and what it left open on purpose, is written down in
+  [docs/release-0.1.0.md](docs/release-0.1.0.md).
+- **A manual page**, which the program did not have. `man fretwork` documents
+  every switch, the exit codes, the files a score keeps beside it, and the two
+  things `--help` does not say: that opening with a rig and no batch switch
+  gives you a window with the rig already on it, and that `--track` also
+  chooses the track `--tune` listens for. Its version comes from
+  `PROJECT_VERSION` at configure time, because the release number was already
+  written in two places by hand and a third to remember is a third that will
+  one day be wrong.
 
 - **One LV2 errand at a time, across the whole process, and the eight crashes
   that bought that rule.** A worker thread per plugin instance is what the
@@ -336,7 +414,7 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
   keystrokes.
 - **It cannot save yet**, which is the next thing.
 
-## Unreleased — P2
+### P2 — the player
 
 - **An application icon**, drawn for the project: an F built from a nut and
   strings with a fret marker on it. Six sizes and a scalable copy installed into
@@ -405,7 +483,7 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 - The score is drawn **as notated**: a repeat is the sign it is, not the eight
   bars it stands for. Expanding it is playback's business.
 
-## Unreleased — P1
+### P1 — the headless converter
 
 - **Audio, one synthesiser per track.** `--render out/` writes a WAV per track
   and a mix, in a single pass at around twenty times real time. Each track owns
@@ -468,7 +546,7 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 - Rust is deferred to GP3–GP5 and GPX, where the argument for it — untrusted
   hand-rolled binary — actually applies. GP7/8 is a ZIP and an XML document.
 
-## Unreleased — P0
+### P0 — the spike
 
 - **The spike works end to end.** `spike/gp2midi.py` reads a Guitar Pro 7/8
   file, reconstructs the score from the flat id-referenced arrays gpif stores
