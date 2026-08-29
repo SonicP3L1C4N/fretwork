@@ -62,6 +62,14 @@ ecm_install_icons(ICONS
 install(FILES icons/io.github.sonicp3l1c4n.fretwork-symbolic.svg
         DESTINATION ${KDE_INSTALL_ICONDIR}/hicolor/symbolic/apps)
 
+# The manual page. Configured rather than installed as it stands, so that the
+# version in its header comes from the one place a version is written down --
+# the AppStream metainfo already has to be kept in step by hand, and a third
+# copy to remember is a third copy that will one day be wrong.
+configure_file(docs/fretwork.1.in ${CMAKE_CURRENT_BINARY_DIR}/fretwork.1 @ONLY)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/fretwork.1
+        DESTINATION ${KDE_INSTALL_MANDIR}/man1)
+
 add_subdirectory(src)
 
 if(BUILD_TESTING)

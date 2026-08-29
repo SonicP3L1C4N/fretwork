@@ -1,0 +1,297 @@
+.\" SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
+.\" SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
+.\"
+.\" The version comes from PROJECT_VERSION at configure time. There are already
+.\" two places a release number has to be right -- CMakeLists.txt and the
+.\" AppStream metainfo -- and a third that has to be remembered by hand is a
+.\" third that will one day be wrong.
+.TH FRETWORK 1 "2026-08-29" "fretwork @PROJECT_VERSION@" "Fretwork Manual"
+.SH NAME
+fretwork \- tablature editor and player that gives every track its own stem
+.SH SYNOPSIS
+.B fretwork
+.RI [ options ]
+.RI [ file .\|.\|.]
+.SH DESCRIPTION
+.B fretwork
+reads Guitar Pro files
+.RI ( .gp )
+and Fretwork's own scores
+.RI ( .fw ),
+draws them as tablature, plays them, and writes each track out as its own
+audio stem. Every track has a synthesiser of its own, so soloing, muting and
+stem export need no re-render and no bounce.
+.PP
+Given a file and nothing in particular to do with it, it opens a window.
+Given
+.BR \-\-info ,
+.BR \-\-midi ,
+.BR \-\-stems ,
+.BR \-\-render ,
+.BR \-\-pdf ,
+.BR \-\-png ,
+.BR \-\-play ,
+.BR \-\-tune
+or
+.BR \-\-save ,
+it does that and exits without opening one. Any other switch \(em a chain of
+effects, a sampled instrument \(em opens the window with that rig already on
+the part, rather than asking for it twice.
+.PP
+Drawing and rendering need a font database and not a screen. With neither
+.B WAYLAND_DISPLAY
+nor
+.B DISPLAY
+set, Qt's offscreen platform is used, so the command line half of the program
+works over
+.BR ssh (1).
+.PP
+Tracks are numbered from zero, in the order
+.B \-\-info
+prints them. More than one file may be named; each is read in turn.
+.PP
+Fretwork reads
+.I .gp
+and deliberately cannot write it. An imported score stays as its author wrote
+it; what Fretwork saves, it saves as
+.IR .fw .
+.SH OPTIONS
+.SS Reading a score
+.TP
+.B \-\-info
+Print what the file holds \(em title, artist, the version that wrote it, bars
+notated and played, duration, tempo, and a line per track with its programme,
+note count and tuning \(em and exit.
+.TP
+.B \-\-no\-repeats
+Read the score as notated rather than as played: repeats are not expanded and
+each bar appears once.
+.TP
+.BI \-\-save " file.fw"
+Convert the score to Fretwork's own format and write it there.
+.SS Drawing it
+.TP
+.BI \-\-pdf " file.pdf"
+Draw the tablature as a PDF, every page.
+.TP
+.BI \-\-png " file.png"
+Draw one page of tablature as an image.
+.TP
+.BI \-\-page " number"
+Which page
+.B \-\-png
+draws.
+.TP
+.BI \-\-track " number"
+Which track to draw; the first by default. It also chooses the track
+.B \-\-tune
+tunes to, and where that track has no strings to tune \(em a drum kit, a
+keyboard \(em the first track that has is used instead.
+.SS Writing MIDI
+.TP
+.BI \-m " file.mid" "\fR, \fP" \-\-midi " file.mid"
+Write the whole score as one MIDI file.
+.TP
+.BI \-\-stems " directory"
+Write one MIDI file per track into a directory, named
+.IR NN\-Track.mid ,
+alongside a combined file named after the score. Where a technique cannot be
+carried into MIDI \(em a bend across strings sharing one channel \(em what was
+left behind is reported.
+.SS Playing and rendering
+.TP
+.B \-\-play
+Play it now, through the speakers.
+.TP
+.BI \-\-render " directory"
+Render one WAV per track into a directory, named
+.IR NN\-Track.wav ,
+and a
+.I mix.wav
+of all of them.
+.TP
+.B \-\-dry
+With
+.BR \-\-render ,
+write each effected part a second time as
+.IR NN\-Track\-dry.wav ,
+before its chain \(em so it can be reamped later. Only parts with a chain get
+one.
+.TP
+.B \-\-click
+Count it out: a metronome on every beat, played live or, with
+.BR \-\-render ,
+written as
+.I click.wav
+beside the stems. It is deliberately left out of
+.IR mix.wav ,
+because a click baked into a mix is one nobody can take out again.
+.TP
+.BI \-\-solo " track"
+Hear only these tracks. Repeatable.
+.TP
+.BI \-\-mute " track"
+Silence these tracks. Repeatable.
+.TP
+.BI \-\-audio\-driver " name"
+Which FluidSynth audio driver to play through.
+.B file
+writes to disk instead of to a device.
+.TP
+.B \-\-ports
+Give every track a pair of ports in the audio graph, for a DAW to record.
+.TP
+.B \-\-follow
+Take the transport from the audio graph, so a DAW starts and locates it.
+Implies
+.BR \-\-ports .
+.SS The instruments and the rig
+.TP
+.BI \-\-soundfont " file.sf2"
+The SoundFont to play and render with.
+.TP
+.BI \-\-sfz " track=file.sfz"
+Play a track from an SFZ instrument rather than a General MIDI programme.
+Repeatable. Parts without one carry on as they were.
+.TP
+.BI \-\-lv2 " track=uri,uri"
+Put a chain of LV2 effects on a track, nearest the instrument first \(em which
+is where an amplifier stands, and in front of the fader, because behind it the
+distortion would change every time somebody adjusted a level. Repeatable.
+.TP
+.BI \-\-knob " track:plugin:name=value"
+Set one control on one plugin: the track, which plugin along the chain, the
+name the plugin gives the control, and the value. Verbose because two
+amplifiers in one chain both have a Drive. Repeatable.
+.TP
+.BI \-\-voicing " track:plugin=name"
+Set a plugin in a chain to a guitarix preset. What a voicing cannot carry \(em
+the factory bank leans on modules that ship no LV2 plugin \(em is named rather
+than quietly dropped.
+.TP
+.B \-\-voicings
+List the guitarix presets installed, and exit.
+.TP
+.B \-\-effects
+List the LV2 effects installed, with their port counts and URIs, and exit.
+.SS Tuning
+.TP
+.B \-\-tune
+Tune to this score, listening on an audio input: the targets are the file's own
+tuning, capo included, rather than the nearest chromatic note. With no file
+named, standard guitar tuning is used.
+.TP
+.BI \-\-input " name"
+Which audio input to listen on; the desktop's own by default.
+.SS General
+.TP
+.BR \-h ", " \-\-help
+Show the options and exit.
+.TP
+.B \-\-help\-all
+Show the options including Qt's own, and exit.
+.TP
+.BR \-v ", " \-\-version
+Show the version and exit.
+.TP
+.B \-\-author
+Show author information and exit.
+.TP
+.B \-\-license
+Show licence information and exit.
+.TP
+.BI \-\-desktopfile " name"
+The base file name of the desktop entry for this application.
+.SH EXIT STATUS
+.TP
+.B 0
+Everything asked for was done.
+.TP
+.B 1
+Something failed: a file that could not be read, a stem that could not be
+written, a tuner that could not open an input, or a window that could not be
+created. What failed is named on standard error.
+.TP
+.B 2
+No file was named, and the switches given need one.
+.SH ENVIRONMENT
+.TP
+.BR WAYLAND_DISPLAY ", " DISPLAY
+With neither set, Qt's offscreen platform is used and no window can open. The
+drawing and rendering switches still work.
+.TP
+.B LV2_PATH
+Where lilv looks for plugins, and therefore what
+.B \-\-effects
+finds.
+.SH FILES
+.TP
+.I ~/.config/fretworkrc
+Settings.
+.TP
+.I ~/.local/state/fretworkstaterc
+Window and dialogue state.
+.TP
+.I ~/.local/share/fretwork/instruments
+SFZ libraries found here are offered in the track panel, grouped by the library
+they came in.
+.TP
+.I score.rig
+The rig for a score \(em plugins by URI, knobs by the symbol the plugin
+publishes, and samplers by path \(em kept beside the score rather than inside
+it, because those are facts about one machine and the score is the part that
+travels. The whole name and then the suffix:
+.I Horses.gp
+gets
+.IR Horses.gp.rig .
+Plain JSON. A score that has never been saved has nowhere to keep one yet.
+.SH EXAMPLES
+Print what a file holds:
+.PP
+.EX
+fretwork \-\-info "Beautiful Losers.gp"
+.EE
+.PP
+Play one track and nothing else:
+.PP
+.EX
+fretwork "The Dogs Of War.gp" \-\-play \-\-solo 0
+.EE
+.PP
+A sampled guitar, through its own amplifier and cabinet, out as its own stem,
+with the unamplified take written beside it:
+.PP
+.EX
+GX=http://guitarix.sourceforge.net/plugins
+fretwork Horses.gp \-\-render out/ \-\-dry \e
+    \-\-sfz 0=emily_clean.sfz \e
+    \-\-lv2 "0=$GX/gx_amp#GUITARIX,$GX/gx_cabinet#CABINET" \e
+    \-\-voicing "0:0=Iron Man"
+.EE
+.PP
+Tune the low string to what this piece wants of it:
+.PP
+.EX
+fretwork "Slomosa\-Horses.gp" \-\-tune
+.EE
+.SH LIMITATIONS
+Slides, tremolo, natural and artificial harmonics, grace notes and trills are
+read from the file but not yet translated into sound. Alternate endings and
+jumps cannot be flattened into a played order, and a score containing them says
+so rather than playing something adjacent. In MIDI output, the strings of one
+track share a channel, so a bend moves every note that channel is holding \(em
+a property of the MIDI file format and not of the program; rendered audio has
+no such limit.
+.PP
+Per-track LV2 chains and SFZ sampling are present and experimental.
+.SH SEE ALSO
+.BR fluidsynth (1)
+.PP
+The project's own documentation, which argues rather than merely describes:
+.UR https://github.com/SonicP3L1C4N/fretwork
+.UE
+.SH AUTHOR
+Written by Gary Bissett.
+.SH REPORTING BUGS
+.UR https://github.com/SonicP3L1C4N/fretwork/issues
+.UE
