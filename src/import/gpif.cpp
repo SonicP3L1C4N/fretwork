@@ -9,9 +9,54 @@
 #include <QDomDocument>
 #include <QFile>
 #include <QFileInfo>
+#include <QXmlStreamReader>
 
 namespace
 {
+/**
+ * Deeper than any tablature nests, and shallower than the point where building
+ * a tree of it stops being worth the wait.
+ *
+ * A gpif document is about ten deep at its worst -- GPIF, Tracks, Track,
+ * Staves, Staff, Properties, Property, and a couple of wrappers. The number
+ * here is that with two orders of magnitude of room, because the cost of being
+ * generous is nothing and the cost of being wrong is refusing a real file.
+ */
+constexpr int MaximumDepth = 100;
+
+/**
+ * Because QDomDocument builds the whole tree before anybody asks it anything,
+ * and it does so at a cost that grows faster than the document does. Nesting
+ * empty elements 100,000 deep is 875 bytes on disk and twelve seconds in
+ * setContent(); 200,000 is a minute and a half. Neither is a crash, and that
+ * is what makes it worth catching -- the program simply stops answering, with
+ * nothing on screen to say why, and the file that did it arrived by mail
+ * looking like a song.
+ *
+ * The scan is a pull parser, which is linear and keeps no tree, and it stops
+ * at the first element past the limit rather than reading to the end.
+ */
+bool nestsTooDeeply(const QByteArray &xml)
+{
+    QXmlStreamReader reader(xml);
+    int depth = 0;
+    while (!reader.atEnd()) {
+        switch (reader.readNext()) {
+        case QXmlStreamReader::StartElement:
+            if (++depth > MaximumDepth) {
+                return true;
+            }
+            break;
+        case QXmlStreamReader::EndElement:
+            --depth;
+            break;
+        default:
+            break;
+        }
+    }
+    return false;
+}
+
 /** gpif indents its values onto lines of their own, so everything is trimmed. */
 QString childText(const QDomElement &parent, const QString &tag,
                   const QString &fallback = QString())
@@ -313,6 +358,14 @@ QHash<int, T> readTable(const QDomElement &root, const QString &container,
 
 Score Gpif::parse(const QByteArray &xml, QString *error)
 {
+    if (nestsTooDeeply(xml)) {
+        if (error) {
+            *error = QStringLiteral("its elements nest more than %1 deep, which no tablature does")
+                         .arg(MaximumDepth);
+        }
+        return {};
+    }
+
     QDomDocument document;
     const QDomDocument::ParseResult parsed = document.setContent(xml);
     if (!parsed) {

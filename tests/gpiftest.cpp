@@ -8,6 +8,7 @@
 
 #include <QDir>
 #include <QTemporaryDir>
+#include <QElapsedTimer>
 #include <QTest>
 
 /**
@@ -189,6 +190,44 @@ private Q_SLOTS:
 
         QVERIFY(Gpif::parse(QByteArrayLiteral("<html><body/></html>"), &why).isEmpty());
         QVERIFY2(why.contains(QStringLiteral("gpif")), qPrintable(why));
+    }
+
+    /**
+     * A document nested deeper than any tablature, refused before the tree is
+     * built rather than after.
+     *
+     * QDomDocument's cost grows faster than the document does: 100,000 nested
+     * empty elements are 875 bytes on disk and twelve seconds in setContent(),
+     * 200,000 are a minute and a half, and neither is a crash -- the program
+     * simply stops answering. The number here is far past the limit so that
+     * the test says nothing about where exactly the limit sits, only that
+     * there is one and that it is reached quickly.
+     */
+    void refusesADocumentNestedTooDeeply()
+    {
+        QByteArray xml = QByteArrayLiteral("<?xml version=\"1.0\"?>\n<GPIF>");
+        const int depth = 50000;
+        xml += QByteArray("<a>").repeated(depth);
+        xml += QByteArray("</a>").repeated(depth);
+        xml += QByteArrayLiteral("</GPIF>");
+
+        QElapsedTimer timer;
+        timer.start();
+        QString why;
+        QVERIFY(Gpif::parse(xml, &why).isEmpty());
+        QVERIFY2(why.contains(QStringLiteral("nest")), qPrintable(why));
+        // Generous by three orders of magnitude against the twelve seconds
+        // this used to take at twice the depth: what is being asserted is that
+        // it refuses without building anything, not how fast the machine is.
+        QVERIFY2(timer.elapsed() < 2000, qPrintable(QString::number(timer.elapsed())));
+    }
+
+    /** And the ordinary nesting of a real document is nowhere near it. */
+    void readsADocumentNestedAsDeeplyAsRealOnesAre()
+    {
+        QString why;
+        QVERIFY(!Gpif::parse(document(), &why).isEmpty());
+        QVERIFY2(why.isEmpty(), qPrintable(why));
     }
 
     // ---- the document ----
