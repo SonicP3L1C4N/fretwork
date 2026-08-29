@@ -85,6 +85,66 @@ way out is in [docs/release-0.1.0.md](docs/release-0.1.0.md).
   `PROJECT_VERSION` at configure time, because the release number was already
   written in two places by hand and a third to remember is a third that will
   one day be wrong.
+- **The effects deck was never given the height it asked for.** A guitarix
+  amplifier drawn on a window a thousand pixels tall came out with its bottom
+  row of switches sliced through the middle of the word, and nothing said so.
+  The band is capped at over half the window precisely so that this cannot
+  happen, and the cap was never the thing that bit: `Layout.preferredHeight` on
+  its own is a suggestion, so when the column ran short of room the deck was
+  the item that yielded — squeezed to about half of what it had asked for while
+  the cap sat unreached above it. It keeps its height now, and the score above
+  it yields instead, which is the right way round: the deck is shut by default
+  and somebody looking at it has just opened it, whereas a score is legible at
+  any height and goes on being a score when it is short. Both at 1120 pixels
+  and at 700 the whole amplifier is on the band. The minimum deliberately does
+  not read `root.height`, because a minimum that depends on the window's size
+  is a window that will not shrink afterwards — it asks only what is on the
+  band, and stops at a figure of its own so that a plugin with thirty knobs
+  cannot put a floor under the whole window. Past that the deck yields again
+  and a scrollbar says what has gone under the fold, which it never did before:
+  it scrolled and gave no sign that it scrolled, and a card that is cut with
+  nothing to say so is a card that looks wrongly drawn.
+- **A row of knobs was not reading as a panel, because it was not one.** Each
+  cell was as wide as its own label, so a second row of four sat under a first
+  row of five at none of the same places — `BASS` under the middle of
+  `MASTERGAIN`, everything after it drifting left. Knobs scattered on a card
+  rather than the front of an amplifier, which is the whole reason these are
+  knobs and not a list of sliders. Every cell is one width now and the rows are
+  columns. The cards themselves are the height of the row as well: a cabinet is
+  three knobs and an amplifier is nine, and a box drawn to its own contents put
+  a short card beside a tall one and a step in a line that is meant to read as
+  a line of equipment. The contents stay at the top of the stretched box, so
+  the cabinet's knobs are still level with the amplifier's.
+- **Every value was written to two decimals, which hid the one thing a figure
+  is there to say.** `20.00` was distortion four fifths of the way up a range
+  of one to a hundred, and on the knob beside it `10.00` was a cabinet halfway
+  up a range of one to twenty. Both read as the same kind of number. The
+  figures follow the span now — a control that runs across a hundred has
+  nothing to say in its hundredths, and one that runs from 0.01 to 1 has
+  nothing else to say — and the tooltip names the range, which is the thing
+  neither the pointer nor the figure ever carried. Where a plugin declares a
+  unit it is read from the manifest and shown: guitarix's echo says its delay
+  is in milliseconds and the knob now says `100 ms`. Where a plugin declares
+  nothing, and most of them do not — twenty-eight of the hundred and eighteen
+  bundles on this machine declare a unit anywhere, and guitarix's amplifier
+  describes nine controls and a unit for none of them — the panel invents
+  none. A `dB` on a port that never claimed one would be this window asserting
+  something it was not told.
+- **A switch said "On" whichever way it was set.** Lit or unlit, the three
+  characters were the same, and on a control called `BYPASS` that leaves a
+  reader working out both what the button means and what a bypass that is on
+  does to the sound. It says the state it is in rather than the state it goes
+  to. Alongside it: `Tonestack Model` was being shown as "Tonestack ...", which
+  told nobody anything the first word had not; the end of the chain reads
+  `stem out` over the pair of sides when the ports are open rather than the
+  bare word `stem`, because a part leaving on ports of its own is the thing
+  this program is for and a part going into the mix with the others is not;
+  and what a voicing left behind is no longer printed twice. The deck said it
+  beside the tape and the status bar said it again at the foot of the window,
+  both copies elided, neither readable. The deck now carries it in full and the
+  bar keeps the short form while the deck is open — a voicing that reproduced
+  half of itself must say so, which is the honesty the feature rests on, but it
+  must not say so twice.
 
 - **One LV2 errand at a time, across the whole process, and the eight crashes
   that bought that rule.** A worker thread per plugin instance is what the
