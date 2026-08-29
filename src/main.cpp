@@ -1075,6 +1075,30 @@ int main(int argc, char *argv[])
         return 2;
     }
 
+    // Checked once, before any file is opened. QString::toInt() without the
+    // flag answers 0 for "banana", and 0 is also what --track means when
+    // nobody has said anything -- so a typo drew the first track, wrote the
+    // file, and reported success. Every other switch here that takes a number
+    // already checks; these two did not, and a wrong answer given confidently
+    // is the failure this program can least afford.
+    bool trackIsANumber = false;
+    bool pageIsANumber = false;
+    const int chosenTrack = parser.value(whichTrack).toInt(&trackIsANumber);
+    const int chosenPage = parser.value(whichPage).toInt(&pageIsANumber);
+    if (!trackIsANumber) {
+        error << QStringLiteral("fretwork: --track wants a number, not \"%1\"\n")
+                     .arg(parser.value(whichTrack));
+        ++failures;
+    }
+    if (!pageIsANumber) {
+        error << QStringLiteral("fretwork: --page wants a number, not \"%1\"\n")
+                     .arg(parser.value(whichPage));
+        ++failures;
+    }
+    if (!trackIsANumber || !pageIsANumber) {
+        return 1;
+    }
+
     for (const QString &path : files) {
         QString why;
         // Whatever the window can open, this can: a score saved from Fretwork
@@ -1108,9 +1132,9 @@ int main(int argc, char *argv[])
             }
         }
         if (parser.isSet(pdf) || parser.isSet(png)) {
-            if (!drawTab(out, error, score, parser.value(whichTrack).toInt(),
+            if (!drawTab(out, error, score, chosenTrack,
                          parser.value(pdf), parser.value(png),
-                         parser.value(whichPage).toInt())) {
+                         chosenPage)) {
                 ++failures;
             }
         }
@@ -1140,8 +1164,7 @@ int main(int argc, char *argv[])
             // request to tune to the drums is a request that cannot be
             // honoured, and the first track that can be is a better answer
             // than an error.
-            int chosen = std::clamp(parser.value(whichTrack).toInt(), 0,
-                                    int(score.tracks.size()) - 1);
+            int chosen = std::clamp(chosenTrack, 0, int(score.tracks.size()) - 1);
             if (Tuner::targetsFor(score.tracks.at(chosen)).isEmpty()) {
                 for (int index = 0; index < score.tracks.size(); ++index) {
                     if (!Tuner::targetsFor(score.tracks.at(index)).isEmpty()) {
