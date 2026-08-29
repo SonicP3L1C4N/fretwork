@@ -71,8 +71,11 @@ private:
      * where the reader looks for the sizes, not the decompressor.
      */
     QString writtenStreaming(const QString &name, const QString &entry,
-                             const QByteArray &contents)
+                             const QByteArray &contents, quint32 claimed = 0)
     {
+        // Nought means "tell the truth", which is what every caller but the
+        // cap test wants.
+        const quint32 says = claimed > 0 ? claimed : quint32(contents.size());
         const QByteArray entryName = entry.toUtf8();
         const quint32 crc = ::crc32(0, reinterpret_cast<const uchar *>(contents.constData()),
                                     uInt(contents.size()));
@@ -109,7 +112,7 @@ private:
         appendU16(out, 0);
         appendU32(out, crc);
         appendU32(out, quint32(contents.size()));
-        appendU32(out, quint32(contents.size()));
+        appendU32(out, says);
         appendU16(out, quint16(entryName.size()));
         appendU16(out, 0);          // extra
         appendU16(out, 0);          // comment
@@ -267,6 +270,31 @@ private Q_SLOTS:
     }
 
     /** A byte flipped inside the compressed data must not read as truth. */
+    /**
+     * An entry that says it unpacks to more than any tablature does is refused
+     * before anything is allocated to hold it.
+     *
+     * The archive cap bounds what is read from disk and says nothing about
+     * what that becomes. A quarter of a megabyte of deflated zeroes really
+     * does expand to a gigabyte, so the reader has to refuse on what the index
+     * claims rather than discovering the size once it is already resident.
+     * The lie here is cheaper to build than the truth and tests the same
+     * branch: the check reads the index, and the index is written by whoever
+     * sent the file.
+     */
+    void refusesAnEntryThatClaimsToUnpackToMoreThanAnyScore()
+    {
+        const QString file = writtenStreaming(QStringLiteral("greedy.gp"),
+                                              QStringLiteral("Content/score.gpif"),
+                                              QByteArrayLiteral("<GPIF/>"),
+                                              512u * 1024 * 1024);
+        QVERIFY(!file.isEmpty());
+
+        QString why;
+        QVERIFY(Zip::readEntry(file, QStringLiteral("Content/score.gpif"), &why).isNull());
+        QVERIFY2(why.contains(QStringLiteral("larger than any tablature")), qPrintable(why));
+    }
+
     void refusesDamagedContents()
     {
         const QString source = writtenByKZip(QStringLiteral("sound.gp"),

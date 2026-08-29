@@ -29,6 +29,20 @@ constexpr qint64 MaximumCommentSize = 0xFFFF;
  */
 constexpr qint64 MaximumArchiveSize = 256LL * 1024 * 1024;
 
+/**
+ * The same argument one level down, and the one that actually matters. The cap
+ * above bounds what is read from disk; it says nothing about what that turns
+ * into. A deflate stream of nothing but zeroes runs to about a thousand times
+ * its own length, so a quarter of a megabyte of .gp that passes every check
+ * above becomes a gigabyte of memory before a single tag has been looked at,
+ * and a file small enough to send by mail can take the machine down with it.
+ *
+ * The score inside the largest file in the corpus is a few megabytes of XML.
+ * Sixty-four is room for something twenty times larger than anything that has
+ * ever been seen, and still a refusal rather than an out-of-memory kill.
+ */
+constexpr quint32 MaximumEntrySize = 64u * 1024 * 1024;
+
 /** Reading past the end of the buffer is the whole risk here, so it goes through these. */
 bool has(const QByteArray &data, qint64 offset, qint64 length)
 {
@@ -252,6 +266,17 @@ QByteArray Zip::readEntry(const QString &path, const QString &name, QString *err
             return {};
         }
         const QByteArray raw = data.mid(offset, entry.compressedSize);
+
+        // Before anything is allocated to hold it. The index is the only thing
+        // that has said how large this becomes, and the index was written by
+        // whoever sent the file.
+        if (entry.uncompressedSize > MaximumEntrySize) {
+            fail(error, QStringLiteral("%1: says it unpacks to %2 MB, which is larger than any "
+                                       "tablature file")
+                            .arg(name)
+                            .arg(entry.uncompressedSize / 1024 / 1024));
+            return {};
+        }
 
         switch (entry.method) {
         case 0:     // stored
