@@ -730,42 +730,56 @@ void Session::applyVoicing(int stage, const QString &name)
     if (!m_player) {
         return;
     }
-    for (const Gx::Voicing &voicing : m_voicings) {
-        if (voicing.name != name) {
-            continue;
-        }
-
-        const Gx::Fitting fitting = m_player->applyVoicing(m_currentTrack, stage, voicing);
-        if (fitting.isEmpty()) {
-            setStatus(i18n("%1 takes nothing from %2.", effectsHere().value(stage), name));
-            return;
-        }
-
-        // Remembered the same way a hand-turned knob is, so that rebuilding the
-        // chain later -- adding a pedal after it -- does not lose the voicing.
-        // The chain held in a local first: `chainOn` returns a temporary, and
-        // a loop over a member of one reads memory that has already gone.
-        const QList<Lv2::Stage> stages = m_player->chainOn(m_currentTrack);
-        for (const Gx::Setting &setting : fitting.settings) {
-            for (const Lv2::Control &control : stages.at(stage).controls) {
-                if (control.symbol == setting.symbol) {
-                    m_knobs[m_currentTrack][stage].insert(control.index, setting.value);
-                    break;
-                }
-            }
-        }
-
-        m_voicingNames[m_currentTrack].insert(stage, name);
-        m_voicingDeclined[m_currentTrack].insert(stage, fitting.declined);
-        rememberRig();
-        setStatus(fitting.declined.isEmpty()
-                      ? i18n("%1: %2 settings.", name, QString::number(fitting.settings.size()))
-                      : i18n("%1: %2 settings. %3", name,
-                             QString::number(fitting.settings.size()),
-                             fitting.declined.join(QStringLiteral(" "))));
-        Q_EMIT effectsChanged();
+    // The same resolver the command line uses, so that a name which sets the
+    // amplifier for --render sets it here too. It used to be an exact match
+    // that returned in silence when nothing answered, which meant a --voicing
+    // the window could not resolve left no amplifier, no message and no entry
+    // in the rig -- three ways of saying nothing at once.
+    const Gx::Match match = Gx::named(m_voicings, name);
+    if (match.outcome == Gx::Match::Unknown) {
+        setStatus(i18n("No voicing is called %1.", name));
         return;
     }
+    if (match.outcome == Gx::Match::Ambiguous) {
+        setStatus(i18n("%1 could be %2.", name,
+                       match.candidates.join(QStringLiteral(", "))));
+        return;
+    }
+
+    const Gx::Voicing &voicing = match.voicing;
+    const Gx::Fitting fitting = m_player->applyVoicing(m_currentTrack, stage, voicing);
+    if (fitting.isEmpty()) {
+        setStatus(i18n("%1 takes nothing from %2.", effectsHere().value(stage), voicing.name));
+        return;
+    }
+
+    // Remembered the same way a hand-turned knob is, so that rebuilding the
+    // chain later -- adding a pedal after it -- does not lose the voicing.
+    // The chain held in a local first: `chainOn` returns a temporary, and
+    // a loop over a member of one reads memory that has already gone.
+    const QList<Lv2::Stage> stages = m_player->chainOn(m_currentTrack);
+    for (const Gx::Setting &setting : fitting.settings) {
+        for (const Lv2::Control &control : stages.at(stage).controls) {
+            if (control.symbol == setting.symbol) {
+                m_knobs[m_currentTrack][stage].insert(control.index, setting.value);
+                break;
+            }
+        }
+    }
+
+    // The name the bank gives it, not the fragment somebody typed. What goes
+    // into the rig is read back by a later run, which will look it up again,
+    // and "iron" is only unambiguous until somebody installs another bank.
+    m_voicingNames[m_currentTrack].insert(stage, voicing.name);
+    m_voicingDeclined[m_currentTrack].insert(stage, fitting.declined);
+    rememberRig();
+    setStatus(fitting.declined.isEmpty()
+                  ? i18n("%1: %2 settings.", voicing.name,
+                         QString::number(fitting.settings.size()))
+                  : i18n("%1: %2 settings. %3", voicing.name,
+                         QString::number(fitting.settings.size()),
+                         fitting.declined.join(QStringLiteral(" "))));
+    Q_EMIT effectsChanged();
 }
 
 QVariantList Session::availableEffects() const

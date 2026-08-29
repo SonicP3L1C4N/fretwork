@@ -129,30 +129,19 @@ QList<Gx::Voicing> allVoicings()
  */
 bool voicingNamed(const QString &wanted, Gx::Voicing *found, QTextStream &error)
 {
-    const QList<Gx::Voicing> voicings = allVoicings();
-    QList<Gx::Voicing> fragments;
-    for (const Gx::Voicing &voicing : voicings) {
-        if (voicing.name == wanted) {
-            *found = voicing;
-            return true;
-        }
-        if (voicing.name.contains(wanted, Qt::CaseInsensitive)) {
-            fragments.append(voicing);
-        }
-    }
-    if (fragments.size() == 1) {
-        *found = fragments.first();
+    const Gx::Match match = Gx::named(allVoicings(), wanted);
+    switch (match.outcome) {
+    case Gx::Match::Found:
+        *found = match.voicing;
         return true;
-    }
-    if (fragments.isEmpty()) {
+    case Gx::Match::Unknown:
         error << QStringLiteral("fretwork: no voicing is called \"%1\"\n").arg(wanted);
         return false;
+    case Gx::Match::Ambiguous:
+        error << QStringLiteral("fretwork: \"%1\" could be %2\n")
+                     .arg(wanted, match.candidates.join(QStringLiteral(", ")));
+        return false;
     }
-    QStringList names;
-    for (const Gx::Voicing &voicing : std::as_const(fragments)) {
-        names << voicing.name;
-    }
-    error << QStringLiteral("fretwork: \"%1\" could be %2\n").arg(wanted, names.join(QStringLiteral(", ")));
     return false;
 }
 

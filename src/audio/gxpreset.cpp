@@ -274,4 +274,36 @@ Fitting fit(const Voicing &voicing, const QList<Lv2::Control> &controls)
     }
     return fitting;
 }
+
+Match named(const QList<Voicing> &voicings, const QString &wanted)
+{
+    Match match;
+    QList<Voicing> fragments;
+    for (const Voicing &voicing : voicings) {
+        if (voicing.name == wanted) {
+            match.outcome = Match::Found;
+            match.voicing = voicing;
+            return match;
+        }
+        if (voicing.name.contains(wanted, Qt::CaseInsensitive)) {
+            fragments.append(voicing);
+        }
+    }
+
+    if (fragments.size() == 1) {
+        match.outcome = Match::Found;
+        match.voicing = fragments.first();
+        return match;
+    }
+    if (fragments.isEmpty()) {
+        match.outcome = Match::Unknown;
+        return match;
+    }
+
+    match.outcome = Match::Ambiguous;
+    for (const Voicing &voicing : std::as_const(fragments)) {
+        match.candidates << voicing.name;
+    }
+    return match;
+}
 }

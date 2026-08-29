@@ -122,4 +122,38 @@ struct Fitting {
  * and a program that silently gave it -20 would be inventing a mix.
  */
 Fitting fit(const Voicing &voicing, const QList<Lv2::Control> &controls);
+
+/**
+ * What a name resolved to, and what to say when it resolved to nothing.
+ *
+ * The list is a fixture of the machine rather than of the score, so both the
+ * window and the command line are asking the same question of the same
+ * nineteen presets. They used not to ask it the same way: `--voicing
+ * 0:0=Iron Man` set the amplifier for `--render` and did nothing at all when
+ * the window opened, because one end resolved fragments and the other wanted
+ * the name exactly, and the exact name is "Distortion - Iron Man". A silent
+ * nothing is the worst of the three possible answers, and it was the one the
+ * window gave.
+ */
+struct Match {
+    enum Outcome {
+        Found,          //< exactly one voicing answers to this
+        Unknown,        //< nothing does
+        Ambiguous,      //< several do, and choosing between them is not this code's business
+    };
+
+    Outcome outcome = Unknown;
+    Voicing voicing;
+    QStringList candidates;     //< when ambiguous, all of them, so the caller can name them
+};
+
+/**
+ * A voicing by name: exactly, then ignoring case, then as a fragment.
+ *
+ * "Bass - Come Together" is a lot to type accurately, so `rising` finds the
+ * one about the house. A fragment matching two is reported as ambiguous rather
+ * than resolved to the first, because picking one would be picking somebody's
+ * amplifier for them.
+ */
+Match named(const QList<Voicing> &voicings, const QString &wanted);
 }
