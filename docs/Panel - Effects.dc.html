@@ -1,103 +1,279 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="./support.js"></script>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
 </head>
 <body>
 <x-dc>
 <helmet>
-  <link rel="stylesheet" href="_ds/broadsheet-7f6eabd3-ede0-4a99-8e12-3d76c0f8758a/styles.css">
-  <script src="_ds/broadsheet-7f6eabd3-ede0-4a99-8e12-3d76c0f8758a/_ds_bundle.js"></script>
-  <style>a{color:var(--color-accent)} a:hover{color:var(--color-accent-700)}</style>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,600&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #aa0b56; } a:hover { color: #d6006c; }
+    button { font: inherit; }
+  </style>
 </helmet>
-<div style="min-height:100vh;background:var(--color-bg);font-family:var(--font-body);color:var(--color-text);padding:40px 48px;display:flex;flex-direction:column;gap:22px">
-  <div style="max-width:760px">
-    <h1 style="font-family:var(--font-heading);font-weight:600;font-size:26px;margin:0 0 6px">Effects panel</h1>
-    <p style="font-size:13px;line-height:1.6;color:var(--color-neutral-700);margin:0">Per-track LV2 chain in signal order, first plugin nearest the instrument. Binds <code>chainHere</code> (module list), <code>setEffectControl</code> (knobs/selects, ranges from the plugin's own manifest) and <code>applyVoicing</code> (the cassette: one tape turns several knobs at once; <code>Gx::Fitting.declined</code> names what a voicing left behind). The rig is kept in a file beside the score, not inside it: it names plugins by URI and samples by path, which are facts about one machine.</p>
-  </div>
-  <div style="width:100%;max-width:1180px;background:#201e1d;border-radius:2px" data-screen-label="Effects panel">
-<div style="padding:24px 28px;color:#f3f2f2;display:flex;flex-direction:column;gap:20px">
-  <div style="display:flex;align-items:baseline;gap:14px">
-    <span style="font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--color-neutral-500)">Effects</span>
-    <span style="font-size:12px;color:var(--color-neutral-500)">Guitar I · kept beside the score</span>
-    <span style="margin-left:auto;display:flex;gap:8px">
-      <button type="button" class="btn" style="border:1px solid var(--color-neutral-700);color:#f3f2f2;font-size:12px;padding:4px 12px">Add effect ▾</button>
-      <button type="button" class="btn" style="border:1px solid var(--color-neutral-700);color:#f3f2f2;font-size:12px;padding:4px 12px">Remove last</button>
-      <button type="button" class="btn" style="border:1px solid var(--color-neutral-700);color:var(--color-neutral-400);font-size:12px;padding:4px 12px">Clear</button>
-    </span>
-  </div>
-  <div style="display:flex;align-items:center;gap:14px;overflow-x:auto;padding-bottom:6px">
-    <div style="flex:none;display:flex;flex-direction:column;gap:4px;align-items:center;width:84px">
-      <img src="icons/instrument-guitar-paper.svg" alt="" style="width:22px;height:22px">
-      <span style="font-size:11px;color:var(--color-neutral-500);text-align:center">Guitar I<br>SFZ sampler</span>
-    </div>
-    <span style="color:var(--color-neutral-600);font-size:18px">→</span>
-    <div style="flex:none;background:#2a2827;border:1px solid #45413f;border-radius:4px;padding:14px 18px;display:flex;gap:20px">
-      <div style="flex:none;display:flex;flex-direction:column;gap:8px">
-        <div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:var(--font-heading);font-weight:600;font-size:14px">1 · GxAmp</span><span style="font-size:11px;color:var(--color-neutral-500)">mono, run twice</span></div>
-        <svg viewBox="0 0 260 164" width="236" role="img" aria-label="Loaded voicing tape: Bass — Come Together">
-          <rect x="2" y="2" width="256" height="160" rx="10" fill="#33302f" stroke="#4a4645"></rect>
-          <circle cx="14" cy="14" r="2.5" fill="#1a1918"></circle><circle cx="246" cy="14" r="2.5" fill="#1a1918"></circle><circle cx="14" cy="150" r="2.5" fill="#1a1918"></circle><circle cx="246" cy="150" r="2.5" fill="#1a1918"></circle>
-          <rect x="22" y="14" width="216" height="92" rx="5" fill="#f3f2f2"></rect>
-          <text x="130" y="31" text-anchor="middle" font-size="8.5" letter-spacing="2.2" fill="#8a8583" font-family="Source Serif 4,serif">GUITARIX VOICING</text>
-          <text x="130" y="54" text-anchor="middle" font-size="17" font-style="italic" font-weight="600" fill="#201e1d" font-family="Source Serif 4,serif">Bass — Come Together</text>
-          <rect x="40" y="64" width="180" height="34" rx="17" fill="#201e1d"></rect>
-          <circle cx="86" cy="81" r="14" fill="#3a2a22"></circle><circle cx="174" cy="81" r="9" fill="#3a2a22"></circle>
-          <circle cx="86" cy="81" r="7" fill="#f3f2f2"></circle><circle cx="86" cy="81" r="2.6" fill="#201e1d"></circle>
-          <circle cx="174" cy="81" r="7" fill="#f3f2f2"></circle><circle cx="174" cy="81" r="2.6" fill="#201e1d"></circle>
-          <rect x="22" y="99" width="216" height="7" fill="#d6006c"></rect>
-          <path d="M78 162 L88 122 h84 l10 40 z" fill="#2a2827" stroke="#4a4645"></path>
-          <circle cx="104" cy="146" r="4" fill="#1a1918"></circle><circle cx="156" cy="146" r="4" fill="#1a1918"></circle>
-        </svg>
-        <button type="button" class="btn" style="border:1px solid var(--color-neutral-700);color:#f3f2f2;font-size:12px;padding:4px 12px;align-self:center">⏏ Voicings…</button>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:14px;justify-content:center">
-        <div style="display:flex;gap:18px">
-          <div style="display:flex;flex-direction:column;align-items:center;gap:5px"><div style="width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#454140,#2a2827);border:1px solid #56514f;position:relative"><div style="position:absolute;left:21px;top:4px;width:2px;height:14px;background:#f3f2f2;transform-origin:1px 19px;transform:rotate(-40deg)"></div></div><span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-500)">Pregain</span><span style="font-size:11px;font-feature-settings:'tnum' 1">−6 dB</span></div>
-          <div style="display:flex;flex-direction:column;align-items:center;gap:5px"><div style="width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#454140,#2a2827);border:1px solid #56514f;position:relative"><div style="position:absolute;left:21px;top:4px;width:2px;height:14px;background:#f3f2f2;transform-origin:1px 19px;transform:rotate(18deg)"></div></div><span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-500)">Drive</span><span style="font-size:11px;font-feature-settings:'tnum' 1">0.42</span></div>
-          <div style="display:flex;flex-direction:column;align-items:center;gap:5px"><div style="width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#454140,#2a2827);border:1px solid #56514f;position:relative"><div style="position:absolute;left:21px;top:4px;width:2px;height:14px;background:#f3f2f2;transform-origin:1px 19px;transform:rotate(0deg)"></div></div><span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-500)">Bass</span><span style="font-size:11px;font-feature-settings:'tnum' 1">0.50</span></div>
-        </div>
-        <div style="display:flex;gap:18px">
-          <div style="display:flex;flex-direction:column;align-items:center;gap:5px"><div style="width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#454140,#2a2827);border:1px solid #56514f;position:relative"><div style="position:absolute;left:21px;top:4px;width:2px;height:14px;background:#f3f2f2;transform-origin:1px 19px;transform:rotate(27deg)"></div></div><span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-500)">Middle</span><span style="font-size:11px;font-feature-settings:'tnum' 1">0.60</span></div>
-          <div style="display:flex;flex-direction:column;align-items:center;gap:5px"><div style="width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#454140,#2a2827);border:1px solid #56514f;position:relative"><div style="position:absolute;left:21px;top:4px;width:2px;height:14px;background:#f3f2f2;transform-origin:1px 19px;transform:rotate(13deg)"></div></div><span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-500)">Treble</span><span style="font-size:11px;font-feature-settings:'tnum' 1">0.55</span></div>
-          <div style="display:flex;flex-direction:column;align-items:center;gap:5px"><div style="width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#454140,#2a2827);border:1px solid #56514f;position:relative"><div style="position:absolute;left:21px;top:4px;width:2px;height:14px;background:#f3f2f2;transform-origin:1px 19px;transform:rotate(-22deg)"></div></div><span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-500)">Master</span><span style="font-size:11px;font-feature-settings:'tnum' 1">−3 dB</span></div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px;margin-top:2px">
-          <span style="display:flex;justify-content:space-between;gap:12px;border:1px solid var(--color-neutral-700);border-radius:2px;padding:4px 10px;font-size:12px"><span style="color:var(--color-neutral-500)">valve</span><span>6V6 ▾</span></span>
-          <span style="display:flex;justify-content:space-between;gap:12px;border:1px solid var(--color-neutral-700);border-radius:2px;padding:4px 10px;font-size:12px"><span style="color:var(--color-neutral-500)">tone stack</span><span>Bassman ▾</span></span>
-        </div>
-      </div>
-    </div>
-    <span style="color:var(--color-neutral-600);font-size:18px">→</span>
-    <div style="flex:none;background:#2a2827;border:1px solid #45413f;border-radius:4px;padding:14px 18px;display:flex;flex-direction:column;gap:14px;align-self:stretch">
-      <div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:var(--font-heading);font-weight:600;font-size:14px">2 · GxCabinet</span><span style="font-size:11px;color:var(--color-neutral-500)">mono, run twice</span></div>
-      <svg viewBox="0 0 120 110" width="118" style="align-self:center" role="img" aria-label="4 by 12 cabinet">
-        <rect x="3" y="3" width="114" height="104" rx="6" fill="#33302f" stroke="#4a4645"></rect>
-        <rect x="12" y="12" width="96" height="86" rx="3" fill="#26231f" stroke="#45413f"></rect>
-        <g fill="#1c1a18" stroke="#56514f"><circle cx="37" cy="34" r="18"></circle><circle cx="83" cy="34" r="18"></circle><circle cx="37" cy="76" r="18"></circle><circle cx="83" cy="76" r="18"></circle></g>
-        <g fill="none" stroke="#45413f"><circle cx="37" cy="34" r="11"></circle><circle cx="83" cy="34" r="11"></circle><circle cx="37" cy="76" r="11"></circle><circle cx="83" cy="76" r="11"></circle></g>
-        <g fill="#3a3736"><circle cx="37" cy="34" r="4.5"></circle><circle cx="83" cy="34" r="4.5"></circle><circle cx="37" cy="76" r="4.5"></circle><circle cx="83" cy="76" r="4.5"></circle></g>
-      </svg>
-      <span style="display:flex;justify-content:space-between;gap:12px;border:1px solid var(--color-neutral-700);border-radius:2px;padding:4px 10px;font-size:12px"><span style="color:var(--color-neutral-500)">cabinet</span><span>4×12 ▾</span></span>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:5px;margin-top:auto"><div style="width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#454140,#2a2827);border:1px solid #56514f;position:relative"><div style="position:absolute;left:21px;top:4px;width:2px;height:14px;background:#f3f2f2;transform-origin:1px 19px;transform:rotate(35deg)"></div></div><span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-500)">Level</span><span style="font-size:11px;font-feature-settings:'tnum' 1">+2 dB</span></div>
-    </div>
-    <span style="color:var(--color-neutral-600);font-size:18px">→</span>
-    <div style="flex:none;display:flex;flex-direction:column;gap:4px;align-items:center;width:84px">
-      <svg width="22" height="22" viewBox="0 0 22 22"><circle cx="11" cy="11" r="8" fill="none" stroke="#f3f2f2" stroke-width="1.4"></circle><circle cx="11" cy="11" r="2.5" fill="#f3f2f2"></circle></svg>
-      <span style="font-size:11px;color:var(--color-neutral-500);text-align:center">stem out<br>ports 1–2</span>
-    </div>
-  </div>
-  <div style="display:flex;align-items:baseline;gap:10px;padding-top:12px;border-top:1px solid #35322f;font-size:12px">
-    <span style="color:var(--color-accent-2-400)">Voicing "Bass — Come Together" carried the amplifier.</span>
-    <span style="color:var(--color-neutral-500)">Left behind: shaper, jconv convolver, stereoverb — no LV2 plugin ships them, so the label says so.</span>
-  </div>
-</div>
-  </div>
-  <p style="font-size:12px;color:var(--color-neutral-600);margin:0;max-width:760px">Build notes: the panel fills the width it is given up to 1180px, and the chain row scrolls sideways rather than shrinking — a knob is 46px whatever the window is, so the cards must not squash and a chain can be longer than the panel is wide. Module cards on #2a2827 with #45413f border; knobs 46px radial-gradient dials, pointer rotation −40°…+40° maps min→max; magenta stripe on the tape label marks the loaded voicing; the footer line reports what a voicing applied and declined.</p>
-</div>
+<div style="width:1180px;box-sizing:border-box;background:#faf9f8;color:#201e1d;font-family:'Source Serif 4',Georgia,serif;padding:36px 32px 40px;display:flex;flex-direction:column;gap:20px">
 
+  <div style="max-width:800px;display:flex;flex-direction:column;gap:8px">
+    <h1 style="font-size:26px;font-weight:600;margin:0;letter-spacing:-0.01em">Effects panel — board and bench</h1>
+    <p style="font-size:13px;line-height:1.62;color:#4a4645;margin:0;text-wrap:pretty">The chain is always visible as a strip of tiles in signal order, from the instrument to the pair of ports; the knobs belong to whichever tile is selected and are drawn once, beneath, at the width of the window. What is folded away is only the knobs of the plugins nobody is turning — the chain itself never is, because what a part goes through on its way out is the question the panel exists to answer. Reordering moves onto the cable: the handle between two tiles swaps them, which is <code style="font-size:12px">moveEffect(n, +1)</code> and nothing else. Click a tile to move the bench.</p>
+  </div>
+
+  <div data-screen-label="Effects deck" style="background:#201e1d;border-radius:2px;padding:22px 26px;display:flex;flex-direction:column;gap:16px;color:#f3f2f2">
+
+    <div style="display:flex;align-items:center;gap:14px">
+      <span style="font-size:11px;letter-spacing:2px;color:#9b9797">EFFECTS</span>
+      <span style="font-size:12px;color:#7d7979;flex-grow:1">Guitar I · kept beside the score</span>
+      <div style="display:flex;gap:8px">
+        <button type="button" style="display:flex;align-items:center;gap:6px;height:26px;padding:0 11px;border:1px solid #444141;border-radius:2px;background:transparent;color:#f3f2f2;font-size:12px;cursor:pointer">Add effect<svg width="9" height="9" viewBox="0 0 10 10"><path d="M1 3.5 L5 7 L9 3.5" fill="none" stroke="currentColor" stroke-width="1.3"></path></svg></button>
+        <button type="button" style="display:flex;align-items:center;gap:6px;height:26px;padding:0 11px;border:1px solid #444141;border-radius:2px;background:transparent;color:#f3f2f2;font-size:12px;cursor:pointer">Rigs<svg width="9" height="9" viewBox="0 0 10 10"><path d="M1 3.5 L5 7 L9 3.5" fill="none" stroke="currentColor" stroke-width="1.3"></path></svg></button>
+        <button type="button" style="height:26px;padding:0 11px;border:1px solid #444141;border-radius:2px;background:transparent;color:#9b9797;font-size:12px;cursor:pointer">Clear</button>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:10px;overflow-x:auto;padding-bottom:2px">
+      <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:3px;width:74px;color:#bab6b6">
+        <svg width="22" height="22" viewBox="0 0 24 24"><path d="M20.5 3.5 16 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"></path><path d="M15.5 8.5c1.6 1.6 1.2 3.2 0 4.4l-3.6 3.6c-1.6 1.6-4.2 2.6-6 1s-.6-4.4 1-6l3.6-3.6c1.2-1.2 2.8-1.6 4.4 0z" fill="none" stroke="currentColor" stroke-width="1.3"></path><circle cx="11" cy="12" r="1.7" fill="currentColor"></circle></svg>
+        <span style="font-size:10px;letter-spacing:1px;color:#9b9797">SFZ</span>
+      </div>
+
+      <span style="flex-shrink:0;color:#605d5d"><svg width="22" height="10" viewBox="0 0 22 10"><path d="M0 5h19M16 1.5 19.5 5 16 8.5" fill="none" stroke="currentColor" stroke-width="1.1"></path></svg></span>
+
+      <sc-for list="{{stages}}" as="stage" hint-placeholder-count="3">
+        <div style="flex-shrink:0;display:flex;align-items:center;gap:8px">
+          <div onClick="{{stage.pick}}" style="display:flex;flex-direction:column;gap:1px;padding:8px 12px 0;min-width:152px;border-radius:2px;cursor:pointer;overflow:hidden;background:{{stage.bg}};border:1px solid {{stage.border}}">
+            <span style="font-size:13px;font-weight:600;color:{{stage.nameColor}}">{{stage.label}}</span>
+            <span style="font-size:11px;color:{{stage.subColor}}">{{stage.strip}}</span>
+            <div style="height:3px;margin:7px -13px 0;background:{{stage.bar}}"></div>
+          </div>
+          <sc-if value="{{stage.notLast}}" hint-placeholder-val="{{ true }}">
+            <button type="button" title="Swap these two" style="flex-shrink:0;display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:1px solid #444141;border-radius:2px;background:#201e1d;color:#9b9797;cursor:pointer;padding:0">
+              <svg width="14" height="14" viewBox="0 0 16 16"><path d="M2 5.5h9M8.5 3 11 5.5 8.5 8M14 10.5H5M7.5 8 5 10.5 7.5 13" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </button>
+          </sc-if>
+        </div>
+      </sc-for>
+
+      <span style="flex-shrink:0;color:#605d5d"><svg width="22" height="10" viewBox="0 0 22 10"><path d="M0 5h19M16 1.5 19.5 5 16 8.5" fill="none" stroke="currentColor" stroke-width="1.1"></path></svg></span>
+
+      <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:3px;width:84px;color:#bab6b6">
+        <svg width="22" height="22" viewBox="0 0 22 22"><circle cx="11" cy="11" r="8" fill="none" stroke="currentColor" stroke-width="1.3"></circle><circle cx="11" cy="11" r="2.6" fill="currentColor"></circle></svg>
+        <span style="font-size:10px;letter-spacing:1px;color:#9b9797">STEM OUT</span>
+        <span style="font-size:10px;color:#7d7979">FL / FR</span>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid #444141;padding-top:16px;display:flex;flex-direction:column;gap:14px">
+
+      <div style="display:flex;align-items:baseline;gap:10px">
+        <span style="font-size:14px;font-weight:600;color:#f3f2f2">{{bench.title}}</span>
+        <span style="font-size:11px;color:#7d7979;flex-grow:1">{{bench.sub}}</span>
+        <!-- Here rather than beside the cassette it puts on the bench: a stage
+             with no voicing on it yet has no cassette to sit beside, and that
+             is precisely the stage somebody is looking for this button on. -->
+        <button type="button" style="display:flex;align-items:center;gap:7px;height:26px;padding:0 11px;border:1px solid #444141;border-radius:2px;background:transparent;color:#f3f2f2;font-size:12px;cursor:pointer">
+          <svg width="11" height="11" viewBox="0 0 12 12"><path d="M6 1.6 10.2 7 H1.8 Z" fill="currentColor"></path><rect x="1.8" y="8.6" width="8.4" height="1.7" fill="currentColor"></rect></svg>
+          Voicings…
+        </button>
+        <button type="button" title="Take this one off" style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:1px solid #444141;border-radius:2px;background:transparent;color:#9b9797;cursor:pointer;padding:0">
+          <svg width="11" height="11" viewBox="0 0 12 12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path></svg>
+        </button>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:22px;height:152px">
+
+        <sc-if value="{{bench.isTape}}" hint-placeholder-val="{{ true }}">
+          <div style="flex-shrink:0;width:200px;display:flex;flex-direction:column;align-items:center;gap:8px">
+            <svg viewBox="0 0 260 164" width="186" role="img" aria-label="Loaded voicing tape">
+              <rect x="2" y="2" width="256" height="160" rx="10" fill="#33302f" stroke="#4a4645"></rect>
+              <circle cx="14" cy="14" r="2.5" fill="#1a1918"></circle><circle cx="246" cy="14" r="2.5" fill="#1a1918"></circle><circle cx="14" cy="150" r="2.5" fill="#1a1918"></circle><circle cx="246" cy="150" r="2.5" fill="#1a1918"></circle>
+              <rect x="22" y="14" width="216" height="92" rx="5" fill="#f3f2f2"></rect>
+              <text x="130" y="31" text-anchor="middle" font-size="8.5" letter-spacing="2.2" fill="#8a8583" font-family="Source Serif 4,serif">GUITARIX VOICING</text>
+              <text x="130" y="54" text-anchor="middle" font-size="16" font-style="italic" font-weight="600" fill="#201e1d" font-family="Source Serif 4,serif">{{bench.tape}}</text>
+              <rect x="40" y="64" width="180" height="34" rx="17" fill="#201e1d"></rect>
+              <circle cx="86" cy="81" r="14" fill="#3a2a22"></circle><circle cx="174" cy="81" r="9" fill="#3a2a22"></circle>
+              <circle cx="86" cy="81" r="7" fill="#f3f2f2"></circle><circle cx="86" cy="81" r="2.6" fill="#201e1d"></circle>
+              <circle cx="174" cy="81" r="7" fill="#f3f2f2"></circle><circle cx="174" cy="81" r="2.6" fill="#201e1d"></circle>
+              <rect x="22" y="99" width="216" height="7" fill="{{accent}}"></rect>
+              <path d="M78 162 L88 122 h84 l10 40 z" fill="#2d2b2b" stroke="#4a4645"></path>
+              <circle cx="104" cy="146" r="4" fill="#1a1918"></circle><circle cx="156" cy="146" r="4" fill="#1a1918"></circle>
+            </svg>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{bench.isCab}}" hint-placeholder-val="{{ true }}">
+          <div style="flex-shrink:0;width:200px;display:flex;justify-content:center">
+            <svg viewBox="0 0 120 110" width="130" role="img" aria-label="4 by 12 cabinet">
+              <rect x="3" y="3" width="114" height="104" rx="6" fill="#33302f" stroke="#4a4645"></rect>
+              <rect x="12" y="12" width="96" height="86" rx="3" fill="#26231f" stroke="#444141"></rect>
+              <g fill="#1a1918" stroke="#605d5d"><circle cx="37" cy="34" r="18"></circle><circle cx="83" cy="34" r="18"></circle><circle cx="37" cy="76" r="18"></circle><circle cx="83" cy="76" r="18"></circle></g>
+              <g fill="none" stroke="#444141"><circle cx="37" cy="34" r="11"></circle><circle cx="83" cy="34" r="11"></circle><circle cx="37" cy="76" r="11"></circle><circle cx="83" cy="76" r="11"></circle></g>
+              <g fill="#3a3736"><circle cx="37" cy="34" r="4.5"></circle><circle cx="83" cy="34" r="4.5"></circle><circle cx="37" cy="76" r="4.5"></circle><circle cx="83" cy="76" r="4.5"></circle></g>
+            </svg>
+          </div>
+        </sc-if>
+
+        <div style="flex-shrink:0;width:450px;display:grid;grid-template-columns:repeat(5, minmax(0, 1fr));row-gap:4px;column-gap:0">
+          <sc-for list="{{bench.knobs}}" as="knob" hint-placeholder-count="9">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+              <div style="width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#454140,#2a2827);border:1px solid #56514f;position:relative">
+                <div style="position:absolute;left:21px;top:4px;width:2px;height:14px;background:#f3f2f2;transform-origin:1px 19px;transform:rotate({{knob.deg}}deg)"></div>
+              </div>
+              <span style="font-size:10px;letter-spacing:0.06em;color:#9b9797;max-width:86px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{knob.name}}</span>
+              <span style="font-size:11px;color:#bab6b6;font-feature-settings:'tnum' 1">{{knob.reading}}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="flex-grow:1;display:flex;flex-direction:column;gap:5px">
+          <sc-for list="{{bench.picks}}" as="pick" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="flex-shrink:0;width:124px;font-size:11px;color:#9b9797;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{pick.name}}</span>
+              <sc-if value="{{pick.notToggle}}" hint-placeholder-val="{{ true }}">
+                <button type="button" style="flex-grow:1;display:flex;align-items:center;justify-content:space-between;gap:10px;height:26px;padding:0 10px;border:1px solid #444141;border-radius:2px;background:transparent;color:#f3f2f2;font-size:12px;cursor:pointer">
+                  <span>{{pick.value}}</span>
+                  <svg width="9" height="9" viewBox="0 0 10 10"><path d="M1 3.5 L5 7 L9 3.5" fill="none" stroke="currentColor" stroke-width="1.3"></path></svg>
+                </button>
+              </sc-if>
+              <sc-if value="{{pick.toggle}}" hint-placeholder-val="{{ true }}">
+                <button type="button" style="width:62px;height:26px;border:1px solid #444141;border-radius:2px;background:{{pick.chipBg}};color:{{pick.chipFg}};font-size:12px;cursor:pointer">{{pick.value}}</button>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:baseline;gap:12px;font-size:11px">
+      <span style="flex-shrink:0;color:#ff90b1">Voicing “Bass — Come Together” carried this chain.</span>
+      <span style="color:#7d7979">Not carried: shaper, jconv convolver, stereoverb.</span>
+    </div>
+
+  </div>
+
+  <p style="font-size:12px;line-height:1.6;color:#6b6766;margin:0;max-width:860px;text-wrap:pretty">Build notes, as shipped. The bench fits the plugin standing on it and stops at <code style="font-size:11px">gridUnit * 8.8</code>, the height of two rows of 46px knobs: a cabinet's three knobs cost the score three knobs, and a plugin with more than two rows scrolls inside the bench rather than taking the music with it. A ceiling rather than a fixed height — fixing it holds the band still at the price of a hand's depth of empty ink under every small plugin. Measured on this machine with an amplifier, a cabinet and a reverb: the band is 365px with the amplifier on the bench and 280px with the cabinet, against 390px before, when the same chain also cost a scrollbar in each direction and left the reverb off the side of the window. Full width is what buys it: the tape, five-across knobs and the switches sit side by side in one 160px band instead of the 234px stack a card as wide as the mixer forces. The board scrolls sideways when the chain outruns it; the bench only ever scrolls down, and only past the cap. Voicings sits in the bench header rather than under the cassette, because a stage with no voicing yet has no cassette to sit beside.</p>
+
+</div>
 </x-dc>
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#d6006c","options":["#d6006c","#f0a400","#2b62c4","#7d7979"],"section":"Palette"},"$preview":{"width":1180,"height":700}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { picked: 0 };
+  }
+
+  dial(frac) {
+    return Math.round((-40 + frac * 80) * 10) / 10;
+  }
+
+  renderVals() {
+    const accent = this.props.accent ?? '#d6006c';
+
+    const chain = [
+      {
+        name: 'GxAmp',
+        sub: 'mono, run twice',
+        strip: 'Bass — Come Together',
+        art: 'tape',
+        tape: 'Bass — Come Together',
+        knobs: [
+          ['Pregain', '−6 dB', 0.32],
+          ['Drive', '0.42', 0.42],
+          ['Clean/Dist', '0.55', 0.55],
+          ['Bass', '0.50', 0.50],
+          ['Middle', '0.60', 0.60],
+          ['Treble', '0.55', 0.55],
+          ['Presence', '0.38', 0.38],
+          ['Mastergain', '−3 dB', 0.45],
+          ['Gain', '0.62', 0.62]
+        ],
+        picks: [
+          ['Amp Model', '6V6', false],
+          ['Tonestack Model', 'Bassman', false],
+          ['Distortion', 'Soft', false],
+          ['Bypass', 'Off', true],
+          ['Presence EQ', 'On', true]
+        ]
+      },
+      {
+        name: 'GxCabinet',
+        sub: 'mono, run twice',
+        strip: 'mono, run twice',
+        art: 'cab',
+        tape: '',
+        knobs: [
+          ['Level', '+2 dB', 0.58],
+          ['Bass', '0.50', 0.50],
+          ['Treble', '0.44', 0.44]
+        ],
+        picks: [
+          ['Cabinet', '4×12', false],
+          ['Bypass', 'Off', true]
+        ]
+      },
+      {
+        name: 'GxReverb',
+        sub: 'stereo',
+        strip: 'stereo',
+        art: 'none',
+        tape: '',
+        knobs: [
+          ['Roomsize', '0.66', 0.66],
+          ['Damping', '0.30', 0.30],
+          ['Wet/Dry', '0.22', 0.22],
+          ['Predelay', '18 ms', 0.18]
+        ],
+        picks: [
+          ['Bypass', 'Off', true]
+        ]
+      }
+    ];
+
+    const picked = Math.min(this.state.picked, chain.length - 1);
+
+    const stages = chain.map((s, i) => {
+      const on = i === picked;
+      return {
+        label: (i + 1) + ' · ' + s.name,
+        strip: s.strip,
+        bg: on ? '#2d2b2b' : 'transparent',
+        border: on ? accent : '#444141',
+        bar: on ? accent : 'transparent',
+        nameColor: on ? '#f3f2f2' : '#bab6b6',
+        subColor: on ? '#9b9797' : '#7d7979',
+        notLast: i < chain.length - 1,
+        pick: () => this.setState({ picked: i })
+      };
+    });
+
+    const cur = chain[picked];
+    const bench = {
+      title: (picked + 1) + ' · ' + cur.name,
+      sub: cur.sub,
+      tape: cur.tape,
+      isTape: cur.art === 'tape',
+      isCab: cur.art === 'cab',
+      knobs: cur.knobs.map(k => ({
+        name: k[0].toUpperCase(),
+        reading: k[1],
+        deg: this.dial(k[2])
+      })),
+      picks: cur.picks.map(p => ({
+        name: p[0],
+        value: p[1],
+        toggle: p[2],
+        notToggle: !p[2],
+        chipBg: p[2] && p[1] === 'On' ? '#2d2b2b' : 'transparent',
+        chipFg: p[2] && p[1] === 'On' ? '#f3f2f2' : '#9b9797'
+      }))
+    };
+
+    return { accent, stages, bench };
+  }
+}
+</script>
 </body>
 </html>
