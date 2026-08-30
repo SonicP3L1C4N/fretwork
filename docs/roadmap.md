@@ -54,9 +54,13 @@ them disagree with `Editor::setCapo`, which moves every note's pitch by the
 capo and leaves the fret numbers alone — so on a track with a capo on it, a
 note that is typed sounds a capo's worth flat against every note that was
 already there, and `Alt`+arrow writes a fret that changes the pitch, which is
-the one thing that edit exists not to do. Neither site is fixed here: this
-document is where the fix was worked out and the fix itself is an editor
-change with its own tests to write. Both are one call each once it is made.
+the one thing that edit exists not to do. Both are fixed, and both are now one
+call into this: `pitchAt` where a typed fret becomes a pitch, `fretFor` where a
+note crosses a string. Neither was caught by a test, because both were tested
+on parts with no capo on them, and there is no capo anywhere in the corpus
+either — so this is also the answer to how a bug like that survived a release
+pass that found four other faults and an afternoon spent trying to break the
+importer on purpose.
 
 That is the missing primitive under two and a half of the three goals: MIDI
 note entry has to pick a string for every key pressed; chord insertion has to

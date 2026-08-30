@@ -3,6 +3,7 @@
 
 #include "editor.h"
 
+#include "fretboard.h"
 #include "instruments.h"
 
 #include <KLocalizedString>
@@ -26,6 +27,18 @@ constexpr int HighestFret = 36;
 
 /** Commands of the same kind may merge; different kinds never do. */
 constexpr int SetFretId = 1;
+
+/**
+ * The part as the fretboard solver wants to be told about it.
+ *
+ * The neck is HighestFret rather than a real instrument's, because the editor
+ * is not the place to decide how long somebody's guitar is: what it enforces
+ * is the difference between a fret and a typing mistake.
+ */
+Fretboard::Instrument instrumentOf(const Track &track)
+{
+    return Fretboard::Instrument{track.tuning, track.capo, HighestFret};
+}
 
 /** Whether the score has a bar at the cursor for a beat to go into. */
 bool hasBarAt(const Score &score, const Cursor &cursor)
@@ -1731,9 +1744,12 @@ int Editor::midiFor(const Score &score, const Cursor &cursor, int fret)
     if (cursor.string < 0 || cursor.string >= track.tuning.size()) {
         return -1;
     }
-    // The identity the corpus holds to throughout: the open string plus the
-    // fret is the note that sounds.
-    return track.tuning.at(cursor.string) + fret;
+    // The identity the whole program holds to: the open string, the capo and
+    // the fret are the note that sounds. The capo belongs in it -- setCapo()
+    // moves every note in the track by one and leaves the fret numbers alone,
+    // so leaving it out here made a typed note sound a capo's worth flat
+    // against every note that was already there.
+    return Fretboard::pitchAt(instrumentOf(track), cursor.string, fret);
 }
 
 void Editor::endDigitEntry()
@@ -1897,17 +1913,22 @@ Editor::Edit Editor::moveNoteAcross(int strings)
         return Edit::Nothing;
     }
 
-    const QList<int> tuning = m_score.tracks.at(m_cursor.track).tuning;
+    const Track &part = m_score.tracks.at(m_cursor.track);
     const int string = m_cursor.string + strings;
-    if (string < 0 || string >= tuning.size()) {
+    if (string < 0 || string >= part.tuning.size()) {
         return Edit::Refused;
     }
 
     // The fret that sounds the same note on the string it is landing on. A
     // drum kit has no tuning and so has no answer to this, which is the same
     // as saying the question does not apply to it.
+    //
+    // Through the solver because the capo counts here too: moving a note
+    // across strings is the one edit that changes a fret without changing the
+    // music, and doing this arithmetic without the capo was changing the
+    // music by exactly the capo.
     const Note note = m_score.notes.value(noteId);
-    const int fret = note.midi - tuning.at(string);
+    const int fret = Fretboard::fretFor(instrumentOf(part), string, note.midi);
     if (fret < 0 || fret > HighestFret) {
         return Edit::Refused;
     }

@@ -1627,6 +1627,59 @@ private Q_SLOTS:
         QCOMPARE(editor.score().notes.value(902).midi, before + 5);
     }
 
+    /**
+     * The capo belongs in the identity, and for a while it was only in half of
+     * it: setCapo() moved every note in the track and typing a fret did not,
+     * so the same fret on the same string was two different pitches depending
+     * on which of them had put it there.
+     */
+    void aTypedNoteSoundsWithTheCapoInIt()
+    {
+        Editor editor;
+        editor.setScore(fretted(0));
+        QCOMPARE(editor.setCapo(2), Editor::Edit::Done);
+
+        // The note that was already on the third string: open, and sounding
+        // two semitones above the open string because of the capo.
+        QCOMPARE(editor.score().notes.value(902).fret, 0);
+        QCOMPARE(editor.score().notes.value(902).midi, 52);
+
+        // Fret three on that same string, typed now, is three semitones above
+        // it. Anything else means the page is drawing two notes the same and
+        // playing them differently.
+        editor.setCursor(at(0, 0, 2));
+        editor.typeDigit(3);
+        const int typed = Editing::noteIdAt(editor.score(), editor.cursor());
+        QVERIFY(typed >= 0);
+        QCOMPARE(editor.score().notes.value(typed).fret, 3);
+        QCOMPARE(editor.score().notes.value(typed).midi, 55);
+    }
+
+    /**
+     * Moving a note across strings is the one edit that changes a fret without
+     * changing the music, so it is the one edit a missing capo shows up in
+     * most plainly: the arithmetic was off by exactly the capo, and the note
+     * landed on a fret that did not sound what it had been sounding.
+     */
+    void movingANoteAcrossStringsKeepsItsPitchUnderACapo()
+    {
+        Editor editor;
+        editor.setScore(fretted(5));
+        QCOMPARE(editor.setCapo(2), Editor::Edit::Done);
+
+        // Fret five on the low string, with a capo at the second: A2.
+        editor.setCursor(at(0, 0, 0));
+        const int was = editor.score().notes.value(900).midi;
+        QCOMPARE(was, 47);
+
+        // The next string up is tuned to that pitch, so with the capo on it
+        // the note is the open string -- fret nought, counted from the capo.
+        QCOMPARE(editor.moveNoteAcross(1), Editor::Edit::Done);
+        QCOMPARE(editor.score().notes.value(900).string, 1);
+        QCOMPARE(editor.score().notes.value(900).fret, 0);
+        QCOMPARE(editor.score().notes.value(900).midi, was);
+    }
+
     void undoingAnInstrumentChangePutsThePitchesBack()
     {
         Editor editor;

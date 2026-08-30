@@ -8,10 +8,11 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## 0.2.0 — unreleased
 
-Four things about the rig, none of them fixes: the effects panel is laid out
-around the chain rather than around the plugins, the chain can be put in the
-order somebody wants it in, a sound can be kept under a name and used on
-another song, and the two side panels can change places.
+Four things about the rig, and one thing about the capo that 0.1.0 got wrong:
+the effects panel is laid out around the chain rather than around the plugins,
+the chain can be put in the order somebody wants it in, a sound can be kept
+under a name and used on another song, and the two side panels can change
+places.
 
 - **The effects panel is a board and a bench.** Every plugin's front panel
   drawn at once made the band as tall as whichever plugin was largest and as
@@ -77,6 +78,26 @@ another song, and the two side panels can change places.
   across a panel boundary for an id, and an id does not cross a component
   boundary — so that is a refactor with a swap hidden inside it, not a swap,
   and it is not in this release.
+
+- **A capo was only in half of the arithmetic, and 0.1.0 shipped it that way.**
+  Putting a capo on moved every note in the part with it, as it should; typing
+  a fret number afterwards did not. So the same fret on the same string was two
+  different pitches depending on which of them had put it there, and a note
+  typed onto a part with a capo at the second fret sounded a tone flat against
+  everything already written. `Alt`+arrow had it too, and worse: moving a note
+  to another string is the one edit that changes a fret without changing the
+  music, and it was changing the music by exactly the capo. Neither was caught
+  by a test, because both were tested on parts with no capo on them — and there
+  is no capo anywhere in the corpus either, which is why five real
+  transcriptions importing and round-tripping cleanly said nothing about it.
+
+  Both sites now go through the fretboard solver, which is the point of having
+  one. It was written for the features that come after this release — entering
+  notes from a keyboard, inserting chords by name, writing out a file whose
+  notes arrived as pitches, none of which can start until something can answer
+  "which string" — and finding this was what it did on its first day. Two
+  private half-versions of one identity is exactly how the two halves come to
+  disagree.
 
 ## 0.1.0 — 2026-09-01
 
