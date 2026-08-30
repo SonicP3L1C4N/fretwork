@@ -8,20 +8,43 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## 0.2.0 — unreleased
 
-Three things about the rig, none of them fixes: the chain can be put in the
+Four things about the rig, none of them fixes: the effects panel is laid out
+around the chain rather than around the plugins, the chain can be put in the
 order somebody wants it in, a sound can be kept under a name and used on
 another song, and the two side panels can change places.
+
+- **The effects panel is a board and a bench.** Every plugin's front panel
+  drawn at once made the band as tall as whichever plugin was largest and as
+  wide as the whole chain, and a guitarix amplifier is nine knobs, two lists
+  and two switches — so a chain of three showed one card, half of the next, a
+  scrollbar in each direction, and a third plugin somewhere off the side. The
+  score, which is what the window is for, was down to a strip. The chain is now
+  a row of tiles across the top, always drawn whole, from the instrument
+  through each plugin to the pair of ports; the knobs belong to whichever tile
+  is selected and are drawn once, beneath, at the width of the window. The same
+  amplifier that needed a cassette stacked over two rows of knobs over three
+  rows of switches puts all three side by side, because a bench as wide as the
+  window has the room a card as wide as the mixer never had. What is folded
+  away is only the knobs of the plugins nobody is turning: the chain itself
+  never is, since what a part goes through on its way out is the question the
+  panel exists to answer. The bench fits the plugin standing on it and stops at
+  two rows of knobs, so a cabinet costs the score three knobs' worth and a
+  plugin with thirty controls scrolls inside the bench rather than taking the
+  music with it.
 
 - **The order of a chain is most of what a chain is, and there was no way to
   say it.** A plugin could be put on the end, taken off the end, or the whole
   thing emptied — so a chain of three whose first plugin was wrong was a chain
   to clear and build again, losing the settings on the two that were right. A
   cabinet in front of an amplifier is a different sound, not the same sound
-  written differently. Each card now carries the two arrows that walk it along
-  the signal path and a cross that takes that one off, wherever it is.
-  Arrows rather than a drag, as the parts list already does it: a chain is
-  short, the move is one place at a time, and dragging a card whose every knob
-  is draggable is two gestures competing for one press.
+  written differently. The cable between two plugins is now the handle that
+  swaps them, and the panel of the one being edited carries the cross that
+  takes it off. A handle rather than a drag, as the parts list already does it:
+  a chain is short, the move is one place at a time, and dragging a card whose
+  every knob is draggable is two gestures competing for one press. On the cable
+  rather than on the plugin because moving a stage one place is exactly
+  swapping it with its neighbour, and the neighbour is what the gap between
+  them is made of — one handle per seam rather than two controls per card.
 - **A stage owns what belongs to it, which is why the above is safe.** The
   settings on a plugin used to live in three hashes beside the list of URIs —
   the knobs, the voicing it came from, and what that voicing could not carry —
