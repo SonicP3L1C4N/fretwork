@@ -39,10 +39,24 @@ grow into, and it is worth making now rather than arguing about later.
 ## The prerequisite all three share
 
 **A fretboard solver: given a pitch, a tuning and a capo, which string and
-fret.** It does not exist. The only pitch-to-fret arithmetic in the tree is one
+fret.** **Done**, in `src/model/fretboard.{h,cpp}`, written **2026-08-31** and
+tested by `tests/fretboardtest.cpp` against no corpus at all.
+
+When this was written the only pitch-to-fret arithmetic in the tree was one
 line — `editor.cpp:1910`, `const int fret = note.midi - tuning.at(string)` —
-which answers "what fret is this pitch *on this string*" and is used by
-`moveNoteAcross`. Nothing chooses the string.
+which answered "what fret is this pitch *on this string*" and was used by
+`moveNoteAcross`. Nothing chose the string.
+
+That line is also wrong, and finding out how is the best argument for having
+built this that the project is going to get. It leaves the capo out. So does
+`Editor::midiFor`, which is what typing a fret number goes through. The two of
+them disagree with `Editor::setCapo`, which moves every note's pitch by the
+capo and leaves the fret numbers alone — so on a track with a capo on it, a
+note that is typed sounds a capo's worth flat against every note that was
+already there, and `Alt`+arrow writes a fret that changes the pitch, which is
+the one thing that edit exists not to do. Neither site is fixed here: this
+document is where the fix was worked out and the fix itself is an editor
+change with its own tests to write. Both are one call each once it is made.
 
 That is the missing primitive under two and a half of the three goals: MIDI
 note entry has to pick a string for every key pressed; chord insertion has to
@@ -61,10 +75,29 @@ where nothing fits. wishlist.md already describes half of this under moving a
 phrase to different strings, which is the same solver asked a different
 question.
 
-Cost: a few days, entirely in a new `src/model/fretboard.{h,cpp}` with no
-dependencies and a test file that needs no corpus. It is the most testable
-thing in the roadmap and it should be written first regardless of which of the
-three follows.
+What that came out as is four weights in a fixed order, which is the only
+honest way to write a preference down: **moving the hand** dominates, because
+it is the expensive physical act; **an unwanted open string** is worth moving
+the hand two frets to avoid and not three, being a break in the sound rather
+than an effort; **a crossed pair** is worth avoiding for free and never worth
+moving the hand for, since those voicings are unusual rather than wrong; and
+**height up the neck** is a tie-break that can never outweigh any of them, so
+that a note with nothing else said about it lands in the first position.
+
+Two ways in, because two of the three callers are different questions.
+`choose()` is causal — it knows what has been played and nothing about what
+comes next, which is all a note arriving from a keyboard can know. `phrase()`
+reads the whole line first and searches every path through it, which is what a
+player does before playing one, and it answers differently: B3 followed by E5
+puts the B at the ninth fret rather than the fourth, because the fourth is
+cheaper for the B alone and leaves the hand nowhere near the E. `chord()` is
+the shape question, and refuses whole rather than dropping a note, on the same
+grounds the editor refuses a transposition that would run off the neck.
+
+The tests it is worth having an opinion about are the two that a guitarist can
+check by eye: the notes of an open E come out as 0-2-2-1-0-0, and the notes of
+an F as the barre, 1-3-3-2-1-1. No account of a cost function is worth reading
+if it gets those wrong.
 
 ---
 
@@ -350,7 +383,7 @@ and a materially better one.
 
 | | Work | Depends on | Rough size |
 |---|---|---|---|
-| **P6.0** | Fretboard solver | nothing | days |
+| **P6.0** | Fretboard solver | nothing | **done** |
 | **P6.1** | Pitch classes, key signature, spelling | nothing | days |
 | **P6.2** | Key and scale analysis, read-only | P6.1 | days |
 | **P6.3** | Scale overlay on the fretboard | P6.0, P6.2 | a week |
@@ -370,7 +403,10 @@ Three observations about that order:
    is large. Two small pieces of pure, testable, dependency-free code unblock
    everything else in the table. Written first, they are also the best possible
    answer to the review's finding that the newest code is the least tested —
-   these can be test-first in a way the LV2 host never could.
+   these can be test-first in a way the LV2 host never could. Half of that is
+   now measured rather than predicted: the solver is 550 lines of header and
+   implementation against 278 of test, 22 cases, and it needs no fixture, no
+   corpus and no window — the whole suite runs in under a millisecond.
 2. **The control surface jumps the queue.** It sits in the middle of the table
    despite being goal 3, because it depends on nothing but its own plumbing and
    produces the most persuasive demonstration per day spent. If only one item
