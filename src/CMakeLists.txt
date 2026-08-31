@@ -68,6 +68,22 @@ endif()
 if(PipeWire_FOUND)
     target_link_libraries(fretworkcore PRIVATE PkgConfig::PipeWire)
     target_compile_definitions(fretworkcore PRIVATE FRETWORK_HAVE_PIPEWIRE)
+
+    # Universal MIDI packets, which PipeWire carries from 1.2 on and older
+    # servers do not have at all -- not the conversion helper, and not the
+    # control type that says a buffer holds one. Checked rather than assumed:
+    # the machine this was written on has a newer PipeWire than the
+    # distributions the CI builds against, and building against a header that
+    # is only on the author's machine is how a project stops compiling for
+    # everybody else. Without it, MIDI arrives as raw bytes, which is what
+    # those servers send.
+    include(CheckIncludeFileCXX)
+    set(CMAKE_REQUIRED_INCLUDES ${PipeWire_INCLUDE_DIRS})
+    check_include_file_cxx("spa/control/ump-utils.h" FRETWORK_SPA_UMP)
+    unset(CMAKE_REQUIRED_INCLUDES)
+    if(FRETWORK_SPA_UMP)
+        target_compile_definitions(fretworkcore PRIVATE FRETWORK_HAVE_UMP)
+    endif()
 endif()
 
 # The window. The QML types are registered by the target that owns the QML

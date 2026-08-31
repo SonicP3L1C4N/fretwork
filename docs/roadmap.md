@@ -372,7 +372,13 @@ Three things it turned out to need, none of them obvious from the outside:
 - **PipeWire carries universal MIDI packets now**, not raw bytes. They are
   converted back to MIDI 1.0 on the way in, because nothing above wants a
   second way to say "note on"; the deprecated raw-byte control is still
-  accepted, since it is the same parser with nothing in front of it.
+  accepted, since it is the same parser with nothing in front of it. That
+  conversion is behind a header check rather than assumed, and the reason is
+  worth keeping: **this machine has a newer PipeWire than the distributions the
+  CI builds against**, so the first version of it compiled here and broke the
+  build for everybody on an older one. Where the header is missing, so is the
+  control type that needs it, and MIDI arrives as raw bytes — which is exactly
+  what those servers send.
 
 ### 2b. Note entry — the harder half
 

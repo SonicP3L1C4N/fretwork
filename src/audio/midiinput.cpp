@@ -8,8 +8,10 @@
 #ifdef FRETWORK_HAVE_PIPEWIRE
 #include <pipewire/pipewire.h>
 #include <spa/control/control.h>
-#include <spa/control/ump-utils.h>
 #include <spa/pod/iter.h>
+#ifdef FRETWORK_HAVE_UMP
+#include <spa/control/ump-utils.h>
+#endif
 #include <spa/utils/string.h>
 #endif
 
@@ -301,6 +303,7 @@ void onProcess(void *data)
         {
             const void *body = SPA_POD_BODY(&control->value);
             const uint32_t size = SPA_POD_BODY_SIZE(&control->value);
+#ifdef FRETWORK_HAVE_UMP
             if (control->type == SPA_CONTROL_UMP) {
                 // Universal MIDI packets, which is what PipeWire carries now.
                 // Turned back into MIDI 1.0 bytes rather than understood as
@@ -316,7 +319,9 @@ void onProcess(void *data)
                            > 0) {
                     d->push(fromBytes(bytes, written));
                 }
-            } else if (control->type == SPA_CONTROL_Midi) {
+            } else
+#endif
+                if (control->type == SPA_CONTROL_Midi) {
                 // What older servers send. Deprecated upstream and cheap to
                 // keep: it is the same parser with nothing in front of it.
                 d->push(fromBytes(static_cast<const uint8_t *>(body), int(size)));
