@@ -8,11 +8,17 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## 0.2.0 — unreleased
 
-Four things about the rig, one thing about the capo that 0.1.0 got wrong, and
-Fretwork learning what key a piece is in: the effects panel is laid out
-around the chain rather than around the plugins, the chain can be put in the
-order somebody wants it in, a sound can be kept under a name and used on
-another song, and the two side panels can change places.
+Three things, in the order they arrived. **The rig**: the effects panel is laid
+out around the chain rather than around the plugins, the chain can be put in
+the order somebody wants it in, a sound can be kept under a name and used on
+another song, and the two side panels can change places. **Harmony**: Fretwork
+can work out what key a piece is actually in, and draw that key on a fretboard
+over the score. **The page**: the score is a document of real pages now, and
+the lines it is drawn with all turn up, which through 0.1.0 they did not.
+
+Two of the entries below are corrections of things 0.1.0 shipped rather than
+additions to it — a capo that was only in half of the arithmetic, and half the
+bar lines not being drawn — and both say so.
 
 - **The effects panel is a board and a bench.** Every plugin's front panel
   drawn at once made the band as tall as whichever plugin was largest and as
@@ -137,6 +143,51 @@ another song, and the two side panels can change places.
   chord, a chromatic passing note and a blues third are all outside the key and
   all deliberate, and a program that marked them would be arguing with its user
   about music.
+
+- **Half the bar lines were not being drawn, and neither were five of the six
+  string lines.** This was in 0.1.0, in a window that gets looked at every day.
+  A page is laid out in fractions — justifying six bars across a line puts
+  their bar lines at x.00, x.47, x.97, x.49, x.98 and x.50 — and a stroke
+  thinner than a pixel drawn at an arbitrary fraction is not a thinner line, it
+  is a line that may not appear: half its ink lands in one pixel column and
+  half in the next, and against a pale paper each half is nothing. So the page
+  always had *some* bar lines, in a pattern that changed with every resize, and
+  it read as tablature that was slightly hard to follow rather than as a bug.
+  Every horizontal and vertical stroke now sits on a whole number of pixels
+  with a whole number of them to fill. The PDF is untouched: it has no pixel
+  grid, and snapping to one that does not exist would move lines off the
+  positions the layout worked out for them.
+
+- **The score is a document now.** It used to be laid out to the width of the
+  window on one sheet as tall as the piece, which meant the music re-broke
+  every time the window was dragged — no line of it ever in the same place
+  twice, no page one, and the thing on screen and the thing `--pdf` produces
+  two different documents that happened to share a painter. It is now the same
+  A4 pages the printer gets, broken in the same places, stacked down the window
+  on a desk with a gap and a shadow between them, with the title on page 1.
+
+  A fixed page needs a zoom, and it sits at the right of the status bar with
+  the page count, where every program that shows somebody a document has put it
+  for thirty years. The number is itself the button that fits the page to the
+  window. Zooming holds the middle of the view still rather than the top, since
+  it is done to look closer at what is already being looked at. The first run
+  fits the page and stops at 150%; after that it is whatever it was last left
+  at, because refitting on every resize would take the reader's own zoom away
+  each time they moved the window.
+
+- **The key, drawn on a neck over the page.** Knowing a piece is in C minor is
+  not the same as knowing which frets that is, and for a guitarist the second
+  is the useful half. The new **Scale** button lays a fretboard over the score
+  with the notes of the key marked on it, roots filled, and the frets under the
+  hand lit — the hand taken from the note under the caret. Off by default, like
+  the tuner: somebody opening a tab to read it is reading the tab.
+
+  Drawn on a neck and deliberately not on the staff. The horizontal axis of
+  tablature is time, so there is nowhere on it that means "the fifth fret" for
+  a scale to be marked at — the fifth fret is wherever a 5 was typed, which is
+  a fact about the music rather than about the instrument. It sits over the
+  page rather than on it because it is a thing about the instrument: it does
+  not scroll with the music, and it is not on any page that would be printed.
 
 ## 0.1.0 — 2026-09-01
 

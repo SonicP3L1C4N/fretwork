@@ -188,15 +188,41 @@ which shifted the fifth's weight onto the wrong degree and handed every major
 key to its relative minor. The answers stayed entirely plausible, because the
 relative minor is exactly where a bad key guess lands.
 
-**Layer 3 — the fretboard overlay.** The scale drawn on the tab: the notes of
-the current key marked on the strings, root notes distinguished, and the
-positions a hand can reach without moving highlighted. For a guitarist this is
-the payload — it is what turns "this song is in E minor" into "these are the
-frets I can play". It needs the solver, and it needs a display decision: an
-overlay on the score, or the band-across-the-bottom pattern the tuner already
-established. The tuner's argument applies again — this is a thing done *to the
-instrument*, not to the document — which suggests a second band and reuse of a
-layout that already works.
+**Layer 3 — the fretboard overlay.** **Done**, in `ScoreView::paintFretboard`,
+written **2026-08-31**. The notes of the key marked on the strings, roots
+distinguished, and the frets under the hand lit. For a guitarist this is the
+payload — it is what turns "this song is in C minor" into "these are the frets
+I can play".
+
+**It is not drawn on the tab, and this section used to say it would be.** The
+horizontal axis of a stave of tablature is *time*. A fret is a number written
+along that axis, not a place on it, so there is nowhere on the staff that means
+"the fifth fret" for a scale to be drawn at — the fifth fret is wherever a 5
+happens to have been typed, which is a fact about the music and not about the
+instrument. Marking the staff can answer a different and smaller question,
+which is *which notes in this piece are outside the key*; the analysis layer
+already returns exactly that list and nothing yet draws it. Answering "which
+frets is this key" needs a neck, because a neck is the thing that has frets on
+it as positions.
+
+So the overlay is a neck lying over the page. **Over** rather than in: it does
+not scroll with the music, it is on no page, and it is not something that would
+ever be printed — the same reasoning that made the tuner a band of its own,
+reaching the opposite conclusion about *where* only because this one is read
+while reading the music rather than instead of it.
+
+Three smaller decisions worth keeping. Fifteen frets and not twenty-four, since
+the useful part is where a hand goes and the dusty end is the same shape again
+on a board half as wide per fret. Nearly opaque rather than half, because a
+neck with a stave showing through it is two diagrams in the same place and
+neither can be read. And the key is named on the panel, because an overlay of
+dots with no name on it is a puzzle rather than an answer.
+
+The hand position comes from the note under the caret, which is the closest
+this program gets to knowing where a hand is. That is the weakest part of it
+and the obvious thing to improve: a hand is a property of a passage rather than
+of one note, and the honest version reads a phrase and asks the solver, which
+is a question `phrase()` already answers.
 
 **Layer 4 — the circle of fifths, and writing.** The circle as a control rather
 than a diagram: pick a key, get its diatonic chords, drop one into the score at
@@ -438,7 +464,7 @@ and a materially better one.
 | **P6.0** | Fretboard solver | nothing | **done** |
 | **P6.1** | Pitch classes, key signature, spelling | nothing | **done** |
 | **P6.2** | Key and scale analysis, read-only | P6.1 | **done** |
-| **P6.3** | Scale overlay on the fretboard | P6.0, P6.2 | a week |
+| **P6.3** | Scale overlay on the fretboard | P6.0, P6.2 | **done** |
 | **P7.0** | MIDI input plumbing (PipeWire, decided once) | nothing | days |
 | **P7.1** | Control surface: transport, encoders → LV2 controls | P7.0 | a week |
 | **P6.4** | Circle of fifths, chord insertion | P6.0, P6.3 | a week+ |
