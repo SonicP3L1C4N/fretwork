@@ -9,6 +9,8 @@
 #include "gxpreset.h"
 #include "rigfile.h"
 #include "lv2chain.h"
+#include "mackie.h"
+#include "midiinput.h"
 #include "sfz.h"
 #include "player.h"
 #include "score.h"
@@ -145,6 +147,9 @@ class Session : public QObject
     Q_PROPERTY(int capoHere READ capoHere NOTIFY cursorMoved)
     Q_PROPERTY(QString soundingKey READ soundingKeyName NOTIFY layoutChanged)
     Q_PROPERTY(QString workingKeyName READ workingKeyName NOTIFY workingKeyChanged)
+    Q_PROPERTY(QString surfacePort READ surfacePort NOTIFY surfaceChanged)
+    Q_PROPERTY(bool surfaceListening READ isSurfaceListening NOTIFY surfaceChanged)
+    Q_PROPERTY(QString surfaceStatus READ surfaceStatus NOTIFY surfaceChanged)
 
     /** How many strings the current track has; none for a drum kit. */
     Q_PROPERTY(int stringsHere READ stringsHere NOTIFY cursorMoved)
@@ -636,6 +641,27 @@ public:
     Q_INVOKABLE bool workingMinor() const;
     Q_INVOKABLE void setWorkingKey(int accidentals, bool minor);
 
+    // ---- the control surface ----
+
+    /**
+     * A controller driving the program, rather than a window doing it.
+     *
+     * Mackie Control on a MIDI port: the transport buttons, the eight encoders
+     * on whatever plugin chain the current part has, and the faders and mutes
+     * on the mixer. All three are paths that already exist and are already
+     * driven by something else -- the graph's own transport drives one of them
+     * -- so this is a third caller rather than a new idea.
+     */
+    Q_INVOKABLE QStringList midiPorts() const;
+    Q_INVOKABLE void listenOnSurface(const QString &port);
+    Q_INVOKABLE void stopListeningOnSurface();
+
+    QString surfacePort() const;
+    bool isSurfaceListening() const;
+
+    /** What the surface last did, so somebody can see it is plugged in. */
+    QString surfaceStatus() const;
+
     /**
      * The frets the hand is over, as the caret's bar has it.
      *
@@ -782,6 +808,7 @@ Q_SIGNALS:
     void positionChanged();
     void layoutChanged();
     void workingKeyChanged();
+    void surfaceChanged();
     void mixerChanged();
     void historyChanged();
     void cursorMoved();
@@ -879,6 +906,14 @@ private:
     bool m_effectsShown = false;
     QString m_problem;
     QString m_soundFont;
+    /** What a controller is plugged into, and the poll that drains it. */
+    std::unique_ptr<MidiInput> m_surface;
+    QTimer m_surfacePoll;
+    QString m_surfacePort;
+    QString m_surfaceStatus;
+    void readSurface();
+    void apply(const Mackie::Action &action);
+
     QTimer m_ticker;
     QTimer m_rigWriter;
 };

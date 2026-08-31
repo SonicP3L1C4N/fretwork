@@ -189,6 +189,27 @@ bar lines not being drawn — and both say so.
   page rather than on it because it is a thing about the instrument: it does
   not scroll with the music, and it is not on any page that would be printed.
 
+- **A controller can drive it.** Fretwork now reads MIDI — the first time
+  anything in it has, since its MIDI code until now only ever wrote files — and
+  speaks Mackie Control, which is the protocol every DAW and most hardware
+  already agree on. The transport buttons start and stop it, the faders and the
+  mute and solo buttons work the mixer, and **the eight encoders turn the knobs
+  of whatever plugin chain the current part has**: the first plugin's controls,
+  then the second's, in the order the panel already draws them, so what a hand
+  finds under the third encoder is what the eye finds third along. Turning a
+  real knob and hearing the amplifier change with no window in the way is the
+  point of it.
+
+  Through PipeWire, and the port is chosen from a menu of what is plugged in
+  and remembered between runs. A controller is usually several ports — a
+  Minilab3 is four — and they are different features: one of them is its keys
+  and another is its transport and encoders, so the choice is a port and not a
+  device.
+
+  It does not record, and says so if you press record. The line that keeps this
+  from turning into a DAW is that MIDI arrives as an edit or as a control and
+  never as a captured performance.
+
 - **Notes were played a little early, and how early depended on the buffer.**
   Each track's synth was handed every note falling anywhere inside the block of
   audio being rendered, and then asked to render the whole block — which put

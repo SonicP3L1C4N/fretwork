@@ -1842,6 +1842,195 @@ void Session::setWorkingKey(int accidentals, bool minor)
     Q_EMIT workingKeyChanged();
 }
 
+// ---- the control surface ----
+
+QStringList Session::midiPorts() const
+{
+    return MidiInput::ports();
+}
+
+QString Session::surfacePort() const
+{
+    return m_surfacePort;
+}
+
+bool Session::isSurfaceListening() const
+{
+    return m_surface && m_surface->isValid();
+}
+
+QString Session::surfaceStatus() const
+{
+    return m_surfaceStatus;
+}
+
+void Session::listenOnSurface(const QString &port)
+{
+    stopListeningOnSurface();
+    if (port.isEmpty()) {
+        return;
+    }
+
+    MidiInput::Options options;
+    options.device = port;
+    options.name = QStringLiteral("Fretwork surface");
+    m_surface = std::make_unique<MidiInput>(options);
+    m_surfacePort = port;
+
+    if (!m_surface->isValid()) {
+        m_surfaceStatus = m_surface->error();
+        setProblem(m_surface->error());
+        m_surface.reset();
+        Q_EMIT surfaceChanged();
+        return;
+    }
+
+    // Polled rather than pushed, for the same reason the playhead is: what
+    // fills that ring is a graph thread that may not allocate, take a lock, or
+    // touch a score. Twenty times a second is far below what a knob can be
+    // turned at and far above what a hand can notice.
+    m_surfacePoll.setInterval(50);
+    connect(&m_surfacePoll, &QTimer::timeout, this, &Session::readSurface,
+            Qt::UniqueConnection);
+    m_surfacePoll.start();
+    m_surfaceStatus = i18n("Listening on %1", port);
+    Q_EMIT surfaceChanged();
+}
+
+void Session::stopListeningOnSurface()
+{
+    m_surfacePoll.stop();
+    m_surface.reset();
+    m_surfacePort.clear();
+    m_surfaceStatus.clear();
+    Q_EMIT surfaceChanged();
+}
+
+void Session::readSurface()
+{
+    if (!m_surface) {
+        return;
+    }
+    const QList<MidiInput::Event> events = m_surface->take();
+    if (!events.isEmpty()) {
+    }
+    for (const MidiInput::Event &event : events) {
+        const Mackie::Action action = Mackie::decode(event);
+        apply(action);
+    }
+}
+
+void Session::apply(const Mackie::Action &action)
+{
+    // Buttons act on the press. A surface sends both, and acting on each would
+    // start the transport and stop it again in the time it takes to lift a
+    // finger.
+    const bool tracks = hasScore() && !m_editor.score().tracks.isEmpty();
+
+    switch (action.kind) {
+    case Mackie::Kind::None:
+        return;
+
+    case Mackie::Kind::Play:
+        if (action.pressed) {
+            isPlaying() ? stop() : play();
+            m_surfaceStatus = isPlaying() ? i18n("Play") : i18n("Stop");
+        }
+        break;
+
+    case Mackie::Kind::Stop:
+        if (action.pressed) {
+            stop();
+            m_surfaceStatus = i18n("Stop");
+        }
+        break;
+
+    case Mackie::Kind::Rewind:
+    case Mackie::Kind::Forward:
+        if (action.pressed) {
+            // Five seconds a press, which is a bar or two of most things and
+            // is what every transport does when it has no other instruction.
+            const double step = action.kind == Mackie::Kind::Forward ? 5.0 : -5.0;
+            seek(std::max(0.0, position() + step));
+            m_surfaceStatus = action.kind == Mackie::Kind::Forward ? i18n("Forward")
+                                                                   : i18n("Rewind");
+        }
+        break;
+
+    case Mackie::Kind::Record:
+        // Nothing records here, and it says so rather than doing nothing: the
+        // line this feature must not cross is a captured performance, and a
+        // record button that quietly did nothing invites somebody to ask why.
+        if (action.pressed) {
+            m_surfaceStatus = i18n("Fretwork does not record; the score is the recording");
+        }
+        break;
+
+    case Mackie::Kind::Encoder: {
+        // The eight encoders address the current part's chain, flattened: the
+        // first plugin's knobs, then the second's. Which is the mapping the
+        // panel already draws, so what a hand finds under encoder three is
+        // what the eye finds third along.
+        if (!m_player) {
+            return;
+        }
+        const QList<Lv2::Stage> stages = m_player->chainOn(m_currentTrack);
+        int wanted = action.index;
+        for (int stage = 0; stage < stages.size(); ++stage) {
+            const QList<Lv2::Control> &controls = stages.at(stage).controls;
+            if (wanted >= controls.size()) {
+                wanted -= int(controls.size());
+                continue;
+            }
+            const Lv2::Control &control = controls.at(wanted);
+            double value = control.value;
+            if (control.toggled) {
+                // A switch has nowhere to travel to, so any turn flips it.
+                value = control.value > 0.5 ? 0.0 : 1.0;
+            } else if (control.integer) {
+                value = control.value + action.delta;
+            } else {
+                // A sixty-fourth of the range a detent: a full turn of a
+                // typical encoder crosses the control once, which is what a
+                // knob on an amplifier does.
+                value = control.value + action.delta * (control.maximum - control.minimum) / 64.0;
+            }
+            value = std::clamp(value, double(control.minimum), double(control.maximum));
+            setEffectControl(stage, control.index, value);
+            m_surfaceStatus = QStringLiteral("%1 %2").arg(control.name).arg(value, 0, 'g', 3);
+            Q_EMIT surfaceChanged();
+            return;
+        }
+        return;
+    }
+
+    case Mackie::Kind::Fader:
+        if (tracks && action.index < m_editor.score().tracks.size()) {
+            setGain(action.index, action.value);
+            m_surfaceStatus = i18n("%1 at %2", m_editor.score().tracks.at(action.index).name,
+                                   QString::number(int(action.value * 100)) + QStringLiteral("%"));
+        }
+        break;
+
+    case Mackie::Kind::Mute:
+        if (action.pressed && tracks && action.index < m_editor.score().tracks.size()) {
+            setMuted(action.index, !isMuted(action.index));
+            m_surfaceStatus = i18n("%1 %2", m_editor.score().tracks.at(action.index).name,
+                                   isMuted(action.index) ? i18n("muted") : i18n("unmuted"));
+        }
+        break;
+
+    case Mackie::Kind::Solo:
+        if (action.pressed && tracks && action.index < m_editor.score().tracks.size()) {
+            setSolo(action.index, !isSolo(action.index));
+            m_surfaceStatus = i18n("%1 %2", m_editor.score().tracks.at(action.index).name,
+                                   isSolo(action.index) ? i18n("soloed") : i18n("unsoloed"));
+        }
+        break;
+    }
+    Q_EMIT surfaceChanged();
+}
+
 QPair<int, int> Session::handHere() const
 {
     if (!hasScore() || m_currentTrack < 0 || m_currentTrack >= m_editor.score().tracks.size()) {

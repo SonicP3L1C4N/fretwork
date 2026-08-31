@@ -305,6 +305,28 @@ rather than discovered halfway:
 
 ### 2a. Control surface — the easy half, and worth doing first
 
+**Done**, in `src/audio/mackie.{h,cpp}` and `Session`, written **2026-08-31**.
+The decoding is its own thing and knows nothing about tracks or plugins, which
+is what lets a published protocol be tested against its own published numbers
+with no controller plugged in: transport on notes 91 to 95, the eight encoders
+on controllers 16 to 23, solo and mute on notes 8 to 23, and a fader as a whole
+channel's pitch bend.
+
+Two things learned by driving it rather than reading about it. An encoder sends
+*movement* and not a position -- bit six is the direction and the low six bits
+are the count -- which is why a fast spin arrives as one message saying five,
+and why the knob it drives moves from where it is rather than jumping to where
+the hardware thinks it points. And a surface sends the release as well as the
+press, so a decoder that dropped note-offs would make a held button impossible
+without anyone noticing until they tried one.
+
+The port is remembered between runs, because choosing a controller every
+morning is the sort of thing that makes a feature not worth having.
+
+Proved end to end on this machine rather than by inspection: a Mackie encoder
+message sent into the graph moved a guitarix amplifier's MasterGain from 20 to
+8.75, and the change reached the rig on disk.
+
 `MCU/HUI` is Mackie Control, which is a published protocol every DAW speaks.
 Transport buttons, the eight encoders, the pads. Mapped onto things Fretwork
 already has:
@@ -525,7 +547,7 @@ and a materially better one.
 | **P6.2** | Key and scale analysis, read-only | P6.1 | **done** |
 | **P6.3** | Scale overlay on the fretboard | P6.0, P6.2 | **done** |
 | **P7.0** | MIDI input plumbing (PipeWire, decided once) | nothing | **done** |
-| **P7.1** | Control surface: transport, encoders → LV2 controls | P7.0 | a week |
+| **P7.1** | Control surface: transport, encoders → LV2 controls | P7.0 | **done** |
 | **P6.4** | Circle of fifths, chord insertion | P6.0, P6.3 | **done** |
 | **P7.2** | Step note entry from the keyboard | P6.0, P6.4 | a week |
 | **P8.0** | feedpak export, walking skeleton | stems (done) | a week |

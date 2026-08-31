@@ -138,8 +138,29 @@ Kirigami.ApplicationWindow {
         property real zoom: 0
     }
 
+    /**
+     * The controller, remembered.
+     *
+     * Somebody who plugs a surface in works with it plugged in, and choosing
+     * it again every morning is the sort of thing that makes a feature not
+     * worth having. Empty means none, and a port that has gone away since is
+     * refused on the way in and says so, which is the same answer as any other
+     * missing device.
+     */
+    Settings {
+        id: surfaceState
+        category: "Surface"
+        property string port: ""
+    }
+
     Session {
         id: session
+
+        Component.onCompleted: {
+            if (surfaceState.port.length > 0) {
+                listenOnSurface(surfaceState.port)
+            }
+        }
 
         effectsShown: panels.effects
     }
@@ -3102,6 +3123,70 @@ Kirigami.ApplicationWindow {
                         color: Ink.quiet
                         elide: Text.ElideRight
                         font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    }
+
+                    /**
+                     * A controller, driving the knobs of whatever is on this
+                     * bench.
+                     *
+                     * Here rather than in a panel of its own because this is
+                     * what the eight encoders address: what a hand finds under
+                     * the third encoder is what the eye finds third along this
+                     * row, and a control for that belongs beside it.
+                     */
+                    QQC2.Label {
+                        text: session.surfaceListening
+                            ? session.surfaceStatus
+                            : i18n("Surface")
+                        color: session.surfaceListening ? Ink.accentDeep : Ink.quiet
+                        elide: Text.ElideRight
+                        Layout.maximumWidth: Kirigami.Units.gridUnit * 14
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    }
+
+                    ChromeToggle {
+                        text: session.surfaceListening ? i18n("Listening") : i18n("MIDI...")
+                        checkable: false
+                        checked: session.surfaceListening
+                        onClicked: {
+                            if (session.surfaceListening) {
+                                session.stopListeningOnSurface()
+                                surfaceState.port = ""
+                            } else {
+                                surfaceMenu.ports = session.midiPorts()
+                                surfaceMenu.popup()
+                            }
+                        }
+
+                        QQC2.Menu {
+                            id: surfaceMenu
+                            property var ports: []
+
+                            QQC2.MenuItem {
+                                // Said rather than left as an empty menu: a
+                                // machine with nothing plugged in and a
+                                // machine built without PipeWire look the same
+                                // from here, and neither is a bug.
+                                text: i18n("No MIDI ports found")
+                                enabled: false
+                                visible: surfaceMenu.ports.length === 0
+                                height: visible ? implicitHeight : 0
+                            }
+
+                            Instantiator {
+                                model: surfaceMenu.ports
+                                delegate: QQC2.MenuItem {
+                                    required property string modelData
+                                    text: modelData
+                                    onTriggered: {
+                                    session.listenOnSurface(modelData)
+                                    surfaceState.port = modelData
+                                }
+                                }
+                                onObjectAdded: (index, object) => surfaceMenu.insertItem(index + 1, object)
+                                onObjectRemoved: (index, object) => surfaceMenu.removeItem(object)
+                            }
+                        }
                     }
 
                     ChromeToggle {

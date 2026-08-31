@@ -70,6 +70,27 @@ private Q_SLOTS:
     }
 
     /**
+     * The list a menu is drawn from: every port, named the way the patching
+     * tools name them.
+     *
+     * On a machine with no MIDI hardware and no PipeWire this is empty, which
+     * is a true answer rather than a failure -- so what is asserted is that
+     * whatever comes back is well formed, and that asking does not leave a
+     * listener open on somebody's controller.
+     */
+    void thePortsOfferedAreNamedTheWayThePatchbayNamesThem()
+    {
+        const QStringList ports = MidiInput::ports();
+        for (const QString &port : ports) {
+            QVERIFY(!port.isEmpty());
+            QVERIFY(!port.startsWith(QLatin1Char(':')));
+        }
+        // Asking twice gives the same answer, which it would not if the first
+        // ask had left something of its own in the graph.
+        QCOMPARE(MidiInput::ports(), ports);
+    }
+
+    /**
      * The live half: something plays, and it arrives.
      *
      * Asserts that messages reach the ring and that what comes out is MIDI --

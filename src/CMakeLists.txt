@@ -19,6 +19,7 @@ add_library(fretworkcore STATIC
     audio/player.cpp
     audio/audioinput.cpp
     audio/midiinput.cpp
+    audio/mackie.cpp
     audio/jacktransport.cpp
     audio/lv2chain.cpp
     audio/pitchdetector.cpp

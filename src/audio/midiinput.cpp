@@ -14,6 +14,9 @@
 #endif
 
 #include <QHash>
+#include <QPair>
+
+#include <cstring>
 
 #include <atomic>
 #include <array>
@@ -334,6 +337,112 @@ const pw_stream_events &streamEvents()
     }();
     return events;
 }
+#endif
+}
+
+QStringList MidiInput::ports()
+{
+#ifndef FRETWORK_HAVE_PIPEWIRE
+    return {};
+#else
+    initialisePipeWire();
+
+    // Its own loop, entered and left here. The alternative is a listener kept
+    // alive for the sake of a menu, which is a stream open on somebody's
+    // controller because a combo box might be clicked.
+    struct Listing {
+        QHash<uint32_t, QString> nodes;
+        QList<QPair<uint32_t, QString>> ports;   //< node id, port name
+        bool done = false;
+        pw_main_loop *loop = nullptr;
+        pw_registry *registry = nullptr;
+    } listing;
+
+    pw_main_loop *loop = pw_main_loop_new(nullptr);
+    if (!loop) {
+        return {};
+    }
+    listing.loop = loop;
+    pw_context *context = pw_context_new(pw_main_loop_get_loop(loop), nullptr, 0);
+    pw_core *core = context ? pw_context_connect(context, nullptr, 0) : nullptr;
+    if (!core) {
+        if (context) {
+            pw_context_destroy(context);
+        }
+        pw_main_loop_destroy(loop);
+        return {};
+    }
+
+    static const pw_registry_events events = [] {
+        pw_registry_events filled{};
+        filled.version = PW_VERSION_REGISTRY_EVENTS;
+        filled.global = [](void *data, uint32_t id, uint32_t, const char *type, uint32_t,
+                           const struct spa_dict *props) {
+            auto *self = static_cast<Listing *>(data);
+            if (!props) {
+                return;
+            }
+            if (spa_streq(type, PW_TYPE_INTERFACE_Node)) {
+                if (const char *name = spa_dict_lookup(props, PW_KEY_NODE_NAME)) {
+                    self->nodes.insert(id, QString::fromUtf8(name));
+                }
+                return;
+            }
+            if (!spa_streq(type, PW_TYPE_INTERFACE_Port)) {
+                return;
+            }
+            const char *name = spa_dict_lookup(props, PW_KEY_PORT_NAME);
+            const char *direction = spa_dict_lookup(props, PW_KEY_PORT_DIRECTION);
+            const char *node = spa_dict_lookup(props, PW_KEY_NODE_ID);
+            const char *format = spa_dict_lookup(props, PW_KEY_FORMAT_DSP);
+            // Something to listen *to*, and carrying MIDI rather than audio.
+            if (!name || !node || !direction || !spa_streq(direction, "out")) {
+                return;
+            }
+            if (!format || !strstr(format, "midi")) {
+                return;
+            }
+            self->ports.append({uint32_t(atoi(node)), QString::fromUtf8(name)});
+        };
+        return filled;
+    }();
+
+    static const pw_core_events coreDone = [] {
+        pw_core_events filled{};
+        filled.version = PW_VERSION_CORE_EVENTS;
+        filled.done = [](void *data, uint32_t id, int) {
+            if (id != PW_ID_CORE) {
+                return;
+            }
+            auto *self = static_cast<Listing *>(data);
+            self->done = true;
+            pw_main_loop_quit(self->loop);
+        };
+        return filled;
+    }();
+
+    spa_hook registryHook{};
+    spa_hook coreHook{};
+    listing.registry = pw_core_get_registry(core, PW_VERSION_REGISTRY, 0);
+    pw_registry_add_listener(listing.registry, &registryHook, &events, &listing);
+    pw_core_add_listener(core, &coreHook, &coreDone, &listing);
+    // Everything that exists is announced before this comes back, which is what
+    // makes one round trip enough.
+    pw_core_sync(core, PW_ID_CORE, 0);
+    pw_main_loop_run(loop);
+
+    QStringList found;
+    for (const auto &port : std::as_const(listing.ports)) {
+        const QString node = listing.nodes.value(port.first);
+        found.append(node.isEmpty() ? port.second : node + QLatin1Char(':') + port.second);
+    }
+    found.sort();
+
+    pw_proxy_destroy(reinterpret_cast<pw_proxy *>(listing.registry));
+    pw_core_disconnect(core);
+    pw_context_destroy(context);
+    pw_main_loop_destroy(loop);
+    return found;
 #endif
 }
 

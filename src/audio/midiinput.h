@@ -5,6 +5,7 @@
 
 #include <QList>
 #include <QString>
+#include <QStringList>
 
 #include <memory>
 
@@ -79,6 +80,17 @@ public:
             return data1 | (data2 << 7);
         }
     };
+
+    /**
+     * Every MIDI port on the machine that something could be listened to on,
+     * named the way `pw-link` names them.
+     *
+     * A short-lived connection to the graph rather than a running stream: this
+     * answers a menu, and a menu should not have to own a listener to be drawn.
+     * Empty where PipeWire is not there, which is the same as saying there is
+     * nothing to offer.
+     */
+    static QStringList ports();
 
     explicit MidiInput(const Options &options);
     ~MidiInput();
