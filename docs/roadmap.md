@@ -159,11 +159,34 @@ version moved — and printed by `--info` where a score has one. It is *not*
 editable and nothing acts on it yet: the theory layer describes and never
 corrects, and this is the description.
 
-**Layer 2 — analysis, read-only.** What key is this in, from a pitch-class
-histogram over the score or the selection, weighted by duration. Which scale
-does the selection fit, and which notes are outside it. This is the layer that
-can be built and shown before anything writes anything, which makes it the
-right place to find out whether the feature is actually wanted.
+**Layer 2 — analysis, read-only.** **Done**, in `src/model/analysis.{h,cpp}`,
+written **2026-08-31**. How long each of the twelve pitch classes sounds,
+correlated against Krumhansl and Kessler's profiles of what each key sounds
+like; best match wins. Duration and not note count, because a semibreve is not
+a passing quaver and counting them the same is how a key gets decided by
+ornaments. Over the whole score or over a `Passage` — a run of beats in one
+voice, which is what a selection is — and the notes outside the key come back
+by id from the same population, so a caller cannot be told about a note that
+was never counted. Drum kits and dead notes are not pitches and are not in it.
+
+The question this was put here to answer has been answered: **it is wanted**.
+
+Two things it turned out to be worth saying out loud. The **signature is solid
+and the mode is a judgement**: the accidentals fall straight out of the pitch
+content, while telling a key from its relative minor is a reading of where the
+weight sits. Every test here is written so that the runner-up is visible, and
+`--info` offers both readings where they share a signature rather than picking
+one and sounding certain. And **the analysis is usually the only thing in a
+tablature file that says anything at all** about key, since the signature is
+Guitar Pro's untouched default in all five transcriptions in the corpus — the
+opposite of the situation printed music is in.
+
+It was checked against a second implementation of the same method written from
+the `.fw` JSON, which agreed on the note counts and the rankings. Worth doing:
+the first version of the major profile here had the tritone missing from it,
+which shifted the fifth's weight onto the wrong degree and handed every major
+key to its relative minor. The answers stayed entirely plausible, because the
+relative minor is exactly where a bad key guess lands.
 
 **Layer 3 — the fretboard overlay.** The scale drawn on the tab: the notes of
 the current key marked on the strings, root notes distinguished, and the
@@ -414,7 +437,7 @@ and a materially better one.
 |---|---|---|---|
 | **P6.0** | Fretboard solver | nothing | **done** |
 | **P6.1** | Pitch classes, key signature, spelling | nothing | **done** |
-| **P6.2** | Key and scale analysis, read-only | P6.1 | days |
+| **P6.2** | Key and scale analysis, read-only | P6.1 | **done** |
 | **P6.3** | Scale overlay on the fretboard | P6.0, P6.2 | a week |
 | **P7.0** | MIDI input plumbing (PipeWire, decided once) | nothing | days |
 | **P7.1** | Control surface: transport, encoders → LV2 controls | P7.0 | a week |

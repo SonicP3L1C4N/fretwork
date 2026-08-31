@@ -9,7 +9,7 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 ## 0.2.0 — unreleased
 
 Four things about the rig, one thing about the capo that 0.1.0 got wrong, and
-the beginning of knowing what key a piece is in: the effects panel is laid out
+Fretwork learning what key a piece is in: the effects panel is laid out
 around the chain rather than around the plugins, the chain can be put in the
 order somebody wants it in, a sound can be kept under a name and used on
 another song, and the two side panels can change places.
@@ -118,6 +118,25 @@ another song, and the two side panels can change places.
   layer standard notation needs before it can draw a single accidental, and a
   note outside the key is a decision somebody made rather than a mistake — so
   this describes and never corrects, and nothing it knows can refuse an edit.
+
+- **And it can work out what key a piece is actually in**, which in a tablature
+  program is a different question from what the page says and usually the only
+  one of the two with an answer: setting a signature is something a transcriber
+  has to go out of their way to do, and not one of the five transcriptions in
+  the corpus has. `fretwork FILE.gp --info` now reads the key off the notes —
+  how long each of the twelve pitch classes sounds, matched against what each
+  key sounds like — and says how many notes fall outside it.
+
+  It says two readings where there are two. The accidentals fall straight out
+  of the pitch content and are solid; telling a key from its relative minor is
+  a judgement about where the weight sits, and the same seven notes support
+  both. So a score that reads as C minor and could be read as E♭ major is
+  reported as both rather than as one with false confidence.
+
+  The count of notes outside the key is a count and never a fault. A borrowed
+  chord, a chromatic passing note and a blues third are all outside the key and
+  all deliberate, and a program that marked them would be arguing with its user
+  about music.
 
 ## 0.1.0 — 2026-09-01
 

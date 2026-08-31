@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
+#include "analysis.h"
 #include "audioinput.h"
 #include "fwformat.h"
 #include "gpif.h"
@@ -322,6 +323,35 @@ void describe(QTextStream &out, const Score &score, const QList<int> &order)
             << (keys.size() == 1 ? Key::nameOf(score.masterBars.constFirst().key)
                                  : keys.join(QStringLiteral(", ")))
             << "\n";
+    }
+
+    // What the notes say, as against what the page says -- which in a
+    // tablature program is usually the only one of the two saying anything,
+    // since a transcriber has to go out of their way to set a signature and
+    // almost nobody does.
+    const Analysis::Weights weights = Analysis::weigh(score);
+    if (!Analysis::isSilent(weights)) {
+        const QList<Analysis::Fit> readings = Analysis::ranked(weights);
+        const Analysis::Fit &likeliest = readings.constFirst();
+        QString sounds = Key::nameOf(likeliest.key);
+
+        // Where the runner-up is written with the same accidentals it is the
+        // relative major or minor, which is the same seven notes and a
+        // genuinely harder question than the signature was. Offering it is
+        // more honest than picking one and sounding certain.
+        if (readings.size() > 1 && readings.at(1).key.accidentals == likeliest.key.accidentals) {
+            sounds = i18n("%1, or %2 on the same accidentals", sounds,
+                          Key::nameOf(readings.at(1).key));
+        }
+        out << "  sounds  " << sounds << "\n";
+
+        const int counted = int(Analysis::pitched(score).size());
+        const int strangers = int(Analysis::outside(score, likeliest.key).size());
+        // Said as a count and never as a fault: a borrowed chord, a passing
+        // note and a blues third are all outside the key and all deliberate.
+        out << QStringLiteral("  outside %1\n")
+                   .arg(i18n("%1 of %2 notes are not in it", QString::number(strangers),
+                             QString::number(counted)));
     }
 
     // What a shuffle does to a score is large and entirely invisible in a note

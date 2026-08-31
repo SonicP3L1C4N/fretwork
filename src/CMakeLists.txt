@@ -9,6 +9,7 @@ add_library(fretworkcore STATIC
     model/notename.cpp
     model/fretboard.cpp
     model/key.cpp
+    model/analysis.cpp
     import/gpif.cpp
     import/zipreader.cpp
     export/midi.cpp
