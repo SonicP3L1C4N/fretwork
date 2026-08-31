@@ -12,7 +12,3 @@ spike/out/
 *.mid
 *.wav
 __pycache__/
-
-# The staging folder the agents and CI arrived in. Its contents are wired
-# into the tree itself; the copies here are not the ones that build.
-files/

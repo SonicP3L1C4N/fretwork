@@ -121,6 +121,13 @@ interface at all, which is the only honest definition of a foundation.
   vendor specification for any of this.
 - **[docs/wishlist.md](docs/wishlist.md)** — everything thought of and not
   promised, with the price of each, and the things refused on principle.
+- **[docs/release-0.1.0.md](docs/release-0.1.0.md)**,
+  **[docs/rc-assessment.md](docs/rc-assessment.md)** and
+  **[docs/wiring-notes.md](docs/wiring-notes.md)** — how the first release was
+  decided on, what a pass over the tree found, and what was wired in to get
+  there. Kept as written rather than tidied: the reasoning is the useful part.
+- **[docs/lv2-worker-crash.md](docs/lv2-worker-crash.md)** — one bug, chased to
+  the bottom, because what it was evidence of outlived the fix.
 
 ## The stack, briefly
 
