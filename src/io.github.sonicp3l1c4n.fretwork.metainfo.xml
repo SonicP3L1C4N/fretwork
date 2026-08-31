@@ -112,10 +112,12 @@ SPDX-License-Identifier: CC0-1.0
   <content_rating type="oars-1.1"/>
 
   <releases>
-    <!-- Update the date to the day you tag, and keep this in step with
-         project(fretwork VERSION ...) in CMakeLists.txt. appstreamcli will
-         not catch a mismatch; the release checklist will. -->
-    <release version="0.1.0" date="2026-09-01" type="development">
+    <!-- Keep the version in step with project(fretwork VERSION ...) in
+         CMakeLists.txt and with the git tag; appstreamcli will not catch a
+         mismatch between them. No type attribute, which means stable: 0.1.0 is
+         tagged and released, and a software centre showing a released version
+         as a development one tells people not to install it. -->
+    <release version="0.1.0" date="2026-09-01">
       <description>
         <p>
           First release. A tablature editor and player with per-track

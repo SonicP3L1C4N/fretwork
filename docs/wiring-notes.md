@@ -12,11 +12,11 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 > every push by the `readme` job it proposes; the metainfo is installed and
 > validated by `ctest`; the CI notes describe the pipeline that exists.
 >
-> Two corrections it is worth having beside it. The Kirigami development
+> One correction it is worth having beside it: the Kirigami development
 > package on this distribution is `libkirigami-dev`, not the
-> `libkf6kirigami-dev` suggested below. And `type="development"` is still on
-> the 0.1.0 release in the metainfo, which is the one recommendation here that
-> has not been carried out.
+> `libkf6kirigami-dev` suggested below. Its last outstanding recommendation —
+> that `type="development"` come off the release once it stopped being a
+> candidate — was carried out on 31 August.
 
 Three small changes, and one bug the CI would have found on its first run.
 

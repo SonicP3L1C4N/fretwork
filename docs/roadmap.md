@@ -325,12 +325,32 @@ already has:
 The cost is a MIDI input source and a mapping table. Almost nothing new has to
 be *reasoned* about, which is the mark of the right first step.
 
-**Architecture decision to make once:** ALSA sequencer directly, or PipeWire's
-MIDI ports. PipeWire is the consistent answer — the program already owns a
-PipeWire node with a considered position on clocks and callbacks, and adding an
-ALSA seq client alongside it means two ideas of the graph. But it is worth
-checking what PipeWire's MIDI ports cost in latency and in packaging before
-committing, the way the lilv-versus-Carla question was settled.
+**Architecture decision, made once and settled:** **PipeWire**, in
+`src/audio/midiinput.{h,cpp}`, written **2026-08-31**. It was checked rather
+than assumed, the way the lilv-versus-Carla question was. What settled it is
+that nothing is given up by choosing it: PipeWire's bridge already exposes
+every hardware port on this machine under its own name — `Midi-Bridge:Minilab3
+MCU/HUI`, `Midi-Bridge:Minilab3 MIDI` and the rest — so a controller with four
+ports is four things to link to rather than one thing to demultiplex, which is
+exactly the split this section says the goal has. It adds no dependency, since
+PipeWire is already an optional one and this is optional in the same way. And
+an ALSA sequencer client alongside the node the program already owns would have
+been a second idea of the graph.
+
+Three things it turned out to need, none of them obvious from the outside:
+
+- **Nothing links a MIDI capture stream.** `PW_STREAM_FLAG_AUTOCONNECT` does
+  not, and `target.object` names a *node* — but what somebody wants to listen
+  to is a port, since a controller is four of them on one node. So it watches
+  the registry and makes the link itself, which is what `PortedOutput` already
+  does at the other end of the graph and for the same stated reason.
+- **A stream's node id is not assigned when its ports are announced**, so
+  "which of these ports is mine" cannot be answered as they arrive. Every port
+  is kept and sorted out afterwards by node *name*, which does not race.
+- **PipeWire carries universal MIDI packets now**, not raw bytes. They are
+  converted back to MIDI 1.0 on the way in, because nothing above wants a
+  second way to say "note on"; the deprecated raw-byte control is still
+  accepted, since it is the same parser with nothing in front of it.
 
 ### 2b. Note entry — the harder half
 
@@ -504,7 +524,7 @@ and a materially better one.
 | **P6.1** | Pitch classes, key signature, spelling | nothing | **done** |
 | **P6.2** | Key and scale analysis, read-only | P6.1 | **done** |
 | **P6.3** | Scale overlay on the fretboard | P6.0, P6.2 | **done** |
-| **P7.0** | MIDI input plumbing (PipeWire, decided once) | nothing | days |
+| **P7.0** | MIDI input plumbing (PipeWire, decided once) | nothing | **done** |
 | **P7.1** | Control surface: transport, encoders → LV2 controls | P7.0 | a week |
 | **P6.4** | Circle of fifths, chord insertion | P6.0, P6.3 | **done** |
 | **P7.2** | Step note entry from the keyboard | P6.0, P6.4 | a week |
