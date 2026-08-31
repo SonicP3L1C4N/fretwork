@@ -31,6 +31,16 @@ struct Style {
     qreal pageHeight = 842;
     qreal margin = 40;
 
+    /**
+     * The desk showing between two pages stacked in a window.
+     *
+     * Nothing on paper, where pages are separate sheets and there is no
+     * between. It is here rather than in the view because it is what makes a
+     * page's own coordinates and the document's differ, and the two functions
+     * that convert between them live here too.
+     */
+    qreal pageGap = 0;
+
     qreal stringSpacing = 11;   //< between the lines of the tablature
     qreal systemSpacing = 68;   //< between one line of music and the next,
                                 //  and the room the labels above it need
@@ -222,6 +232,8 @@ struct LaidBar {
 
 /** One line of music across the page. */
 struct System {
+    /** Which page it is on, so a point on it can be found in a stack of them. */
+    int page = 0;
     qreal y = 0;
     QList<LaidBar> bars;
 
@@ -265,13 +277,35 @@ struct Layout {
     {
         return staffHeight() + style.rhythmGap + style.rhythmStem;
     }
+
+    /**
+     * Where the top of a page sits when they are stacked one under another.
+     *
+     * Pages are laid out in their own coordinates, each starting again at
+     * nought, because that is what printing one wants. A window shows them all
+     * at once down a single scroll, so everything that reasons about where
+     * something *is* -- clicking on it, scrolling to it -- works in this
+     * second set of coordinates, and these two functions are the whole of the
+     * difference between them.
+     */
+    qreal pageTop(int page) const
+    {
+        return page * (style.pageHeight + style.pageGap);
+    }
+
+    /** The height of every page and the gaps between them. */
+    qreal documentHeight() const
+    {
+        return pages.isEmpty() ? 0 : pageTop(int(pages.size()) - 1) + style.pageHeight;
+    }
 };
 
 /** Lays one track out across as many pages as it takes. */
 Layout layOut(const Score &score, int trackIndex, const Style &style = Style());
 
 /**
- * What is at a point on the page, in layout coordinates.
+ * What is at a point, in document coordinates -- x across a page, y down the
+ * whole stack of them.
  *
  * Returns false where the point is nowhere in particular. The string is
  * whichever line is nearest rather than only an exact hit, because a caret
@@ -280,7 +314,7 @@ Layout layOut(const Score &score, int trackIndex, const Style &style = Style());
 bool hitTest(const Layout &layout, qreal x, qreal y, int *bar, int *voice, int *beat,
              int *string);
 
-/** Where a beat of a voice was drawn, or false if it is not on the page. */
+/** Where a beat of a voice was drawn, in document coordinates. */
 bool positionOf(const Layout &layout, int bar, int voice, int beat, qreal *x, qreal *y,
                 qreal *width);
 }

@@ -669,8 +669,6 @@ public:
     /** The laid-out tablature, for whatever draws it. */
     const Tab::Layout &layout() const;
 
-    /** Lays the current track out again at a new width, in points. */
-    void relayout(qreal width);
 
 Q_SIGNALS:
     void scoreChanged();
@@ -732,7 +730,6 @@ private:
     std::unique_ptr<Player> m_player;
 
     Tab::Layout m_layout;
-    qreal m_width = 900;
     int m_currentTrack = 0;
     bool m_click = false;
     bool m_ports = false;

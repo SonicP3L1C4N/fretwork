@@ -199,16 +199,15 @@ void Session::rebuildLayout()
         return;
     }
 
+    // A page, and the same page the printer gets. The window used to lay the
+    // music out to its own width on one endless sheet, on the argument that a
+    // window scrolls and A4 is paper thinking. What that costs is that the
+    // music re-breaks every time the window is dragged, so no line of it is
+    // ever in the same place twice and nothing about the view is a document.
+    // A fixed page is the other trade: desk down either side of it, a zoom to
+    // set how big it is, and every line where it was left.
     Tab::Style style;
-    style.pageWidth = std::max<qreal>(360, m_width);
-    // One page as tall as the music needs: a window scrolls, and breaking a
-    // continuous view into A4 sheets would be paper thinking.
-    style.pageHeight = 1e9;
-    // The window's own title bar carries the name of the piece, so the page
-    // does not: on screen that would cost a system of music to say it twice.
-    // The room for it goes with it; the labels above the first line keep
-    // theirs.
-    style.showTitle = false;
+    style.pageGap = 24;
 
     m_layout = Tab::layOut(m_editor.score(), m_currentTrack, style);
     Q_EMIT layoutChanged();
@@ -1454,15 +1453,6 @@ QString Session::clock(double seconds) const
 const Tab::Layout &Session::layout() const
 {
     return m_layout;
-}
-
-void Session::relayout(qreal width)
-{
-    if (qAbs(width - m_width) < 1.0) {
-        return;
-    }
-    m_width = width;
-    rebuildLayout();
 }
 
 

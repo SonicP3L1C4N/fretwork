@@ -19,7 +19,11 @@
  * which is the difference between scrolling a 400-bar score smoothly and not.
  *
  * Everything it draws comes from `Tab::paintPage`, the same function that
- * writes the PDF, so a window and a printout cannot disagree.
+ * writes the PDF, so a window and a printout cannot disagree. They now do not
+ * disagree about the page either: the same A4 sheets, broken in the same
+ * places, stacked down the window on a desk with a gap between them. Which is
+ * why there is a zoom -- a page is a fixed width, so how big it is on screen
+ * has to be something a reader can say.
  */
 class ScoreView : public QQuickPaintedItem
 {
@@ -31,6 +35,9 @@ class ScoreView : public QQuickPaintedItem
     Q_PROPERTY(qreal contentHeight READ contentHeight NOTIFY contentHeightChanged)
     Q_PROPERTY(bool followPlayhead READ followPlayhead WRITE setFollowPlayhead
                    NOTIFY followPlayheadChanged)
+    Q_PROPERTY(qreal zoom READ zoom WRITE setZoom NOTIFY zoomChanged)
+    Q_PROPERTY(int pageCount READ pageCount NOTIFY contentHeightChanged)
+    Q_PROPERTY(int currentPage READ currentPage NOTIFY scrollYChanged)
 
 public:
     explicit ScoreView(QQuickItem *parent = nullptr);
@@ -48,11 +55,22 @@ public:
     bool followPlayhead() const;
     void setFollowPlayhead(bool follow);
 
+    qreal zoom() const;
+    void setZoom(qreal zoom);
+
+    /** How many sheets there are, and which one the reader is looking at. */
+    int pageCount() const;
+    int currentPage() const;
+
+    /** The width a page has to be drawn at to fill the window, less its desk. */
+    Q_INVOKABLE qreal zoomToFit() const;
+
 Q_SIGNALS:
     void sessionChanged();
     void scrollYChanged();
     void contentHeightChanged();
     void followPlayheadChanged();
+    void zoomChanged();
 
 protected:
     void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
@@ -65,7 +83,20 @@ private:
     void scrollCursorIntoView();
     qreal heightOfContent() const;
 
+    void paintSelection(QPainter &painter, int page, const Tab::Palette &palette);
+    void paintCaret(QPainter &painter, int page, const Tab::Palette &palette);
+
+    /** A point in the window, read as a place in the document. */
+    qreal documentX(qreal x) const;
+    qreal documentY(qreal y) const;
+
+    /** Where a page sits in the window, and how big it is there. */
+    QRectF pageRect(int page) const;
+    /** The desk either side of a page, which is where it is centred. */
+    qreal pageLeft() const;
+
     Session *m_session = nullptr;
+    qreal m_zoom = 1.0;
     qreal m_scrollY = 0;
     qreal m_contentHeight = 0;
     bool m_followPlayhead = true;

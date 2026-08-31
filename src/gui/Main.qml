@@ -119,6 +119,23 @@ Kirigami.ApplicationWindow {
         property bool tracksLeft: true
     }
 
+    /**
+     * How big the page is drawn.
+     *
+     * Nought means nobody has said, which is not the same as 1.0 and is why it
+     * is not simply defaulted to one: a page is a fixed width now, so on a
+     * window twice as wide as A4 a first run at 100% is a column of music with
+     * a desk either side of it and no indication that the thing can be
+     * resized. Unset, the view fits the page to the window once; after that it
+     * is whatever it was last left at, because the size somebody reads music
+     * at is a property of their eyes and their music stand.
+     */
+    Settings {
+        id: viewState
+        category: "View"
+        property real zoom: 0
+    }
+
     Session {
         id: session
 
@@ -1663,6 +1680,27 @@ Kirigami.ApplicationWindow {
                     anchors.fill: parent
                     session: session
                     focus: true
+
+                    Component.onCompleted: {
+                        if (viewState.zoom > 0) {
+                            zoom = viewState.zoom
+                        }
+                    }
+                    // Only until somebody has an opinion of their own, and
+                    // then never again: a view that re-fitted itself on every
+                    // resize would take the reader's zoom away every time they
+                    // moved the window.
+                    onWidthChanged: {
+                        if (viewState.zoom <= 0 && width > 0) {
+                            // Capped, so that a first run on a wide monitor
+                            // still shows a page with desk either side of it.
+                            // Filling the window edge to edge is a thing to
+                            // ask for -- the percentage is the button -- and a
+                            // poor thing to open on, because a page with no
+                            // desk around it is not visibly a page.
+                            zoom = Math.min(zoomToFit(), 1.5)
+                        }
+                    }
 
                     // Typing goes to the score, which is what a tablature
                     // editor is: numbers are notes, and the arrows are a caret.
@@ -4147,6 +4185,78 @@ Kirigami.ApplicationWindow {
                 color: Ink.accentOnInk
                 visible: session.canUndo
                 font.pointSize: Kirigami.Theme.smallFont.pointSize
+            }
+
+            // Which sheet of how many, and how big it is being drawn. At this
+            // end of the status bar because that is where every program that
+            // shows somebody a document has put it for thirty years.
+            QQC2.Label {
+                text: i18np("Page %2 of %1", "Page %2 of %1", view.pageCount,
+                            view.currentPage + 1)
+                color: Ink.faint
+                font.pointSize: Kirigami.Theme.smallFont.pointSize
+                visible: session.hasScore && view.pageCount > 1
+            }
+
+            Row {
+                spacing: Kirigami.Units.smallSpacing
+                visible: session.hasScore
+
+                component ZoomStep: QQC2.Label {
+                    color: area.containsMouse ? Ink.paper : Ink.faint
+                    font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    font.weight: Font.DemiBold
+                    width: Kirigami.Units.gridUnit
+                    horizontalAlignment: Text.AlignHCenter
+                    property alias hovered: area.containsMouse
+                    signal pressed()
+                    MouseArea {
+                        id: area
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: parent.pressed()
+                    }
+                }
+
+                ZoomStep {
+                    text: "−"
+                    onPressed: {
+                        view.zoom = view.zoom / 1.25
+                        viewState.zoom = view.zoom
+                    }
+                }
+
+                // The number is the control that puts it back: a reader who
+                // has zoomed somewhere odd wants one press to get to a page
+                // that fits, and the thing they are looking at is the number.
+                QQC2.Label {
+                    text: Math.round(view.zoom * 100) + "%"
+                    color: fitArea.containsMouse ? Ink.paper : Ink.faint
+                    font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    width: Kirigami.Units.gridUnit * 2.5
+                    horizontalAlignment: Text.AlignHCenter
+                    QQC2.ToolTip.visible: fitArea.containsMouse
+                    QQC2.ToolTip.text: i18n("Fit the page to the window")
+                    MouseArea {
+                        id: fitArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            view.zoom = view.zoomToFit()
+                            viewState.zoom = view.zoom
+                        }
+                    }
+                }
+
+                ZoomStep {
+                    text: "+"
+                    onPressed: {
+                        view.zoom = view.zoom * 1.25
+                        viewState.zoom = view.zoom
+                    }
+                }
             }
         }
     }

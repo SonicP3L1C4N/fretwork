@@ -419,6 +419,7 @@ Tab::Layout Tab::layOut(const Score &score, int trackIndex, const Style &style)
         // spread to the page.
         findRuns(system);
         system.y = y;
+        system.page = int(layout.pages.size());
         page.systems.append(system);
         y += systemHeight + measured.systemSpacing;
         system = System();
@@ -475,9 +476,13 @@ bool Tab::hitTest(const Layout &layout, qreal x, qreal y, int *bar, int *voice, 
     const qreal reach = layout.style.systemSpacing / 2;
 
     for (const System *system : allSystems(layout)) {
+        // Down the whole stack rather than down one page: a window shows every
+        // page at once, and a click arrives as a distance from the top of the
+        // first one.
+        const qreal top = layout.pageTop(system->page) + system->y;
         // The rhythm row belongs to the system above it, so a click on a stem
         // lands on the bar it describes rather than falling between two lines.
-        if (y < system->y - reach || y > system->y + layout.systemHeight() + reach) {
+        if (y < top - reach || y > top + layout.systemHeight() + reach) {
             continue;
         }
 
@@ -518,7 +523,7 @@ bool Tab::hitTest(const Layout &layout, qreal x, qreal y, int *bar, int *voice, 
                 }
             }
             if (string) {
-                const int fromTop = int(std::lround((y - system->y) / layout.style.stringSpacing));
+                const int fromTop = int(std::lround((y - top) / layout.style.stringSpacing));
                 *string = std::clamp(layout.strings - 1 - fromTop, 0, layout.strings - 1);
             }
             return true;
@@ -543,7 +548,7 @@ bool Tab::positionOf(const Layout &layout, int bar, int voice, int beat, qreal *
                     *x = layout.style.margin + laid.x + column.x;
                 }
                 if (y) {
-                    *y = system->y;
+                    *y = layout.pageTop(system->page) + system->y;
                 }
                 if (width) {
                     *width = layout.style.beatSpacing;
