@@ -24,7 +24,7 @@ tablature program on Linux does, and it is the reason to write another one.
 
 ## What Fretwork is not
 
-Not a notation engraver. Standard notation is a stated non-goal until P5, and
+Not a notation engraver. Standard notation is a stated non-goal until P8.2, and
 possibly for good: MuseScore's layout engine is the work of many people over
 many years, and tablature is a far smaller problem that answers most of the
 question. Fretwork renders tab.
@@ -223,7 +223,8 @@ first real score is on screen and scrolling is measured, not before).
 ### 6. Export
 
 MIDI, per-track WAV stems, a mixed WAV, PDF, and eventually MusicXML. Stems come
-free from the engine rule above; everything else is a separate afternoon.
+free from the engine rule above; everything else is a separate afternoon. The
+last two are scheduled in [roadmap.md](roadmap.md) as P8.3 and P8.4.
 
 ## Phases
 
@@ -234,11 +235,22 @@ free from the engine rule above; everything else is a separate afternoon.
 | **P2** | The player: Qt6/KF6 window, tab rendering, transport, per-track mixer, live PipeWire playback | You would rather use it than TuxGuitar to read a tab |
 | **P3** | The editor: fret entry, selection, undo/redo, copy/paste, transposition | **done.** Scope did double, as predicted, and then some: everything a bar or a part *is* became editable too -- tempo, time signature, section names, tuning, capo, and the set of parts. It ends where it does because a score can now be made from nothing rather than only changed |
 | **P4** | The differentiator: per-track LV2 chains, guitarix presets, SFZ sampling with round-robins | It sounds like a guitar |
-| **P5** | The long tail: standard notation, PDF, MusicXML, GP6 `.gpx` | Never, probably |
+| ~~P5~~ | The long tail: standard notation, PDF, MusicXML, GP6 `.gpx` | **retired 2026-08-31** — folded into P8.2 to P8.5 in [roadmap.md](roadmap.md) |
 
 P1 is the milestone that matters: at the end of it the project is useful to its
 author even if it stops there, which is the only honest definition of a
 foundation.
+
+P5 is kept in the table struck through rather than deleted, because documents
+written while it existed refer to it and a dangling phase number is worse than
+a retired one. It was retired because it had stopped describing the work. It
+was written as one distant bucket labelled "never, probably", and by the time
+P6 was finished that label was wrong about part of its contents and right about
+the rest — pitch spelling, built for the harmony work, is most of what
+notation *data* needs, while an engraver is as far away as it ever was. A
+bucket that is half unblocked and half never is not a phase; it is four
+separate questions with four different answers, which is how they are now
+written down.
 
 ## Legal position
 

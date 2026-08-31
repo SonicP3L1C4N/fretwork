@@ -6,7 +6,7 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 # Long-term roadmap
 
-Three directions past P5, written down with their dependencies, their prices
+Three directions past P4, written down with their dependencies, their prices
 and their decision points. This sits between the two documents that already
 exist: the phase table in [architecture.md](architecture.md) is what is being
 built now, [wishlist.md](wishlist.md) is what has been thought of and not
@@ -501,8 +501,8 @@ the scales work. That is the dependency that sets the order of this whole
 document.
 
 It is also worth noticing what this is *not*: notation **data**, not engraving.
-P5 lists standard notation as "possibly never" because a layout engine is many
-people over many years. Emitting the data another program lays out costs a
+The architecture lists standard notation as "possibly never" because a layout
+engine is many people over many years. Emitting the data another program lays out costs a
 fraction of that, and it is most of the value.
 
 ### The staging
@@ -564,7 +564,11 @@ one — and getting it backwards produces a score that plays confidently in the
 wrong octave, which is the failure this project keeps finding is worse than not
 playing something at all. Waiting for a transcription that uses them.
 
-**Stage 3 — notation.** Once spelling exists.
+**Stage 3 — notation.** Spelling now exists, so this is unblocked. It is the
+notation *file* — measures, signatures, tempo, staves with clefs, voices, and
+beats carrying `dur`, `dot` and `midi` — and the only piece missing under it is
+clef assignment, which is a rule about ranges rather than a layout engine. It is
+scheduled as P8.2, and it is the anchor of the long tail described below.
 
 **Stage 4 — import.** Read a `.feedpak` back. Whether this is wanted at all is
 an open question, and it runs into the same argument as writing `.gp`: reading
@@ -622,6 +626,9 @@ and a materially better one.
 | **P8.0** | feedpak export, walking skeleton | stems (done) | a week |
 | **P8.1** | Slides, vibrato, harmonics, tremolo | — | weeks |
 | **P8.2** | Notation data export | P6.1 | a week |
+| **P8.3** | MusicXML export | P8.2 | a week |
+| **P8.4** | PDF export | the paged layout (done) | days |
+| **P8.5** | GP6 `.gpx` import | a BCFS/BCFZ decompressor, in Rust | open |
 | — | Real-time MIDI recording | P7.2, a quantisation policy | open |
 | — | feedpak import | a decision, not code | open |
 
@@ -644,6 +651,48 @@ Three observations about that order:
    uncomfortable but correct: it is the only item whose quality depends on
    things not yet built, and shipping a pack exporter that silently omits every
    slide would break the one principle the project is actually known for.
+
+### The long tail, folded in from P5
+
+**P5 was retired on 2026-08-31 and its four contents given a row each above.**
+It was one row in the architecture's phase table — "the long tail: standard
+notation, PDF, MusicXML, GP6 `.gpx`" — with "never, probably" in the column for
+when it ends. P8.2 was already there, scheduled on its own account because the
+feedpak notation file depends on it; the other three joined it.
+
+The reason for the move is that a single verdict had stopped fitting four items
+that no longer share one. P5 was written before the harmony work, when notation
+of any kind meant a layout engine and everything in the bucket was equally
+distant. P6.1 changed that without setting out to: **pitch spelling is the piece
+notation cannot be faked without** — F sharp against G flat is not cosmetic, it
+decides which line the note sits on and whether it carries an accidental — and
+it now exists, tested, in `src/model/key.cpp`. Half the bucket became a week's
+work while the other half stayed where it was.
+
+Kept apart, they read honestly:
+
+- **P8.2, notation data.** Unblocked, a week, and already the dependency of the
+  feedpak notation file. Not engraving: the data another program lays out.
+- **P8.3, MusicXML.** The strongest of the four by argument rather than by
+  price. It is the only interchange format with no vendor behind it, and
+  therefore the honest answer to "can I have this file in something else" — a
+  question this program otherwise refuses to answer, because it will not write
+  `.gp`. Export only; reading it is a separate decision.
+- **P8.4, PDF.** Nearly free now. The score view already lays out real pages
+  with margins and a fixed A4 width, so this is a `QPrinter` and a paint pass
+  that mostly exists.
+- **P8.5, GP6.** Unchanged and correctly last. `.gpx` wraps the same document
+  in a bit-level compression of its own, so there is a decompressor to write
+  before there is any XML to read, and that belongs in Rust with the other
+  binary importers. The only thing built so far is a *refusal*: the importer
+  recognises a BCFZ container and says which format it is *not*, rather than
+  misparsing it.
+
+**Renumbering them does not move any of them closer.** P8.5 is exactly as far
+away as it was as part of P5, and an engraver is still probably never. What the
+fold buys is that the plan no longer says "never, probably" over a week of work
+that is unblocked today, and no longer implies that four items with four
+different dependencies will arrive together.
 
 ## What this costs, honestly
 

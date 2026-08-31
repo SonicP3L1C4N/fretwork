@@ -184,7 +184,9 @@ edits it cannot yet make.
   internet is still written in. Bounded work, well-charted by other projects,
   and entirely in the Rust importer where untrusted input belongs.
 
-- **GP6 `.gpx`.** The compressed BCFS container. Listed in P5 already.
+- **GP6 `.gpx`.** The compressed BCFS container. Scheduled as P8.5, and the
+  furthest away of anything in this section: it needs a bit-level decompressor
+  before there is a document to parse at all.
 
 - **MusicXML, both ways.** The only interchange format with no vendor behind
   it, and therefore the honest answer to "can I have this file in something
@@ -197,9 +199,12 @@ edits it cannot yet make.
 
 ## On the page
 
-- **Standard notation.** P5, and stated in the architecture as possibly never.
-  MuseScore's layout engine is many people over many years; tablature is a far
-  smaller problem that answers most of the question.
+- **Standard notation.** Still stated in the architecture as possibly never,
+  and that has not changed: MuseScore's layout engine is many people over many
+  years, and tablature is a far smaller problem that answers most of the
+  question. What has changed is that the half of it which is *data* rather than
+  engraving is now unblocked and scheduled as P8.2 — spelling exists, so the
+  pitches can be emitted correctly for something else to lay out.
 
 - **Multi-track pages.** The tracks stacked down the page as a score, rather
   than a page per track.

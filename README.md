@@ -102,7 +102,7 @@ why, including the things that were got wrong and fixed.
 | **P2** | The player: tab rendering, transport, mixer, live playback | **done** |
 | **P3** | The editor | **done** |
 | **P4** | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | **begun** — a chain per part, reorderable, saved under a name and reusable |
-| P5 | Standard notation, MusicXML, GP6 | |
+| ~~P5~~ | Standard notation, MusicXML, GP6 | retired — folded into **P8.2** to **P8.5** in [docs/roadmap.md](docs/roadmap.md) |
 | **P6** | Harmony: the fretboard solver, key spelling, analysis, the scale overlay, chords | **done** |
 | **P7** | MIDI in: a control surface, and notes typed from a keyboard | **done** |
 | P8 | fee[dB]ack practice packs | **begun** — packs are written; the techniques they cannot yet carry are named in [docs/roadmap.md](docs/roadmap.md) |
@@ -115,7 +115,7 @@ interface at all, which is the only honest definition of a foundation.
 - **[docs/architecture.md](docs/architecture.md)** — what gets built, in what
   order, on what stack, and why each choice beat the alternative. Read this
   first.
-- **[docs/roadmap.md](docs/roadmap.md)** — the three directions past P5, with
+- **[docs/roadmap.md](docs/roadmap.md)** — the three directions past P4, with
   their dependencies and their prices, and a record of what each one actually
   cost when it was built.
 - **[docs/gpif-format.md](docs/gpif-format.md)** — how a `.gp` file is actually
