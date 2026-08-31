@@ -29,6 +29,15 @@ constexpr int HighestFret = 36;
 constexpr int SetFretId = 1;
 
 /**
+ * Chords written onto one beat while keys are still held down.
+ *
+ * A hand pressing a triad presses three keys, and each arrives on its own; the
+ * beat is rewritten as each lands. Merged so that the hand is one act: three
+ * commands would be three presses of undo to take back one chord.
+ */
+constexpr int InsertChordId = 2;
+
+/**
  * The part as the fretboard solver wants to be told about it.
  *
  * The neck is HighestFret rather than a real instrument's, because the editor
@@ -746,6 +755,39 @@ public:
         setText(i18n("Insert %1", name));
     }
 
+    int id() const override
+    {
+        return InsertChordId;
+    }
+
+    bool mergeWith(const QUndoCommand *other) override
+    {
+        const auto *next = static_cast<const InsertChordCommand *>(other);
+        // Only where the caret has not moved, and only while a chord is still
+        // being built: two chords written onto the same beat at different
+        // times are two edits, and the second one having been asked for
+        // separately is the whole difference.
+        if (!(next->m_cursor == m_cursor) || !next->m_building) {
+            return false;
+        }
+        m_shape = next->m_shape;
+        setText(next->text());
+        // The notes now in the document are the ones the newer command wrote,
+        // so those are the ones this has to take away again -- clearing them
+        // would leave a chord behind on undo. What it *displaced* stays as the
+        // first one found it: everything since has replaced a version of this
+        // same chord, and undoing reaches past all of them to what was there
+        // before any key was pressed.
+        m_written = next->m_written;
+        return true;
+    }
+
+    /** Whether more keys may still be added to this chord. */
+    void building(bool building)
+    {
+        m_building = building;
+    }
+
     void redo() override
     {
         Score &score = m_editor->mutableScore();
@@ -840,6 +882,7 @@ private:
     Rational m_duration;
     bool m_madeBeat = false;
     bool m_madeVoice = false;
+    bool m_building = false;
     int m_beatId = -1;
 };
 
@@ -2509,7 +2552,8 @@ Editor::Edit Editor::setCapo(int fret)
     return Edit::Done;
 }
 
-Editor::Edit Editor::insertChord(const QList<Fretboard::Position> &shape, const QString &name)
+Editor::Edit Editor::insertChord(const QList<Fretboard::Position> &shape, const QString &name,
+                                 bool building)
 {
     endDigitEntry();
     if (shape.isEmpty() || m_cursor.track < 0 || m_cursor.track >= m_score.tracks.size()) {
@@ -2526,7 +2570,11 @@ Editor::Edit Editor::insertChord(const QList<Fretboard::Position> &shape, const 
         return Edit::Refused;
     }
     clearSelection();
-    m_undo->push(new InsertChordCommand(this, m_cursor, shape, name));
+    auto *command = new InsertChordCommand(this, m_cursor, shape, name);
+    // A chord still being built merges into the one before it, so that a hand
+    // holding three keys is one act rather than three.
+    command->building(building);
+    m_undo->push(command);
     return Edit::Done;
 }
 

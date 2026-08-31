@@ -209,7 +209,8 @@ public:
      * Nothing here decides *which* chord: that is harmony, it is somebody's
      * choice, and by the time it reaches this it is a list of frets.
      */
-    Edit insertChord(const QList<Fretboard::Position> &shape, const QString &name);
+    Edit insertChord(const QList<Fretboard::Position> &shape, const QString &name,
+                     bool building = false);
 
     /** Puts an empty bar on the end of the score, and the caret in it. */
     void appendBar();

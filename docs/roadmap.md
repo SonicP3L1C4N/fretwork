@@ -390,10 +390,25 @@ independent choices, which is exactly the cost function described above.
 
 Two modes, and they are different features:
 
-- **Step entry.** A key press writes a note at the caret and advances, the way
-  `typeDigit` does now. This is a genuine speed improvement for anyone who
-  plays keys, it is bounded, and it fits the editor's existing undo model with
-  no new ideas.
+- **Step entry.** **Done**, written **2026-08-31**. A key press writes a note
+  at the caret, and the caret moves on when the hand comes off — which is the
+  whole of the timing policy, and is why this half was worth doing first. A
+  chord is simply the keys held down together: no quantisation, no argument
+  about a note that arrived forty milliseconds early, and nothing that needs a
+  clock.
+
+  The solver does the work the roadmap said it would. Played E, G and B in
+  turn, the notes land on the top string at frets 0, 3 and 7, the hand
+  following up the neck; the C major triad held after them comes out as fret 5
+  on the G string, 5 on the B and 3 on the top — a real close-position shape at
+  the fifth fret, chosen because that is where the hand already was. Three
+  independent choices would not have produced it.
+
+  A held chord is one undo. The beat is rewritten as each key lands, so a triad
+  arrives as three commands, and three presses of undo to take back one chord
+  would be three too many. The merge has a trap in it worth knowing about: it
+  has to adopt the notes the *newer* command wrote, or undoing leaves a chord
+  behind.
 - **Real-time recording.** Play along and have it transcribed. This needs
   quantisation, which needs a policy for what to do with a note that is 40ms
   early, and that policy is where every notation program has its worst
@@ -555,7 +570,7 @@ and a materially better one.
 | **P7.0** | MIDI input plumbing (PipeWire, decided once) | nothing | **done** |
 | **P7.1** | Control surface: transport, encoders → LV2 controls | P7.0 | **done** |
 | **P6.4** | Circle of fifths, chord insertion | P6.0, P6.3 | **done** |
-| **P7.2** | Step note entry from the keyboard | P6.0, P6.4 | a week |
+| **P7.2** | Step note entry from the keyboard | P6.0, P6.4 | **done** |
 | **P8.0** | feedpak export, walking skeleton | stems (done) | a week |
 | **P8.1** | Slides, vibrato, harmonics, tremolo | — | weeks |
 | **P8.2** | Notation data export | P6.1 | a week |

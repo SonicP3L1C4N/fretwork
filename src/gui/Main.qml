@@ -151,6 +151,8 @@ Kirigami.ApplicationWindow {
         id: surfaceState
         category: "Surface"
         property string port: ""
+        /** The keyboard, which is a different socket from the surface. */
+        property string keysPort: ""
     }
 
     Session {
@@ -159,6 +161,9 @@ Kirigami.ApplicationWindow {
         Component.onCompleted: {
             if (surfaceState.port.length > 0) {
                 listenOnSurface(surfaceState.port)
+            }
+            if (surfaceState.keysPort.length > 0) {
+                listenForKeys(surfaceState.keysPort)
             }
         }
 
@@ -1655,6 +1660,64 @@ Kirigami.ApplicationWindow {
                      * naming a path on somebody's disk would open wrong
                      * everywhere else.
                      */
+                    /**
+                     * Typing notes in from a keyboard, which is a property of
+                     * the part being edited and so belongs beside it.
+                     *
+                     * A key press writes a note at the caret and the caret
+                     * moves on when the hand comes off, so a chord is simply
+                     * the keys held together. Off unless a port has been
+                     * chosen: a program that started writing notes into a
+                     * score because something was plugged in would be a
+                     * program nobody trusts with one.
+                     */
+                    PanelButton {
+                        Layout.fillWidth: true
+                        Layout.topMargin: Kirigami.Units.smallSpacing
+                        visible: session.stringsHere > 0
+                        text: session.typingFromKeys
+                            ? i18n("Keys: %1", session.keysPort.split(":").pop())
+                            : i18n("Type from a keyboard...")
+                        QQC2.ToolTip.text: session.typingFromKeys
+                            ? i18n("Notes played on %1 are written at the caret", session.keysPort)
+                            : i18n("Write notes at the caret from a MIDI keyboard")
+                        onClicked: {
+                            if (session.typingFromKeys) {
+                                session.stopListeningForKeys()
+                                surfaceState.keysPort = ""
+                            } else {
+                                keysMenu.ports = session.midiPorts()
+                                keysMenu.popup()
+                            }
+                        }
+
+                        QQC2.Menu {
+                            id: keysMenu
+                            property var ports: []
+
+                            QQC2.MenuItem {
+                                text: i18n("No MIDI ports found")
+                                enabled: false
+                                visible: keysMenu.ports.length === 0
+                                height: visible ? implicitHeight : 0
+                            }
+
+                            Instantiator {
+                                model: keysMenu.ports
+                                delegate: QQC2.MenuItem {
+                                    required property string modelData
+                                    text: modelData
+                                    onTriggered: {
+                                        session.listenForKeys(modelData)
+                                        surfaceState.keysPort = modelData
+                                    }
+                                }
+                                onObjectAdded: (index, object) => keysMenu.insertItem(index + 1, object)
+                                onObjectRemoved: (index, object) => keysMenu.removeItem(object)
+                            }
+                        }
+                    }
+
                     PanelButton {
                         Layout.fillWidth: true
                         Layout.topMargin: Kirigami.Units.smallSpacing

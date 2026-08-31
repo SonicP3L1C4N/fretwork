@@ -2031,6 +2031,131 @@ void Session::apply(const Mackie::Action &action)
     Q_EMIT surfaceChanged();
 }
 
+// ---- typing from a keyboard ----
+
+QString Session::keysPort() const
+{
+    return m_keysPort;
+}
+
+bool Session::isTypingFromKeys() const
+{
+    return m_keys && m_keys->isValid();
+}
+
+void Session::listenForKeys(const QString &port)
+{
+    stopListeningForKeys();
+    if (port.isEmpty()) {
+        return;
+    }
+    MidiInput::Options options;
+    options.device = port;
+    options.name = QStringLiteral("Fretwork keys");
+    m_keys = std::make_unique<MidiInput>(options);
+    m_keysPort = port;
+
+    if (!m_keys->isValid()) {
+        setProblem(m_keys->error());
+        m_keys.reset();
+        Q_EMIT surfaceChanged();
+        return;
+    }
+    m_keysPoll.setInterval(30);
+    connect(&m_keysPoll, &QTimer::timeout, this, &Session::readKeys, Qt::UniqueConnection);
+    m_keysPoll.start();
+    setStatus(i18n("Typing notes from %1", port));
+    Q_EMIT surfaceChanged();
+}
+
+void Session::stopListeningForKeys()
+{
+    m_keysPoll.stop();
+    m_keys.reset();
+    m_keysPort.clear();
+    m_held.clear();
+    Q_EMIT surfaceChanged();
+}
+
+void Session::readKeys()
+{
+    if (!m_keys) {
+        return;
+    }
+    for (const MidiInput::Event &event : m_keys->take()) {
+        if (event.kind == MidiInput::Event::Kind::NoteOn) {
+            if (!m_held.contains(event.data1)) {
+                m_held.append(event.data1);
+            }
+            writeHeld();
+        } else if (event.kind == MidiInput::Event::Kind::NoteOff) {
+            m_held.removeAll(event.data1);
+            if (m_held.isEmpty()) {
+                // The hand has come off, so the beat is finished and the caret
+                // moves on. Which is the whole of the timing policy here:
+                // notes held together are a chord, and letting go is the only
+                // instruction this needs.
+                moveCursor(QStringLiteral("right"));
+            }
+        }
+    }
+}
+
+void Session::writeHeld()
+{
+    if (m_held.isEmpty() || !hasScore() || m_currentTrack < 0
+        || m_currentTrack >= m_editor.score().tracks.size()) {
+        return;
+    }
+    const Track &part = m_editor.score().tracks.at(m_currentTrack);
+    if (part.tuning.isEmpty()) {
+        setStatus(i18n("A drum kit has no strings to type notes onto"));
+        return;
+    }
+    const Fretboard::Instrument instrument{part.tuning, part.capo, 24};
+
+    QList<int> pitches = m_held;
+    std::sort(pitches.begin(), pitches.end());
+
+    // Where the hand already is, as the caret's bar has it. A key pressed
+    // while working at the seventh fret should not be written at the nut.
+    const QPair<int, int> reach = handHere();
+    Fretboard::Hand hand;
+    if (reach.first > 0) {
+        hand.fret = reach.first;
+    }
+
+    QList<Fretboard::Position> shape;
+    if (pitches.size() == 1) {
+        const Fretboard::Position at = Fretboard::choose(instrument, pitches.first(), hand);
+        if (at.isValid()) {
+            shape.append(at);
+        }
+    } else {
+        // Not one choice per key: the solver picks a shape, because three
+        // notes on an instrument with six strings is a question about the
+        // hand and not three questions about pitches.
+        shape = Fretboard::chord(instrument, pitches, hand);
+    }
+
+    if (shape.isEmpty()) {
+        // Named rather than silently dropped: a key that does nothing is a key
+        // somebody presses again harder.
+        QStringList names;
+        for (const int pitch : pitches) {
+            names.append(Key::withOctave(Key::spell(pitch, workingKey())));
+        }
+        setStatus(i18n("%1 cannot be played on this instrument", names.join(QLatin1Char(' '))));
+        return;
+    }
+
+    QStringList names;
+    for (const int pitch : pitches) {
+        names.append(Key::nameOf(Key::spell(pitch, workingKey())));
+    }
+    m_editor.insertChord(shape, names.join(QLatin1Char(' ')), true);
+}
+
 QPair<int, int> Session::handHere() const
 {
     if (!hasScore() || m_currentTrack < 0 || m_currentTrack >= m_editor.score().tracks.size()) {

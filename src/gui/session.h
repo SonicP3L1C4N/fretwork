@@ -150,6 +150,8 @@ class Session : public QObject
     Q_PROPERTY(QString surfacePort READ surfacePort NOTIFY surfaceChanged)
     Q_PROPERTY(bool surfaceListening READ isSurfaceListening NOTIFY surfaceChanged)
     Q_PROPERTY(QString surfaceStatus READ surfaceStatus NOTIFY surfaceChanged)
+    Q_PROPERTY(QString keysPort READ keysPort NOTIFY surfaceChanged)
+    Q_PROPERTY(bool typingFromKeys READ isTypingFromKeys NOTIFY surfaceChanged)
 
     /** How many strings the current track has; none for a drum kit. */
     Q_PROPERTY(int stringsHere READ stringsHere NOTIFY cursorMoved)
@@ -663,6 +665,27 @@ public:
     QString surfaceStatus() const;
 
     /**
+     * Notes typed from a MIDI keyboard, a beat at a time.
+     *
+     * A key press writes a note at the caret the way typing a fret number
+     * does, and the caret advances when the hand comes off. Which means a
+     * chord is simply the keys that were held down together -- no timing
+     * policy, no quantisation, and no argument about what to do with a note
+     * that arrived forty milliseconds early. That argument belongs to
+     * real-time recording, which is a different feature and a separate
+     * decision.
+     *
+     * A different port from the control surface, because on a controller they
+     * are different sockets: a Minilab3's `MIDI` is its keys and its
+     * `MCU/HUI` is its transport and encoders.
+     */
+    Q_INVOKABLE void listenForKeys(const QString &port);
+    Q_INVOKABLE void stopListeningForKeys();
+
+    QString keysPort() const;
+    bool isTypingFromKeys() const;
+
+    /**
      * The frets the hand is over, as the caret's bar has it.
      *
      * The score already knows where a hand is and it is not one note: it is
@@ -913,6 +936,14 @@ private:
     QString m_surfaceStatus;
     void readSurface();
     void apply(const Mackie::Action &action);
+
+    /** The keyboard: what is held down, and what that makes of the beat. */
+    std::unique_ptr<MidiInput> m_keys;
+    QTimer m_keysPoll;
+    QString m_keysPort;
+    QList<int> m_held;
+    void readKeys();
+    void writeHeld();
 
     QTimer m_ticker;
     QTimer m_rigWriter;

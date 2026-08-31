@@ -1689,6 +1689,62 @@ private Q_SLOTS:
         QCOMPARE(int(editor.score().notes.size()), before - 1 + 3);
     }
 
+    /**
+     * A hand holding three keys is one act.
+     *
+     * Step entry rewrites the beat as each key lands, so a triad arrives as
+     * three chords written onto the same beat. Three presses of undo to take
+     * back one chord would be three presses too many -- and the trap is the
+     * other way round: a merge that forgot the notes the newer one wrote would
+     * leave a chord behind when it was undone.
+     */
+    void aChordStillBeingBuiltIsOneUndo()
+    {
+        Editor editor;
+        editor.setScore(fretted(0));
+        editor.setCursor(at(0, 0, 0));
+        const int beatId = Editing::beatIdAt(editor.score(), editor.cursor());
+        const int before = int(editor.score().notes.size());
+        const QList<int> was = editor.score().beats.value(beatId).notes;
+
+        // A key, then a second, then a third, all held.
+        QCOMPARE(editor.insertChord({{1, 3}}, QStringLiteral("C"), true), Editor::Edit::Done);
+        QCOMPARE(editor.insertChord({{1, 3}, {2, 2}}, QStringLiteral("C"), true),
+                 Editor::Edit::Done);
+        QCOMPARE(editor.insertChord({{1, 3}, {2, 2}, {3, 0}}, QStringLiteral("C"), true),
+                 Editor::Edit::Done);
+        QCOMPARE(editor.score().beats.value(beatId).notes.size(), 3);
+
+        // One undo, and the beat is exactly as it was before any key was
+        // pressed -- no leftovers, and the same note count as at the start.
+        editor.undo();
+        QCOMPARE(editor.score().beats.value(beatId).notes, was);
+        QCOMPARE(int(editor.score().notes.size()), before);
+
+        // And redoing puts back the whole chord rather than the first key.
+        editor.redo();
+        QCOMPARE(editor.score().beats.value(beatId).notes.size(), 3);
+        editor.undo();
+        QCOMPARE(int(editor.score().notes.size()), before);
+    }
+
+    /** A chord that is finished does not swallow the next one. */
+    void twoChordsAskedForSeparatelyAreTwoUndos()
+    {
+        Editor editor;
+        editor.setScore(fretted(0));
+        editor.setCursor(at(0, 0, 0));
+        const int beatId = Editing::beatIdAt(editor.score(), editor.cursor());
+
+        QCOMPARE(editor.insertChord({{1, 3}, {2, 2}}, QStringLiteral("C"), false),
+                 Editor::Edit::Done);
+        QCOMPARE(editor.insertChord({{4, 1}}, QStringLiteral("D"), false), Editor::Edit::Done);
+        QCOMPARE(editor.score().beats.value(beatId).notes.size(), 1);
+
+        editor.undo();
+        QCOMPARE(editor.score().beats.value(beatId).notes.size(), 2);
+    }
+
     void aChordOnAStringThePartHasNotGotIsRefused()
     {
         Editor editor;

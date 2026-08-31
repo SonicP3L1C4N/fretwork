@@ -206,6 +206,18 @@ bar lines not being drawn — and both say so.
   and another is its transport and encoders, so the choice is a port and not a
   device.
 
+  **And notes can be typed in from a keyboard.** A key press writes a note at
+  the caret, and the caret moves on when the hand comes off — so a chord is
+  simply the keys held down together. There is no quantisation and no timing
+  policy to argue with, because none is needed: what is held is a chord and
+  what is let go of is finished.
+
+  Which fret a key lands on is the fretboard solver's answer, with the hand
+  where the caret's bar says it is. Play E, G and B and they walk up the top
+  string; hold a C major triad after them and it comes out as a close-position
+  shape at the fifth fret rather than three notes chosen one at a time. A held
+  chord is one press of undo, however many keys went into it.
+
   It does not record, and says so if you press record. The line that keeps this
   from turning into a DAW is that MIDI arrives as an edit or as a control and
   never as a captured performance.
