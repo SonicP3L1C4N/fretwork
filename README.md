@@ -34,6 +34,8 @@ per track so that solo and mute take effect while it plays — no re-render, no
 bounce. Repeats are expanded; where a score is beyond what it can honestly
 play, it says so rather than playing it wrongly.
 
+![A score with a repeat and two endings, and a warning that alternate endings are not flattened, so the playback order is approximate](docs/window-repeats.png)
+
 **Edits.** Click a string and type a fret. Marks (`x` dead, `g` ghost, `p` palm
 mute, `l` let ring), transposition, note durations, bars, parts, tuning, capo,
 tempo, time signature and section names are all editable, everything is
@@ -58,6 +60,8 @@ into the score at the caret as real notes on real strings.
 listens for the strings the piece is actually written for.
 
 ![The tuner: the part's tuning as six strings, a ladder of blocks either side of the mark, and the level meter](docs/window-tuner.png)
+
+![The same string read three ways: twelve cents flat with the ladder lit blue, in tune with the centre block filled amber, and eleven cents sharp with the ladder lit magenta](docs/tuner-directions.png)
 
 **Saves.** `Ctrl+S` writes a `.fw` — a ZIP holding readable JSON, so a file
 attached to a bug report can be understood by looking at it. Every score in the

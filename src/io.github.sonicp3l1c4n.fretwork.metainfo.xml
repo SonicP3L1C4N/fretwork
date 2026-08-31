@@ -63,6 +63,10 @@ SPDX-License-Identifier: CC0-1.0
       <caption>The bar ruler, with the section names over the bars they start</caption>
     </screenshot>
     <screenshot>
+      <image>https://raw.githubusercontent.com/SonicP3L1C4N/fretwork/main/docs/window-repeats.png</image>
+      <caption>Repeats expanded, and a score saying where it cannot follow one</caption>
+    </screenshot>
+    <screenshot>
       <image>https://raw.githubusercontent.com/SonicP3L1C4N/fretwork/main/docs/window-tuner.png</image>
       <caption>The tuner, listening to the audio input</caption>
     </screenshot>
