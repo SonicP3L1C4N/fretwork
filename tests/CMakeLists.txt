@@ -170,6 +170,11 @@ ecm_add_test(mackietest.cpp
     LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n
 )
 
+ecm_add_test(feedpaktest.cpp
+    TEST_NAME feedpaktest
+    LINK_LIBRARIES Qt6::Test fretworkcore KF6::Archive KF6::I18n
+)
+
 find_program(DESKTOP_FILE_VALIDATE desktop-file-validate)
 if(DESKTOP_FILE_VALIDATE)
     add_test(NAME desktopfiletest

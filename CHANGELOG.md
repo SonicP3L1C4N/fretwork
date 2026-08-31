@@ -189,6 +189,26 @@ bar lines not being drawn — and both say so.
   page rather than on it because it is a thing about the instrument: it does
   not scroll with the music, and it is not on any page that would be printed.
 
+- **It can write a practice pack.** `fretwork FILE.gp --feedpak pack.feedpak`
+  writes a fee[dB]ack pack: a manifest, the notes of every fretted part in
+  seconds with the techniques that survive the trip, and one audio stem per
+  part plus the mix. The fit is close because a `.fw` is already a ZIP of
+  readable JSON, this program already renders a file per track, and its
+  timeline already turns notated durations into seconds — which is exactly what
+  a pack's note times are. Nothing else on Linux holds both halves: a tab
+  editor has the notation and cannot render stems per part, and a DAW has the
+  stems and knows nothing about frets.
+
+  Only the techniques it can honestly claim are written, and the ones it cannot
+  are written as *absent* rather than left out — a practice program marks a
+  learner against what the pack says is there, and a reader filling in a
+  missing field with its own default would be deciding something about
+  somebody's playing that nobody told it. Slides, vibrato, harmonics and
+  tremolo are the gap, and they are the same ones this program already admits
+  to not translating.
+
+  The stems are uncompressed, so a pack of a five-minute piece is large.
+
 - **A controller can drive it.** Fretwork now reads MIDI — the first time
   anything in it has, since its MIDI code until now only ever wrote files — and
   speaks Mackie Control, which is the protocol every DAW and most hardware

@@ -330,6 +330,9 @@ QList<Timeline::NoteEvent> Timeline::notesFor(const Score &score, int trackIndex
                     event.string = note->string;
                     event.fret = note->fret;
                     event.muted = note->muted;
+                    event.palmMuted = note->palmMuted;
+                    event.letRing = note->letRing;
+                    event.accent = note->accent;
                     event.channel = channelFor(track, *note);
                     event.bend = bendCurve(*note, sounding);
                     // A legato slide is fretted rather than picked, the same as

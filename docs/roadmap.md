@@ -507,11 +507,34 @@ fraction of that, and it is most of the value.
 
 ### The staging
 
-**Stage 1 — the walking skeleton.** Manifest, one arrangement, stems from the
-existing renderer, no notation file, and only the techniques Fretwork can
-honestly claim. Proves the round trip and is worth building early, because it
-is how the format's undocumented corners get found — the same method that
-produced gpif-format.md.
+**Stage 1 — the walking skeleton.** **Done**, in `src/export/feedpak.{h,cpp}`
+behind `--feedpak`, written **2026-08-31**. A manifest, an arrangement per
+fretted part, a stem per part plus the mix from the existing renderer, no
+notation file, and only the techniques this program can honestly claim.
+
+It was built the way gpif-format.md was, by unpacking real files, and it
+answered the two questions this section raised:
+
+- **String numbering is the same as Fretwork's — nought is the lowest.**
+  Measured, not assumed. Every pack here is in standard tuning and writes six
+  zeros, which says nothing, so the check was to read a known melody off the
+  numbers: the Ode to Joy pack's `s:4 f:7` and `s:5 f:5` come out as F♯ and A —
+  the tune — only if nought is the low string. Counting from the other end puts
+  a leap down to A2 in the middle of a stepwise melody.
+- **`tuning` is semitone offsets from standard, not pitches.** Six zeros cannot
+  be pitches, and the melody reads correctly when zero is taken to mean
+  standard. Stated as the inference it is: no pack on this machine is in a
+  non-standard tuning, so nothing here proves it.
+
+And it found a bug that only a real transcription could show. A drum kit
+imports with a tuning of **six zeros rather than none**, so the first version —
+which asked whether a part had strings — wrote the kit an arrangement of frets
+on a drum. Asked of `isPercussion()` now, which is the same correction the
+importer already documents about reading a kit from its programme number.
+
+What the skeleton does not do yet, beyond the techniques: the stems are WAV, so
+a pack of a five-minute piece is about 280 MB where a real one is a few. Packs
+use Ogg for the mix, and encoding it needs a dependency this does not have.
 
 **Stage 2 — honest techniques.** Slides, vibrato, harmonics, tremolo. Wishlist
 items with a reason attached, which is what a wishlist item is waiting for.

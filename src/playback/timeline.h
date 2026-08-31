@@ -68,6 +68,19 @@ struct NoteEvent {
      * different sample; until P4 there is one, and it is quieter.
      */
     bool legato = false;
+
+    /**
+     * What the page says about how it is played, carried through unchanged.
+     *
+     * Not used to decide anything here -- palm muting and letting ring are
+     * drawn and they are printed, and what a synthesiser does about them is
+     * its own business. They are on the event because anything written *out*
+     * of this program needs the timing and the technique together, and this is
+     * the only place both are already true at once.
+     */
+    bool palmMuted = false;
+    bool letRing = false;
+    bool accent = false;
 };
 
 struct TempoEvent {

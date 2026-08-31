@@ -5,6 +5,7 @@
 #include "audioinput.h"
 #include "fwformat.h"
 #include "gpif.h"
+#include "feedpak.h"
 #include "gxpreset.h"
 #include "key.h"
 #include "lv2chain.h"
@@ -939,6 +940,10 @@ int main(int argc, char *argv[])
     const QCommandLineOption soundFont(QStringLiteral("soundfont"),
                                        i18n("The SoundFont to render with"), i18n("file.sf2"));
     parser.addOption(soundFont);
+    const QCommandLineOption feedpak(QStringLiteral("feedpak"),
+                                     i18n("Write a fee[dB]ack practice pack"),
+                                     i18n("file.feedpak"));
+    parser.addOption(feedpak);
     const QCommandLineOption pdf(QStringLiteral("pdf"),
                                  i18n("Draw the tablature as a PDF"), i18n("file.pdf"));
     parser.addOption(pdf);
@@ -1065,7 +1070,7 @@ int main(int argc, char *argv[])
     // Asked to produce something, this is a command line tool; asked for
     // nothing in particular, it is an application and opens a window.
     const bool asked = parser.isSet(info) || parser.isSet(midi) || parser.isSet(stems)
-        || parser.isSet(render) || parser.isSet(pdf) || parser.isSet(png)
+        || parser.isSet(render) || parser.isSet(feedpak) || parser.isSet(pdf) || parser.isSet(png)
         || parser.isSet(playing) || parser.isSet(tune) || parser.isSet(saving);
     if (!asked) {
         QQuickStyle::setStyle(QStringLiteral("org.kde.desktop"));
@@ -1225,6 +1230,22 @@ int main(int argc, char *argv[])
                 : track.name;
             if (!runTuner(out, error, Tuner::targetsFor(track), what,
                           parser.value(audioInput))) {
+                ++failures;
+            }
+        }
+        if (parser.isSet(feedpak)) {
+            Feedpak::Options packing;
+            packing.soundFont = parser.value(soundFont);
+            const QString packPath = parser.value(feedpak);
+            QString why;
+            if (Feedpak::write(score, order, packPath, packing, &why)) {
+                const QList<int> parts = Feedpak::playableParts(score);
+                out << QStringLiteral("  wrote %1  (%2, %3)\n")
+                           .arg(packPath)
+                           .arg(i18np("one arrangement", "%1 arrangements", int(parts.size())))
+                           .arg(clock(Timeline::seconds(score, order)));
+            } else {
+                error << i18n("fretwork: %1\n", why);
                 ++failures;
             }
         }
