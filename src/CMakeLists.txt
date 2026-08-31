@@ -10,6 +10,7 @@ add_library(fretworkcore STATIC
     model/fretboard.cpp
     model/key.cpp
     model/analysis.cpp
+    model/chord.cpp
     import/gpif.cpp
     import/zipreader.cpp
     export/midi.cpp

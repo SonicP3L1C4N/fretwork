@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <QList>
 #include <QString>
 
 /**
@@ -106,6 +107,17 @@ Spelling spell(int midi, const Signature &signature = {});
 bool isDiatonic(int midi, const Signature &signature);
 
 /**
+ * The seven notes of the key, from its tonic upwards, spelled as it spells
+ * them -- which is a scale, and is not the same as seven pitches.
+ *
+ * The octave on each is not meaningful; what matters is the letter, its
+ * accidental, and the order. Asking `spell()` for each letter in turn does not
+ * answer this: the third degree of C minor is an E flat, and the pitch of a
+ * natural E spells as a natural E in any key that does not contain it.
+ */
+QList<Spelling> scaleOf(const Signature &signature);
+
+/**
  * "D♯", "B♭", "F" -- the letter and its accidental.
  *
  * Sharps and flats are the Unicode signs rather than `#` and `b`, because this
@@ -127,4 +139,15 @@ QString nameOf(const Signature &signature);
 
 /** The note the key is named after, spelled as the key spells it. */
 Spelling tonicOf(const Signature &signature);
+
+/**
+ * The signature a key is written with, given its tonic and its mode.
+ *
+ * The inverse of [tonicOf], and not quite a function: F sharp major and G flat
+ * major are the same twelve notes spelled two ways, as are D sharp minor and E
+ * flat minor. Where there is a choice this makes the one a musician would --
+ * the conventional spelling rather than the arithmetically neater one -- from
+ * a table that can be checked against a music book.
+ */
+Signature signatureFor(int tonicPitchClass, bool minor);
 }

@@ -1801,6 +1801,106 @@ QString Session::soundingKeyName() const
     return Key::nameOf(soundingKey());
 }
 
+int Session::soundingAccidentals() const
+{
+    return soundingKey().accidentals;
+}
+
+bool Session::soundingMinor() const
+{
+    return soundingKey().minor;
+}
+
+QString Session::keyName(int accidentals, bool minor) const
+{
+    return Key::nameOf(Key::Signature{accidentals, minor});
+}
+
+namespace
+{
+/** The instrument a part is, as the chord and fretboard code wants it told. */
+Fretboard::Instrument instrumentOf(const Track &track)
+{
+    return Fretboard::Instrument{track.tuning, track.capo, 24};
+}
+}
+
+QString Session::parallelKeyName(int accidentals, bool minor) const
+{
+    const Key::Signature key{accidentals, minor};
+    const int tonic = Key::midiOf(Key::tonicOf(key)) % 12;
+    return Key::nameOf(Key::signatureFor(tonic, !minor));
+}
+
+QVariantList Session::chordsOf(int accidentals, bool minor) const
+{
+    return describe(Chord::diatonic(Key::Signature{accidentals, minor}),
+                    Key::Signature{accidentals, minor});
+}
+
+QVariantList Session::borrowedFrom(int accidentals, bool minor) const
+{
+    const Key::Signature key{accidentals, minor};
+    // Named in the key they came from rather than in this one, so a flat sixth
+    // is the A flat it is and not a G sharp.
+    const int tonic = Key::midiOf(Key::tonicOf(key)) % 12;
+    return describe(Chord::borrowed(key), Key::signatureFor(tonic, !minor));
+}
+
+QVariantList Session::describe(const QList<Chord::Named> &chords, const Key::Signature &key) const
+{
+    const bool fretted = hasScore() && m_currentTrack >= 0
+        && m_currentTrack < m_editor.score().tracks.size()
+        && !m_editor.score().tracks.at(m_currentTrack).tuning.isEmpty();
+    const Fretboard::Instrument instrument =
+        fretted ? instrumentOf(m_editor.score().tracks.at(m_currentTrack))
+                : Fretboard::Instrument{};
+
+    QVariantList out;
+    for (const Chord::Named &chord : chords) {
+        QVariantMap entry;
+        entry.insert(QStringLiteral("name"), Chord::nameOf(chord, key));
+        entry.insert(QStringLiteral("degree"), Chord::degreeOf(chord, key));
+        entry.insert(QStringLiteral("root"), chord.root);
+        entry.insert(QStringLiteral("quality"), int(chord.quality));
+        entry.insert(QStringLiteral("playable"),
+                     fretted && !Chord::shapeOf(instrument, chord).isEmpty());
+        out.append(entry);
+    }
+    return out;
+}
+
+bool Session::insertChord(int root, int quality)
+{
+    if (!hasScore() || m_currentTrack < 0 || m_currentTrack >= m_editor.score().tracks.size()) {
+        return false;
+    }
+    const Track &part = m_editor.score().tracks.at(m_currentTrack);
+    if (part.tuning.isEmpty()) {
+        setStatus(i18n("A drum kit has no strings to put a chord on"));
+        return false;
+    }
+    const Chord::Named chord{root, Chord::Quality(quality)};
+    const Fretboard::Instrument instrument = instrumentOf(part);
+
+    // Where the hand already is, if it is anywhere.
+    const QList<Fretboard::Position> shape =
+        Chord::shapeNear(instrument, chord, caretFret());
+    const QString name = Chord::nameOf(chord, soundingKey());
+    if (shape.isEmpty()) {
+        // Named, and refused whole: a chord with a note missing is a different
+        // chord, and quietly writing one is the thing this layer must not do.
+        setStatus(i18n("%1 cannot be played on this instrument", name));
+        return false;
+    }
+    if (m_editor.insertChord(shape, name) != Editor::Edit::Done) {
+        setStatus(i18n("There is nowhere to put %1 here", name));
+        return false;
+    }
+    setStatus(i18n("Wrote %1", name));
+    return true;
+}
+
 int Session::capoHere() const
 {
     return hasScore() ? m_editor.score().tracks.at(m_currentTrack).capo : 0;

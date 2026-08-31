@@ -12,8 +12,8 @@ Three things, in the order they arrived. **The rig**: the effects panel is laid
 out around the chain rather than around the plugins, the chain can be put in
 the order somebody wants it in, a sound can be kept under a name and used on
 another song, and the two side panels can change places. **Harmony**: Fretwork
-can work out what key a piece is actually in, and draw that key on a fretboard
-over the score. **The page**: the score is a document of real pages now, and
+can work out what key a piece is actually in, draw that key on a fretboard over
+the score, and write the chords of any key into it from a circle of fifths. **The page**: the score is a document of real pages now, and
 the lines it is drawn with all turn up, which through 0.1.0 they did not.
 
 Two of the entries below are corrections of things 0.1.0 shipped rather than
@@ -188,6 +188,30 @@ bar lines not being drawn — and both say so.
   a fact about the music rather than about the instrument. It sits over the
   page rather than on it because it is a thing about the instrument: it does
   not scroll with the music, and it is not on any page that would be printed.
+
+- **Chords, from a circle of fifths that is a control rather than a diagram.**
+  Turning it picks a key; the seven chords of that key are the row underneath;
+  pressing one writes it into the score at the caret as a real beat with real
+  notes on real strings. The chords borrowed from the parallel key are offered
+  too, named in the key they came from — a flat sixth in C minor is the A flat
+  it is and not a G sharp. The circle opens on whatever key the piece sounds
+  like, since that is the one somebody writing into this piece almost certainly
+  wants.
+
+  Chords arrive where the hand already is: asked for while working at the
+  seventh fret, a C major comes as the shape under that hand rather than as the
+  open one down at the nut. With nothing under the caret it is the shape
+  nearest the nut, which is the one a player already knows. The shapes are
+  worked out rather than looked up in a table — find the lowest string that can
+  sound the root under the hand, then take the lowest chord tone in reach on
+  every string above it — and what comes out is what is in the chord books: C
+  as x32010, G as 320003, A minor as x02210, F as the barre 133211.
+
+  This is the first thing in Fretwork that writes notes nobody typed, so it is
+  careful about it. It writes only when asked. It refuses whole and says which
+  chord where an instrument cannot hold one anywhere — a chord with a note
+  missing is a different chord. And one undo takes the whole chord back,
+  including the beat it made to put it on.
 
 ## 0.1.0 — 2026-09-01
 

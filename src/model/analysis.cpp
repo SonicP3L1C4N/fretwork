@@ -57,44 +57,6 @@ constexpr std::array<double, 12> MinorProfile = {
     3.17, // major seventh
 };
 
-/**
- * The signature each tonic is written with, by pitch class.
- *
- * A table rather than arithmetic, for the same reason the tonics themselves
- * are one: at six accidentals the circle meets itself and two spellings are
- * equally correct, so what is wanted is the one a musician would write. D flat
- * major over C sharp major, F sharp major over G flat major, E flat minor over
- * D sharp minor. No rule produces that set; a music book does.
- */
-constexpr std::array<int, 12> MajorSignatures = {
-    0,  // C
-    -5, // Db
-    2,  // D
-    -3, // Eb
-    4,  // E
-    -1, // F
-    6,  // F#
-    1,  // G
-    -4, // Ab
-    3,  // A
-    -2, // Bb
-    5,  // B
-};
-constexpr std::array<int, 12> MinorSignatures = {
-    -3, // C
-    4,  // C#
-    -1, // D
-    -6, // Eb
-    1,  // E
-    -4, // F
-    3,  // F#
-    -2, // G
-    5,  // G#
-    0,  // A
-    -5, // Bb
-    2,  // B
-};
-
 int pitchClassOf(int midi)
 {
     return ((midi % 12) + 12) % 12;
@@ -246,12 +208,6 @@ bool Analysis::isSilent(const Weights &weights)
     return true;
 }
 
-Key::Signature Analysis::signatureFor(int tonicPitchClass, bool minor)
-{
-    const int pitchClass = ((tonicPitchClass % 12) + 12) % 12;
-    return Key::Signature{minor ? MinorSignatures[pitchClass] : MajorSignatures[pitchClass], minor};
-}
-
 QList<Analysis::Fit> Analysis::ranked(const Weights &weights)
 {
     QList<Fit> fits;
@@ -264,7 +220,7 @@ QList<Analysis::Fit> Analysis::ranked(const Weights &weights)
             for (int degree = 0; degree < 12; ++degree) {
                 rotated[degree] = weights[(tonic + degree) % 12];
             }
-            fits.append(Fit{signatureFor(tonic, minor),
+            fits.append(Fit{Key::signatureFor(tonic, minor),
                             correlation(rotated, minor ? MinorProfile : MajorProfile)});
         }
     }

@@ -107,6 +107,7 @@ Kirigami.ApplicationWindow {
         // program nobody trusts twice.
         property bool tuner: false
         property bool scale: false
+        property bool chords: false
 
         /**
          * Which side the parts list is on, and so which side the mixer is.
@@ -360,6 +361,101 @@ Kirigami.ApplicationWindow {
             font.weight: Font.DemiBold
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
+        }
+    }
+
+    /**
+     * One key on the circle of fifths.
+     *
+     * Round, because the thing it is arranged in is round and a row of
+     * rectangles laid out on a circle reads as neither. The relative minors
+     * sit on an inner ring and are drawn smaller and in lower case, which is
+     * how harmony has written the difference between a major and a minor since
+     * long before any of this.
+     */
+    component KeySpot: QQC2.AbstractButton {
+        id: keySpot
+
+        property bool picked: false
+        property bool small: false
+
+        hoverEnabled: true
+        focusPolicy: Qt.NoFocus
+        implicitWidth: small ? Kirigami.Units.gridUnit * 1.8 : Kirigami.Units.gridUnit * 2.3
+        implicitHeight: implicitWidth
+
+        background: Rectangle {
+            radius: width / 2
+            color: keySpot.picked
+                ? Ink.accent
+                : (keySpot.hovered ? Ink.rule : Ink.panel)
+            border.width: 1
+            border.color: keySpot.picked ? Ink.accent : Ink.rule
+        }
+
+        contentItem: QQC2.Label {
+            text: keySpot.text
+            color: keySpot.picked ? Ink.paper : Ink.ink
+            font.pointSize: keySpot.small
+                ? Kirigami.Theme.smallFont.pointSize
+                : Kirigami.Theme.defaultFont.pointSize
+            font.weight: keySpot.picked ? Font.DemiBold : Font.Normal
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+    }
+
+    /**
+     * One chord of a key, and the button that writes it.
+     *
+     * The degree above the name, because the degree is the part that is true
+     * of every key and the name is the part somebody has to read to play it.
+     * A chord this instrument cannot hold anywhere is shown and disabled
+     * rather than hidden: a gap where a `V` should be is a puzzle, and "this
+     * bass cannot hold that" is an answer.
+     */
+    component ChordButton: QQC2.AbstractButton {
+        id: chordButton
+
+        property bool borrowed: false
+
+        enabled: modelData.playable
+        hoverEnabled: true
+        focusPolicy: Qt.NoFocus
+        implicitWidth: Kirigami.Units.gridUnit * 3.6
+        implicitHeight: Kirigami.Units.gridUnit * 2.6
+        opacity: enabled ? 1 : 0.4
+
+        QQC2.ToolTip.visible: hovered
+        QQC2.ToolTip.text: enabled
+            ? i18n("Write %1 at the caret", modelData.name)
+            : i18n("%1 cannot be played on this instrument", modelData.name)
+
+        onClicked: session.insertChord(modelData.root, modelData.quality)
+
+        background: Rectangle {
+            radius: Ink.radius
+            color: chordButton.hovered && chordButton.enabled ? Ink.rule : Ink.panel
+            border.width: 1
+            border.color: chordButton.borrowed ? Ink.rule : Ink.quiet
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 0
+            QQC2.Label {
+                Layout.fillWidth: true
+                text: modelData.degree
+                color: Ink.quiet
+                font.pointSize: Kirigami.Theme.smallFont.pointSize
+                horizontalAlignment: Text.AlignHCenter
+            }
+            QQC2.Label {
+                Layout.fillWidth: true
+                text: modelData.name
+                color: Ink.ink
+                font.weight: Font.DemiBold
+                horizontalAlignment: Text.AlignHCenter
+            }
         }
     }
 
@@ -1206,6 +1302,14 @@ Kirigami.ApplicationWindow {
                 enabled: session.hasScore && session.soundingKey !== ""
                 checked: panels.scale
                 onToggled: panels.scale = checked
+            }
+
+            // The circle, and the chords of whatever it is turned to.
+            ChromeToggle {
+                text: i18n("Chords")
+                enabled: session.hasScore
+                checked: panels.chords
+                onToggled: panels.chords = checked
             }
 
             ChromeToggle {
@@ -2266,6 +2370,143 @@ Kirigami.ApplicationWindow {
          * document: it wants to be wide, read from across the room, and gone
          * again when it is finished with.
          */
+        /**
+         * The circle of fifths, as a control rather than as a diagram.
+         *
+         * Turning it picks a key; the seven chords of that key are the row
+         * under it, and pressing one writes it into the score at the caret.
+         * The circle is the arrangement musicians already have in their heads
+         * -- neighbours on it are the keys that sound like neighbours -- so it
+         * is worth the trigonometry to draw it round rather than as a list of
+         * twelve.
+         *
+         * It opens on whatever key the piece sounds like, since that is the
+         * one somebody writing into this piece almost certainly wants.
+         */
+        Rectangle {
+            id: chordsPanel
+
+            Layout.fillWidth: true
+            Layout.preferredHeight: Kirigami.Units.gridUnit * 15
+            visible: panels.chords && session.hasScore
+            color: Ink.panelDeep
+
+            property int accidentals: session.soundingAccidentals()
+            property bool minor: session.soundingMinor()
+            // Re-read when the score changes, but never while somebody is
+            // turning it: a control that snapped back to the piece's own key
+            // would be a control that could not be turned.
+            Connections {
+                target: session
+                function onScoreChanged() {
+                    chordsPanel.accidentals = session.soundingAccidentals()
+                    chordsPanel.minor = session.soundingMinor()
+                }
+            }
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.margins: Kirigami.Units.largeSpacing * 2
+                spacing: Kirigami.Units.gridUnit * 2
+
+                // ---- the circle ----
+                Item {
+                    Layout.preferredWidth: Kirigami.Units.gridUnit * 13
+                    Layout.fillHeight: true
+
+                    Repeater {
+                        // Twelve positions, each carrying the major key on the
+                        // outside and its relative minor within -- which is
+                        // the pair that shares a signature, and the one thing
+                        // about the circle worth drawing twice.
+                        model: 12
+                        Item {
+                            anchors.fill: parent
+                            // Twelve o'clock is no accidentals, and clockwise
+                            // adds sharps, which is how every circle of fifths
+                            // ever printed is arranged.
+                            readonly property int accidentals: index > 6 ? index - 12 : index
+                            readonly property real angle: index * Math.PI / 6 - Math.PI / 2
+                            readonly property real outer: Math.min(parent.width, parent.height) / 2 - 16
+                            readonly property real inner: outer - Kirigami.Units.gridUnit * 2.1
+
+                            KeySpot {
+                                x: parent.width / 2 + Math.cos(parent.angle) * parent.outer - width / 2
+                                y: parent.height / 2 + Math.sin(parent.angle) * parent.outer - height / 2
+                                text: session.keyName(parent.accidentals, false).split(" ")[0]
+                                picked: !chordsPanel.minor && chordsPanel.accidentals === parent.accidentals
+                                onPressed: {
+                                    chordsPanel.accidentals = parent.accidentals
+                                    chordsPanel.minor = false
+                                }
+                            }
+
+                            KeySpot {
+                                x: parent.width / 2 + Math.cos(parent.angle) * parent.inner - width / 2
+                                y: parent.height / 2 + Math.sin(parent.angle) * parent.inner - height / 2
+                                small: true
+                                text: session.keyName(parent.accidentals, true).split(" ")[0].toLowerCase()
+                                picked: chordsPanel.minor && chordsPanel.accidentals === parent.accidentals
+                                onPressed: {
+                                    chordsPanel.accidentals = parent.accidentals
+                                    chordsPanel.minor = true
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ---- what that key is made of ----
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: Kirigami.Units.smallSpacing
+
+                    QQC2.Label {
+                        text: session.keyName(chordsPanel.accidentals, chordsPanel.minor)
+                        font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.5
+                        font.weight: Font.DemiBold
+                        color: Ink.ink
+                    }
+
+                    QQC2.Label {
+                        text: i18n("Writes at the caret, near the hand where there is one")
+                        color: Ink.quiet
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    }
+
+                    Flow {
+                        Layout.fillWidth: true
+                        Layout.topMargin: Kirigami.Units.largeSpacing
+                        spacing: Kirigami.Units.smallSpacing
+                        Repeater {
+                            model: session.chordsOf(chordsPanel.accidentals, chordsPanel.minor)
+                            ChordButton {}
+                        }
+                    }
+
+                    QQC2.Label {
+                        Layout.topMargin: Kirigami.Units.largeSpacing
+                        text: i18n("Borrowed from %1",
+                                   session.parallelKeyName(chordsPanel.accidentals, chordsPanel.minor))
+                        color: Ink.quiet
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    }
+
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: Kirigami.Units.smallSpacing
+                        Repeater {
+                            model: session.borrowedFrom(chordsPanel.accidentals, chordsPanel.minor)
+                            ChordButton { borrowed: true }
+                        }
+                    }
+
+                    Item { Layout.fillHeight: true }
+                }
+            }
+        }
+
         Rectangle {
             id: tunerPanel
 

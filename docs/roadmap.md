@@ -224,12 +224,35 @@ and the obvious thing to improve: a hand is a property of a passage rather than
 of one note, and the honest version reads a phrase and asks the solver, which
 is a question `phrase()` already answers.
 
-**Layer 4 — the circle of fifths, and writing.** The circle as a control rather
-than a diagram: pick a key, get its diatonic chords, drop one into the score at
-the caret as a real beat with real notes on real strings. Borrowed chords and
-the relative minor come free from the same table. This is the layer that
-justifies the phrase "for music creation", and it is the only one of the four
-that can put a wrong note in somebody's score, so it is last.
+**Layer 4 — the circle of fifths, and writing.** **Done**, in
+`src/model/chord.{h,cpp}` with `Editor::insertChord` behind it, written
+**2026-08-31**. The circle is a control and not a diagram: turning it picks a
+key, the seven chords of that key are the row under it, and pressing one writes
+a real beat with real notes on real strings at the caret. Borrowed chords come
+from the same table, named in the parallel key they came from so that a flat
+sixth in C minor is the A flat it is.
+
+The part worth reading is the voicing rule, because it is the difference
+between this being useful and being a chord dictionary nobody trusts: **find
+the lowest string that can sound the root under the hand, and from there take
+the lowest chord tone in reach on every string above it.** Strings below the
+root are left out, since a chord standing on its third is a different chord.
+That is one paragraph of code and it produces the shapes that are actually in
+the books — C comes out x32010, G 320003, A minor x02210, and F under a hand at
+the first fret comes out 133211, which is the barre. The tests assert exactly
+those, because no argument about how principled a rule is survives it getting
+an open C wrong.
+
+One correction it needed. Everywhere else in the program an open string is free
+— a single note on one needs no hand at all — and here it is not: a hand
+holding a shape at the first fret is lying across the strings and cannot also
+be leaving them open. Without that, an F came out as 103211, which has every
+note of an F in it and can be played by nobody.
+
+Writing is the thing this layer was put last for, and the rule that keeps it
+honest held: it writes only when asked, it refuses whole and says why where the
+instrument cannot hold the chord, and one undo takes the whole chord back
+including the beat it made. Nothing here inspects a score or corrects one.
 
 ### Risks
 
@@ -467,7 +490,7 @@ and a materially better one.
 | **P6.3** | Scale overlay on the fretboard | P6.0, P6.2 | **done** |
 | **P7.0** | MIDI input plumbing (PipeWire, decided once) | nothing | days |
 | **P7.1** | Control surface: transport, encoders → LV2 controls | P7.0 | a week |
-| **P6.4** | Circle of fifths, chord insertion | P6.0, P6.3 | a week+ |
+| **P6.4** | Circle of fifths, chord insertion | P6.0, P6.3 | **done** |
 | **P7.2** | Step note entry from the keyboard | P6.0, P6.4 | a week |
 | **P8.0** | feedpak export, walking skeleton | stems (done) | a week |
 | **P8.1** | Slides, vibrato, harmonics, tremolo | — | weeks |

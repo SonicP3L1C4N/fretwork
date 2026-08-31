@@ -5,6 +5,7 @@
 
 #include "clip.h"
 #include "cursor.h"
+#include "fretboard.h"
 #include "notevalue.h"
 #include "score.h"
 
@@ -194,6 +195,21 @@ public:
      * displaces, and neither its section name nor its repeat signs.
      */
     void insertBar();
+
+    /**
+     * Writes a chord into the beat at the caret, as one act.
+     *
+     * The beat's own notes go, because a chord dropped onto a beat is what
+     * that beat is now: leaving what was there and adding to it produces a
+     * sound nobody asked for and no way to say what it was meant to be. One
+     * undo takes the whole thing back, including the beat if there was not one
+     * there before.
+     *
+     * Refused where the shape is empty or names a string the part has not got.
+     * Nothing here decides *which* chord: that is harmony, it is somebody's
+     * choice, and by the time it reaches this it is a list of frets.
+     */
+    Edit insertChord(const QList<Fretboard::Position> &shape, const QString &name);
 
     /** Puts an empty bar on the end of the score, and the caret in it. */
     void appendBar();

@@ -162,6 +162,63 @@ private Q_SLOTS:
      * The order is the point of the panel, and it was the one thing that could
      * not be said without emptying the chain.
      */
+    /**
+     * Chord insertion through the session, which is the path a button press
+     * takes: pick a shape for this instrument, then write it.
+     *
+     * The two halves are tested on their own in `chordtest` and `editortest`.
+     * What is only true here is that the two are joined up, and that the
+     * refusals reach somebody.
+     */
+    void writesAChordAtTheCaret()
+    {
+        const QString path = m_directory.path() + QStringLiteral("/chord.fw");
+        QVERIFY(Fw::write(oneTrack(), path));
+        Session session;
+        QVERIFY(session.open(path));
+
+        const QVariantList chords = session.chordsOf(0, false);
+        QCOMPARE(chords.size(), 7);
+        const QVariantMap tonic = chords.first().toMap();
+        QCOMPARE(tonic.value(QStringLiteral("name")).toString(), QStringLiteral("C"));
+        QCOMPARE(tonic.value(QStringLiteral("degree")).toString(), QStringLiteral("I"));
+        QVERIFY(tonic.value(QStringLiteral("playable")).toBool());
+
+        QVERIFY(session.insertChord(tonic.value(QStringLiteral("root")).toInt(),
+                                    tonic.value(QStringLiteral("quality")).toInt()));
+
+        QVERIFY(session.canUndo());
+
+        // Read back off disk rather than out of the session, which is the only
+        // way in from here and proves the chord is real notes in a document
+        // rather than something drawn on the screen.
+        QVERIFY(session.save());
+        const Score written = Fw::read(path);
+        QList<int> classes;
+        for (const Note &note : written.notes) {
+            if (note.midi >= 0 && !classes.contains(note.midi % 12)) {
+                classes.append(note.midi % 12);
+            }
+        }
+        std::sort(classes.begin(), classes.end());
+        QCOMPARE(classes, QList<int>({0, 4, 7}));
+    }
+
+    void aDrumKitIsToldItHasNoStrings()
+    {
+        Score kit = oneTrack();
+        kit.tracks.first().instrumentType = QStringLiteral("drumKit");
+        kit.tracks.first().tuning.clear();
+
+        const QString path = m_directory.path() + QStringLiteral("/kit.fw");
+        QVERIFY(Fw::write(kit, path));
+        Session session;
+        QVERIFY(session.open(path));
+        QVERIFY(!session.insertChord(0, 0));
+        // Refused, and said out loud rather than by nothing happening.
+        QVERIFY(!session.status().isEmpty());
+    }
+
     void movesAStageAlongTheSignalPath()
     {
         Session session;

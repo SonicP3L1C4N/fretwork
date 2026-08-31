@@ -715,6 +715,134 @@ private:
  * whatever makes that true, which is why it is worked out from the tuning
  * rather than carried across.
  */
+/**
+ * A chord written onto one beat, as one act.
+ *
+ * The beat is cleared first. A chord dropped onto a beat is what that beat is
+ * now -- keeping what was there and adding to it makes a sound nobody asked
+ * for, and leaves no way to say what the beat was meant to be. Everything it
+ * removed is kept so that one undo puts the beat back exactly as it was,
+ * including the beat itself where there was not one.
+ */
+class InsertChordCommand : public QUndoCommand
+{
+public:
+    InsertChordCommand(Editor *editor, const Cursor &cursor,
+                       const QList<Fretboard::Position> &shape, const QString &name)
+        : m_editor(editor)
+        , m_cursor(cursor)
+        , m_shape(shape)
+    {
+        const Score &score = editor->score();
+        const int beatId = Editing::beatIdAt(score, cursor);
+        m_madeBeat = beatId < 0;
+        m_duration = durationForNewBeat(score, cursor);
+        if (beatId >= 0) {
+            m_replaced = score.beats.value(beatId).notes;
+            for (const int noteId : m_replaced) {
+                m_were.insert(noteId, score.notes.value(noteId));
+            }
+        }
+        setText(i18n("Insert %1", name));
+    }
+
+    void redo() override
+    {
+        Score &score = m_editor->mutableScore();
+        const int beatId = m_madeBeat ? makeBeat(score) : Editing::beatIdAt(score, m_cursor);
+        if (beatId < 0) {
+            return;
+        }
+        for (const int noteId : std::as_const(m_replaced)) {
+            score.notes.remove(noteId);
+        }
+        score.beats[beatId].notes.clear();
+
+        const bool first = m_written.isEmpty();
+        for (int index = 0; index < m_shape.size(); ++index) {
+            const Fretboard::Position &at = m_shape.at(index);
+            Cursor on = m_cursor;
+            on.string = at.string;
+
+            Note note;
+            note.string = at.string;
+            note.fret = at.fret;
+            note.midi = Editor::midiFor(score, on, at.fret);
+            // Ids are allocated once and kept, so that redoing this twice does
+            // not leave two chords' worth of notes in the document.
+            const int noteId = first ? Editor::freshNoteId(score) : m_written.at(index);
+            score.notes.insert(noteId, note);
+            score.beats[beatId].notes.append(noteId);
+            if (first) {
+                m_written.append(noteId);
+            }
+        }
+        m_editor->noteEdited(m_cursor.bar);
+    }
+
+    void undo() override
+    {
+        Score &score = m_editor->mutableScore();
+        const int beatId = Editing::beatIdAt(score, m_cursor);
+        if (beatId < 0) {
+            return;
+        }
+        for (const int noteId : std::as_const(m_written)) {
+            score.notes.remove(noteId);
+        }
+        score.beats[beatId].notes.clear();
+        for (const int noteId : std::as_const(m_replaced)) {
+            score.notes.insert(noteId, m_were.value(noteId));
+            score.beats[beatId].notes.append(noteId);
+        }
+        if (m_madeBeat) {
+            unmakeBeat(score);
+        }
+        m_editor->noteEdited(m_cursor.bar);
+    }
+
+private:
+    int makeBeat(Score &score)
+    {
+        const int voiceId = Editor::voiceForEditing(score, m_cursor, &m_madeVoice);
+        if (voiceId < 0) {
+            return -1;
+        }
+        if (m_beatId < 0) {
+            m_beatId = Editor::freshBeatId(score);
+        }
+        Beat beat;
+        beat.rhythm = Editor::rhythmIdFor(score, m_duration);
+        score.beats.insert(m_beatId, beat);
+        QList<int> &beats = score.voices[voiceId].beats;
+        beats.insert(std::clamp(m_cursor.beat, 0, int(beats.size())), m_beatId);
+        return m_beatId;
+    }
+
+    void unmakeBeat(Score &score)
+    {
+        const int voiceId = Editing::voiceIdAt(score, m_cursor);
+        if (voiceId >= 0) {
+            score.voices[voiceId].beats.removeAll(m_beatId);
+        }
+        score.beats.remove(m_beatId);
+        if (m_madeVoice) {
+            Editor::dropVoice(score, m_cursor);
+        }
+    }
+
+    Editor *m_editor;
+    Cursor m_cursor;
+    QList<Fretboard::Position> m_shape;
+    QList<int> m_written;
+    QList<int> m_replaced;
+    QHash<int, Note> m_were;
+    Rational m_duration;
+    bool m_madeBeat = false;
+    bool m_madeVoice = false;
+    int m_beatId = -1;
+};
+
 class MoveNoteAcrossCommand : public QUndoCommand
 {
 public:
@@ -2378,6 +2506,27 @@ Editor::Edit Editor::setCapo(int fret)
     }
 
     m_undo->push(new RetuneCommand(this, track, part.tuning, fret, shifts, i18n("Move capo")));
+    return Edit::Done;
+}
+
+Editor::Edit Editor::insertChord(const QList<Fretboard::Position> &shape, const QString &name)
+{
+    endDigitEntry();
+    if (shape.isEmpty() || m_cursor.track < 0 || m_cursor.track >= m_score.tracks.size()) {
+        return Edit::Nothing;
+    }
+    const Track &part = m_score.tracks.at(m_cursor.track);
+    for (const Fretboard::Position &at : shape) {
+        if (at.string < 0 || at.string >= part.tuning.size() || at.fret < 0
+            || at.fret > HighestFret) {
+            return Edit::Refused;
+        }
+    }
+    if (!hasBarAt(m_score, m_cursor)) {
+        return Edit::Refused;
+    }
+    clearSelection();
+    m_undo->push(new InsertChordCommand(this, m_cursor, shape, name));
     return Edit::Done;
 }
 

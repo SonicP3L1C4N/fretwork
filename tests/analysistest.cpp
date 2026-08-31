@@ -272,7 +272,7 @@ private Q_SLOTS:
     {
         for (int tonic = 0; tonic < 12; ++tonic) {
             for (const bool minor : {false, true}) {
-                const Key::Signature signature = Analysis::signatureFor(tonic, minor);
+                const Key::Signature signature = Key::signatureFor(tonic, minor);
                 const Key::Spelling named = Key::tonicOf(signature);
                 if (Key::midiOf(named) % 12 != tonic) {
                     QFAIL(qPrintable(QStringLiteral("pitch class %1 %2 chose %3, named after %4")
@@ -288,10 +288,10 @@ private Q_SLOTS:
     void whereTwoSpellingsAreEqualItPicksTheOneAMusicianWould()
     {
         // Six accidentals either way, and these are the ones people write.
-        QCOMPARE(Key::nameOf(Analysis::signatureFor(1, false)), QStringLiteral("D♭ major"));
-        QCOMPARE(Key::nameOf(Analysis::signatureFor(6, false)), QStringLiteral("F♯ major"));
-        QCOMPARE(Key::nameOf(Analysis::signatureFor(3, true)), QStringLiteral("E♭ minor"));
-        QCOMPARE(Key::nameOf(Analysis::signatureFor(8, true)), QStringLiteral("G♯ minor"));
+        QCOMPARE(Key::nameOf(Key::signatureFor(1, false)), QStringLiteral("D♭ major"));
+        QCOMPARE(Key::nameOf(Key::signatureFor(6, false)), QStringLiteral("F♯ major"));
+        QCOMPARE(Key::nameOf(Key::signatureFor(3, true)), QStringLiteral("E♭ minor"));
+        QCOMPARE(Key::nameOf(Key::signatureFor(8, true)), QStringLiteral("G♯ minor"));
     }
 };
 

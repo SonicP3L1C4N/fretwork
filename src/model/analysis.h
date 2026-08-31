@@ -106,15 +106,4 @@ QList<int> pitched(const Score &score, const Passage &passage);
  */
 QList<int> outside(const Score &score, const Key::Signature &key);
 QList<int> outside(const Score &score, const Passage &passage, const Key::Signature &key);
-
-/**
- * The signature a key is written with, given its tonic and its mode.
- *
- * The inverse of [Key::tonicOf], and not quite a function: F sharp major and G
- * flat major are the same twelve notes spelled two ways, as are D sharp minor
- * and E flat minor. Where there is a choice this makes the one a musician
- * would -- the conventional spelling rather than the arithmetically neater
- * one -- from a table that can be checked against a music book.
- */
-Key::Signature signatureFor(int tonicPitchClass, bool minor);
 }

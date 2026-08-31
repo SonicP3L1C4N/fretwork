@@ -1633,6 +1633,73 @@ private Q_SLOTS:
      * so the same fret on the same string was two different pitches depending
      * on which of them had put it there.
      */
+    /**
+     * Chord insertion, which is the only edit in the program that writes notes
+     * nobody typed. What it must not do is any of it by halves.
+     */
+    void aChordIsWrittenAsOneBeatAndTakenBackInOneUndo()
+    {
+        Editor editor;
+        editor.setScore(fretted(0));
+        editor.setCursor(at(0, 0, 0));
+
+        // The beat the caret is on already has a note on it. A chord dropped
+        // onto a beat is what that beat is now.
+        const int beatId = Editing::beatIdAt(editor.score(), editor.cursor());
+        QCOMPARE(editor.score().beats.value(beatId).notes.size(), 1);
+
+        const QList<Fretboard::Position> shape = {{1, 3}, {2, 2}, {3, 0}, {4, 1}, {5, 0}};
+        QCOMPARE(editor.insertChord(shape, QStringLiteral("C")), Editor::Edit::Done);
+
+        const QList<int> written = editor.score().beats.value(beatId).notes;
+        QCOMPARE(written.size(), 5);
+        // Real notes on real strings, each sounding what that fret sounds.
+        for (const int noteId : written) {
+            const Note &note = editor.score().notes.value(noteId);
+            QCOMPARE(note.midi, editor.score().tracks.first().tuning.at(note.string) + note.fret);
+        }
+
+        // One act: the five notes and the one they displaced come and go
+        // together.
+        editor.undo();
+        QCOMPARE(editor.score().beats.value(beatId).notes.size(), 1);
+        QCOMPARE(editor.score().notes.value(900).fret, 0);
+        editor.redo();
+        QCOMPARE(editor.score().beats.value(beatId).notes.size(), 5);
+    }
+
+    /** Redoing it twice must not leave two chords' worth of notes behind. */
+    void aChordRedoneIsStillOneChord()
+    {
+        Editor editor;
+        editor.setScore(fretted(0));
+        editor.setCursor(at(0, 0, 0));
+        const int beatId = Editing::beatIdAt(editor.score(), editor.cursor());
+        const int before = int(editor.score().notes.size());
+
+        const QList<Fretboard::Position> shape = {{1, 3}, {2, 2}, {3, 0}};
+        QCOMPARE(editor.insertChord(shape, QStringLiteral("C")), Editor::Edit::Done);
+        editor.undo();
+        editor.redo();
+        editor.undo();
+        editor.redo();
+
+        QCOMPARE(editor.score().beats.value(beatId).notes.size(), 3);
+        // One note went out of the beat and three came in.
+        QCOMPARE(int(editor.score().notes.size()), before - 1 + 3);
+    }
+
+    void aChordOnAStringThePartHasNotGotIsRefused()
+    {
+        Editor editor;
+        editor.setScore(fretted(0));
+        editor.setCursor(at(0, 0, 0));
+        QCOMPARE(editor.insertChord({{6, 0}}, QStringLiteral("C")), Editor::Edit::Refused);
+        QCOMPARE(editor.insertChord({{0, 99}}, QStringLiteral("C")), Editor::Edit::Refused);
+        // Nothing to write is nothing to do rather than a refusal.
+        QCOMPARE(editor.insertChord({}, QStringLiteral("C")), Editor::Edit::Nothing);
+    }
+
     void aTypedNoteSoundsWithTheCapoInIt()
     {
         Editor editor;

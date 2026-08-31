@@ -4,6 +4,7 @@
 #pragma once
 
 #include "analysis.h"
+#include "chord.h"
 #include "editor.h"
 #include "gxpreset.h"
 #include "rigfile.h"
@@ -614,6 +615,53 @@ public:
      */
     Key::Signature soundingKey() const;
     QString soundingKeyName() const;
+
+    /** The analysed key, taken apart so a control can start on it. */
+    Q_INVOKABLE int soundingAccidentals() const;
+    Q_INVOKABLE bool soundingMinor() const;
+
+    // ---- chords ----
+
+    /**
+     * The chords of a key, and the ones borrowed from beside it.
+     *
+     * Each is a map of what a control needs to draw one and to ask for it
+     * back: its name, its degree, the root and quality that identify it, and
+     * whether this part can actually play it -- a bass with four strings
+     * cannot hold a seventh, and a button that does nothing is worse than one
+     * that is visibly not offered.
+     */
+    Q_INVOKABLE QVariantList chordsOf(int accidentals, bool minor) const;
+    Q_INVOKABLE QVariantList borrowedFrom(int accidentals, bool minor) const;
+
+    /** "B♭ minor" -- for a control that has to label a key it is offering. */
+    Q_INVOKABLE QString keyName(int accidentals, bool minor) const;
+
+    /**
+     * The parallel key's name: the same tonic, the other mode.
+     *
+     * Not the same signature in the other mode, which is the *relative* and a
+     * different key entirely -- C minor's parallel is C major and its relative
+     * is E flat major, and calling the borrowed chords by the second is a
+     * plain error about where they came from.
+     */
+    Q_INVOKABLE QString parallelKeyName(int accidentals, bool minor) const;
+
+    /**
+     * Writes a chord at the caret, and says so.
+     *
+     * Near the hand where there is one -- the fret under the caret -- and
+     * nearest the nut where there is not, because that is the shape a player
+     * already knows. Refused whole, with a reason, where this instrument
+     * cannot hold the chord anywhere.
+     */
+    Q_INVOKABLE bool insertChord(int root, int quality);
+
+private:
+    /** The shared half of chordsOf() and borrowedFrom(). */
+    QVariantList describe(const QList<Chord::Named> &chords, const Key::Signature &key) const;
+
+public:
 
     /** Retunes the current track. Frets stay where they are; pitches move. */
     Q_INVOKABLE void setTuningHere(const QString &names);

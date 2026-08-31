@@ -50,6 +50,44 @@ constexpr std::array<Tonic, 15> MinorTonics = {{
     {2, 0}, {6, 0}, {3, 1}, {0, 1}, {4, 1}, {1, 1}, {5, 1},        // E B F# C# G# D# A#
 }};
 
+/**
+ * The signature each tonic is written with, by pitch class.
+ *
+ * A table rather than arithmetic, for the same reason the tonics themselves
+ * are one: at six accidentals the circle meets itself and two spellings are
+ * equally correct, so what is wanted is the one a musician would write. D flat
+ * major over C sharp major, F sharp major over G flat major, E flat minor over
+ * D sharp minor. No rule produces that set; a music book does.
+ */
+constexpr std::array<int, 12> MajorSignatures = {
+    0,  // C
+    -5, // Db
+    2,  // D
+    -3, // Eb
+    4,  // E
+    -1, // F
+    6,  // F#
+    1,  // G
+    -4, // Ab
+    3,  // A
+    -2, // Bb
+    5,  // B
+};
+constexpr std::array<int, 12> MinorSignatures = {
+    -3, // C
+    4,  // C#
+    -1, // D
+    -6, // Eb
+    1,  // E
+    -4, // F
+    3,  // F#
+    -2, // G
+    5,  // G#
+    0,  // A
+    -5, // Bb
+    2,  // B
+};
+
 int pitchClassOf(int midi)
 {
     return ((midi % 12) + 12) % 12;
@@ -174,6 +212,19 @@ bool Key::isDiatonic(int midi, const Signature &signature)
     return false;
 }
 
+QList<Key::Spelling> Key::scaleOf(const Signature &signature)
+{
+    const std::array<int, 7> alterations = alterationsOf(signature);
+    const Spelling tonic = tonicOf(signature);
+    QList<Spelling> scale;
+    scale.reserve(7);
+    for (int degree = 0; degree < 7; ++degree) {
+        const int step = (tonic.step + degree) % 7;
+        scale.append(Spelling{step, alterations[step], 4});
+    }
+    return scale;
+}
+
 QString Key::nameOf(const Spelling &spelling)
 {
     static const QStringList letters = {
@@ -206,6 +257,12 @@ Key::Spelling Key::tonicOf(const Signature &signature)
     // A key is not in an octave. Four is the one a Spelling starts in and it
     // means nothing here.
     return tonic;
+}
+
+Key::Signature Key::signatureFor(int tonicPitchClass, bool minor)
+{
+    const int pitchClass = ((tonicPitchClass % 12) + 12) % 12;
+    return Signature{minor ? MinorSignatures[pitchClass] : MajorSignatures[pitchClass], minor};
 }
 
 QString Key::nameOf(const Signature &signature)
