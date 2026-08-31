@@ -5,6 +5,7 @@
 #include "fwformat.h"
 #include "gpif.h"
 #include "gxpreset.h"
+#include "key.h"
 #include "lv2chain.h"
 #include "session.h"
 #include "midi.h"
@@ -295,6 +296,32 @@ void describe(QTextStream &out, const Score &score, const QList<int> &order)
             }
         }
         out << "  tempo   " << written.join(QStringLiteral(", ")) << "\n";
+    }
+
+    // Said only where a score says it. A key signature is the thing tab
+    // transcribers leave alone -- no accidentals and major is the default in
+    // Guitar Pro and every transcription in the corpus is still sitting on it
+    // -- so a line reading "C major" would be this printing its own default
+    // back at somebody rather than telling them anything about their file.
+    QStringList keys;
+    Key::Signature running;
+    bool marked = false;
+    for (int bar = 0; bar < score.masterBars.size(); ++bar) {
+        const Key::Signature &here = score.masterBars.at(bar).key;
+        if (bar > 0 && here == running) {
+            continue;
+        }
+        running = here;
+        marked = marked || here != Key::Signature{};
+        if (keys.size() < 6) {
+            keys.append(i18n("%1 at bar %2", Key::nameOf(here), QString::number(bar + 1)));
+        }
+    }
+    if (marked) {
+        out << "  key     "
+            << (keys.size() == 1 ? Key::nameOf(score.masterBars.constFirst().key)
+                                 : keys.join(QStringLiteral(", ")))
+            << "\n";
     }
 
     // What a shuffle does to a score is large and entirely invisible in a note

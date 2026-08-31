@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
 #include "gpif.h"
+#include "key.h"
 #include "timeline.h"
 
 #include <KZip>
@@ -55,9 +56,9 @@ private:
     </Track>
   </Tracks>
   <MasterBars>
-    <MasterBar><Time>4/4</Time><Bars>0 4</Bars></MasterBar>
-    <MasterBar><Time>4/4</Time><Bars>1 5</Bars><Repeat start="true" end="false" count="0"/></MasterBar>
-    <MasterBar><Time>3/4</Time><Bars>2 6</Bars><Repeat start="false" end="true" count="2"/></MasterBar>
+    <MasterBar><Time>4/4</Time><Bars>0 4</Bars><Key><AccidentalCount>5</AccidentalCount><Mode>Major</Mode></Key></MasterBar>
+    <MasterBar><Time>4/4</Time><Bars>1 5</Bars><Key><AccidentalCount>-5</AccidentalCount><Mode>Minor</Mode></Key><Repeat start="true" end="false" count="0"/></MasterBar>
+    <MasterBar><Time>3/4</Time><Bars>2 6</Bars><Key><AccidentalCount>99</AccidentalCount><Mode>Major</Mode></Key><Repeat start="false" end="true" count="2"/></MasterBar>
     <MasterBar><Time>4/4</Time><Bars>3 7</Bars></MasterBar>
   </MasterBars>
   <Bars>
@@ -238,6 +239,28 @@ private Q_SLOTS:
         QCOMPARE(score.tracks.at(0).tuning, QList<int>({40, 45, 50, 55, 59, 64}));
         QCOMPARE(score.tracks.at(0).capo, 2);
         QCOMPARE(score.tracks.at(0).stringCount(), 6);
+    }
+
+    /**
+     * The signature is a signed count of accidentals and a mode, which is the
+     * shape gpif has and the shape the model keeps. Nothing in the corpus
+     * exercises this -- every transcription in it is left at no accidentals
+     * and major, which is what tab transcribers do because tab has no key
+     * signature on it -- so the document here is where it is asked at all.
+     */
+    void readsTheKeySignatureFromEveryMasterBar()
+    {
+        const Score score = Gpif::parse(document());
+        QCOMPARE(score.masterBars.at(0).key, (Key::Signature{5, false}));
+        QCOMPARE(Key::nameOf(score.masterBars.at(0).key), QStringLiteral("B major"));
+        QCOMPARE(score.masterBars.at(1).key, (Key::Signature{-5, true}));
+        QCOMPARE(Key::nameOf(score.masterBars.at(1).key), QStringLiteral("B♭ minor"));
+
+        // Ninety-nine sharps is not a key signature, so it is read as none --
+        // the same as the bar that never mentions one. A file that is wrong
+        // about its key is not a file nobody can open.
+        QCOMPARE(score.masterBars.at(2).key, Key::Signature{});
+        QCOMPARE(score.masterBars.at(3).key, Key::Signature{});
     }
 
     /**

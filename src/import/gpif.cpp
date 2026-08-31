@@ -218,6 +218,20 @@ MasterBar readMasterBar(const QDomElement &element)
     // not inherited from the bar before it.
     bar.tripletFeel = Swing::fromToken(childText(element, QStringLiteral("TripletFeel")));
 
+    // The signature is a signed count of accidentals, which is the shape the
+    // circle of fifths has and the shape the model keeps. Anything outside
+    // seven either way is not a key signature, so it is read as none rather
+    // than refused: a file that is wrong about its key is not a file nobody
+    // can open, and none is what a score that never says already means.
+    const QDomElement key = element.firstChildElement(QStringLiteral("Key"));
+    if (!key.isNull()) {
+        const Key::Signature read{childText(key, QStringLiteral("AccidentalCount")).toInt(),
+                                  childText(key, QStringLiteral("Mode")) == QLatin1String("Minor")};
+        if (Key::isValid(read)) {
+            bar.key = read;
+        }
+    }
+
     const QDomElement repeat = element.firstChildElement(QStringLiteral("Repeat"));
     if (!repeat.isNull()) {
         bar.repeatStart = repeat.attribute(QStringLiteral("start")) == QLatin1String("true");

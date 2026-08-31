@@ -3,6 +3,7 @@
 
 #include "fwformat.h"
 #include "gpif.h"
+#include "key.h"
 #include "zipreader.h"
 
 #include <KZip>
@@ -64,7 +65,7 @@ private:
             for (const int id : bar.bars) {
                 bars.append(QString::number(id));
             }
-            out.append(QStringLiteral("mb %1/%2 s=%3 r=%4%5%6 alt=%7 feel=%8 [%9]")
+            out.append(QStringLiteral("mb %1/%2 s=%3 r=%4%5%6 alt=%7 feel=%8 key=%9%10 [%11]")
                            .arg(bar.numerator)
                            .arg(bar.denominator)
                            .arg(bar.section)
@@ -73,6 +74,8 @@ private:
                            .arg(bar.repeatCount)
                            .arg(bar.alternateEndings)
                            .arg(int(bar.tripletFeel))
+                           .arg(bar.key.accidentals)
+                           .arg(bar.key.minor)
                            .arg(bars.join(QLatin1Char(','))));
         }
 
@@ -193,6 +196,9 @@ private:
         // worth carrying through a save.
         first.tripletFeel = TripletFeel::Triplet8th;
         first.repeatStart = true;
+        // Flats and minor, so that both halves of a signature have to survive
+        // and neither can be guessed from the other.
+        first.key = Key::Signature{-5, true};
         MasterBar second;
         second.bars = {1, 3};
         second.repeatEnd = true;

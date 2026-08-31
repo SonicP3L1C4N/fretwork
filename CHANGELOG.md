@@ -8,11 +8,11 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## 0.2.0 — unreleased
 
-Four things about the rig, and one thing about the capo that 0.1.0 got wrong:
-the effects panel is laid out around the chain rather than around the plugins,
-the chain can be put in the order somebody wants it in, a sound can be kept
-under a name and used on another song, and the two side panels can change
-places.
+Four things about the rig, one thing about the capo that 0.1.0 got wrong, and
+the beginning of knowing what key a piece is in: the effects panel is laid out
+around the chain rather than around the plugins, the chain can be put in the
+order somebody wants it in, a sound can be kept under a name and used on
+another song, and the two side panels can change places.
 
 - **The effects panel is a board and a bench.** Every plugin's front panel
   drawn at once made the band as tall as whichever plugin was largest and as
@@ -98,6 +98,26 @@ places.
   "which string" — and finding this was what it did on its first day. Two
   private half-versions of one identity is exactly how the two halves come to
   disagree.
+
+- **A score now knows what key it is written in.** Fretwork knew that a note
+  was MIDI 63. It did not know whether that was a D♯ or an E♭ — which is fine
+  for playing it, and is the whole problem for writing it down, because the two
+  are the same sound and different notes and nothing about the sound decides
+  between them. What decides is the key, and there was no key anywhere in the
+  model. A key signature is now read from every `.gp`, kept on the master bar
+  the way the time signature is, saved and reopened in a `.fw`, and printed by
+  `--info` where a score has one — silently where it has not, since no
+  accidentals and major is Guitar Pro's default and every transcription in the
+  corpus is still sitting on it, so a line reading "C major" would be Fretwork
+  printing its own default back at somebody.
+
+  With it comes the rule for writing a note down: in the key, the signature has
+  already said how; outside it, the smallest accidental that reaches the note,
+  and where a sharp and a flat are equally small, the one the key is already
+  written in. Nothing acts on any of this yet and that is deliberate. It is the
+  layer standard notation needs before it can draw a single accidental, and a
+  note outside the key is a decision somebody made rather than a mistake — so
+  this describes and never corrects, and nothing it knows can refuse an edit.
 
 ## 0.1.0 — 2026-09-01
 

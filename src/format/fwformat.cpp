@@ -283,6 +283,14 @@ QByteArray encode(const Score &score)
         if (bar.tripletFeel != TripletFeel::None) {
             object.insert(QStringLiteral("tripletFeel"), Swing::tokenOf(bar.tripletFeel));
         }
+        // Written only where there is one to write, like everything else
+        // optional here: a bar with no key signature and a bar in C major are
+        // the same bar, and a file full of `"key": [0, false]` says nothing
+        // fifteen thousand times.
+        if (bar.key != Key::Signature{}) {
+            object.insert(QStringLiteral("key"),
+                          QJsonArray({bar.key.accidentals, bar.key.minor}));
+        }
         if (bar.repeatStart || bar.repeatEnd) {
             QJsonObject repeat;
             putFlag(repeat, QStringLiteral("start"), bar.repeatStart);
@@ -379,6 +387,16 @@ Score decode(const QByteArray &json, QString *error)
         bar.section = object.value(QStringLiteral("section")).toString();
         bar.tripletFeel =
             Swing::fromToken(object.value(QStringLiteral("tripletFeel")).toString());
+        const QJsonArray key = object.value(QStringLiteral("key")).toArray();
+        if (key.size() == 2) {
+            const Key::Signature read{key.at(0).toInt(), key.at(1).toBool()};
+            // A hand-edited file saying nine sharps is answered the same way
+            // the importer answers it: with no key, which is what a file that
+            // does not mention one means.
+            if (Key::isValid(read)) {
+                bar.key = read;
+            }
+        }
         const QJsonObject repeat = object.value(QStringLiteral("repeat")).toObject();
         bar.repeatStart = repeat.value(QStringLiteral("start")).toBool();
         bar.repeatEnd = repeat.value(QStringLiteral("end")).toBool();

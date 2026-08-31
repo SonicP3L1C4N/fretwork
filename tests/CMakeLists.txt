@@ -38,6 +38,11 @@ ecm_add_test(fretboardtest.cpp
     LINK_LIBRARIES Qt6::Test fretworkcore
 )
 
+ecm_add_test(keytest.cpp
+    TEST_NAME keytest
+    LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n
+)
+
 ecm_add_test(pitchdetectortest.cpp
     TEST_NAME pitchdetectortest
     LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n

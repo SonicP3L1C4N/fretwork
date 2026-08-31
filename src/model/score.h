@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "key.h"
 #include "rational.h"
 
 #include <QHash>
@@ -124,6 +125,14 @@ struct MasterBar {
     int numerator = 4;
     int denominator = 4;
     QString section;            //< "Intro", "Chorus" -- where the score names it
+
+    /**
+     * What the bar is written in. gpif puts one on every master bar because
+     * that is how the file is shaped, exactly as it does with the time
+     * signature, and the default -- no accidentals, major -- is what a score
+     * that never says means.
+     */
+    Key::Signature key;
 
     /** Whether pairs of notes in this bar are played long-short, and how. */
     TripletFeel tripletFeel = TripletFeel::None;

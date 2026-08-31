@@ -122,17 +122,42 @@ writes into exactly that structure.
 
 ### What is missing
 
-There is **no key signature anywhere in the model**, no pitch class, no
-spelling. `grep` for it finds nothing. Fretwork currently knows that a note is
-MIDI 63 and does not know whether that is D♯ or E♭ — which is fine for playing
-it, and is the whole problem for writing it down.
+There was **no key signature anywhere in the model**, no pitch class, no
+spelling: `grep` for it found nothing. Fretwork knew that a note was MIDI 63
+and did not know whether that was D♯ or E♭ — which is fine for playing it, and
+is the whole problem for writing it down. Layer 1 below is now built and the
+rest of this section is written as it was, against what came before it.
 
 ### The four layers, smallest first
 
-**Layer 1 — pitch classes and spelling.** A key signature on the score
-(defaulting to none), a pitch class type, and spelling rules that turn MIDI 63
-into D♯ in B major and E♭ in B♭ minor. Small, pure, entirely testable, and it
-is the thing standard notation needs before it can draw a single accidental.
+**Layer 1 — pitch classes and spelling.** **Done**, in `src/model/key.{h,cpp}`,
+written **2026-08-31**. A key signature on every master bar (defaulting to
+none, which is what a score that never says means), a spelling of a letter and
+an accidental and an octave, and the rule between them: MIDI 63 is the D♯ of B
+major and the E♭ of B♭ minor, and neither needed anything but the five
+accidentals at the head of the staff. The mode names a key and does not spell
+it — B major and G♯ minor are five sharps either way.
+
+A note *outside* the key is where a spelling layer either stays honest or
+starts inventing, so the rule there is the plainest one that does not produce
+nonsense: the smallest accidental that reaches the note, and where a sharp and
+a flat are equally small, the one the key is already written in. That gives F♯
+in C major, G♭ in F major, and — the case that rules out following the key's
+direction alone — a plain D in C♯ major rather than the C double sharp that a key with
+every letter already sharpened would otherwise produce. It is a default and
+not an analysis: which spelling a chromatic note actually wants depends on
+what it is doing, and that needs a layer that can see the music around it.
+
+The invariant it stands on is that whatever gets written sounds what it was
+spelled from, tested over every pitch on a piano against all fifteen
+signatures in both modes. A spelling layer that is merely plausible and does
+not round-trip is one that will put a wrong note on a page.
+
+The signature is read from gpif, kept on the master bar the way the time
+signature is, round-tripped through `.fw` as an optional field — so no format
+version moved — and printed by `--info` where a score has one. It is *not*
+editable and nothing acts on it yet: the theory layer describes and never
+corrects, and this is the description.
 
 **Layer 2 — analysis, read-only.** What key is this in, from a pitch-class
 histogram over the score or the selection, weighted by duration. Which scale
@@ -388,7 +413,7 @@ and a materially better one.
 | | Work | Depends on | Rough size |
 |---|---|---|---|
 | **P6.0** | Fretboard solver | nothing | **done** |
-| **P6.1** | Pitch classes, key signature, spelling | nothing | days |
+| **P6.1** | Pitch classes, key signature, spelling | nothing | **done** |
 | **P6.2** | Key and scale analysis, read-only | P6.1 | days |
 | **P6.3** | Scale overlay on the fretboard | P6.0, P6.2 | a week |
 | **P7.0** | MIDI input plumbing (PipeWire, decided once) | nothing | days |
@@ -407,10 +432,11 @@ Three observations about that order:
    is large. Two small pieces of pure, testable, dependency-free code unblock
    everything else in the table. Written first, they are also the best possible
    answer to the review's finding that the newest code is the least tested —
-   these can be test-first in a way the LV2 host never could. Half of that is
-   now measured rather than predicted: the solver is 550 lines of header and
-   implementation against 278 of test, 22 cases, and it needs no fixture, no
-   corpus and no window — the whole suite runs in under a millisecond.
+   these can be test-first in a way the LV2 host never could. Both are now
+   measured rather than predicted, and the prediction held: the solver is 550
+   lines of header and implementation against 278 of test, the spelling layer
+   346 against 174, and between them 34 cases that need no fixture, no corpus
+   and no window. Both suites run in under a millisecond.
 2. **The control surface jumps the queue.** It sits in the middle of the table
    despite being goal 3, because it depends on nothing but its own plumbing and
    produces the most persuasive demonstration per day spent. If only one item

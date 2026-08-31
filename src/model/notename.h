@@ -14,6 +14,13 @@
  * Guessing would be wrong half the time; picking one and saying so is wrong
  * never, and is what a tuner display needs.
  *
+ * That reasoning holds for what this is for -- naming a string, which has no
+ * key -- and stops holding where a score does have one. [Key] is the other
+ * side of that line: it spells a note as the key writes it, so it answers D
+ * sharp or E flat where this always answers D sharp. The two disagreeing about
+ * MIDI 63 is them being right about different questions, and neither should
+ * grow into the other.
+ *
  * Octave numbers are scientific pitch notation, where middle C is C4 and MIDI
  * 60. That is the convention printed on a guitar's own literature -- the low
  * string of a guitar in standard tuning is E2 -- and not the one Yamaha uses,
