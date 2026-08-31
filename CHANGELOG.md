@@ -189,6 +189,18 @@ bar lines not being drawn — and both say so.
   page rather than on it because it is a thing about the instrument: it does
   not scroll with the music, and it is not on any page that would be printed.
 
+- **Two controls in the parts panel were drawing their labels twice.** The
+  instrument a part is, and the recordings it is played from, were the only
+  controls in that panel wearing the desktop's clothes rather than the
+  program's — and the desktop style paints a button through the platform,
+  its text included, from the background. Giving one a label of its own to
+  elide a long programme name with therefore did not replace the text, it added
+  a second copy in a second font. Both were centred, so the name had a ghost to
+  the left of its first letter, a ghost to the right of its last, and a smear
+  in the middle where the two copies crossed. It read as a blurred font and it
+  was two of them. Both controls are now the window's own, which fixes the
+  blurring and the mismatch at the same time.
+
 - **Chords, from a circle of fifths that is a control rather than a diagram.**
   Turning it picks a key; the seven chords of that key are the row underneath;
   pressing one writes it into the score at the caret as a real beat with real

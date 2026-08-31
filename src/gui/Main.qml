@@ -955,6 +955,51 @@ Kirigami.ApplicationWindow {
     }
 
     /** S and M: small, square, and lit when they are doing something. */
+    /**
+     * A control on one of the paper panels that opens a menu: what instrument
+     * a part is, and which recordings it is played from.
+     *
+     * An `AbstractButton` and not a `QQC2.Button`, which is not a matter of
+     * taste. The desktop style paints a Button through QStyle -- its text
+     * included -- from the *background* delegate, so giving one a `contentItem`
+     * to elide a long name with does not replace the label, it adds a second
+     * one. The programme name was being drawn twice, in two fonts, both
+     * centred: a ghost to the left of the first letter, a ghost to the right of
+     * the last, and a smear in the middle where the two copies crossed. It read
+     * as a blurred font, and it was two of them.
+     *
+     * Using the window's own button also settles the other half of the
+     * complaint, which is that these two were the only controls in the panel
+     * wearing the desktop's clothes rather than the program's.
+     */
+    component PanelButton: QQC2.AbstractButton {
+        id: panelButton
+
+        hoverEnabled: true
+        focusPolicy: Qt.NoFocus
+        implicitHeight: Ink.smallControl
+
+        QQC2.ToolTip.visible: hovered && panelButton.QQC2.ToolTip.text !== ""
+        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+
+        background: Rectangle {
+            radius: Ink.radius
+            color: panelButton.hovered ? Qt.rgba(0.13, 0.12, 0.11, 0.08) : "transparent"
+            border.width: 1
+            border.color: Qt.rgba(0.13, 0.12, 0.11, 0.16)
+        }
+
+        // A programme name is as long as somebody named it, and the panel is as
+        // wide as it is.
+        contentItem: QQC2.Label {
+            text: panelButton.text
+            color: Ink.ink
+            elide: Text.ElideRight
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+    }
+
     component MixerButton: QQC2.AbstractButton {
         id: mixerButton
 
@@ -1499,9 +1544,8 @@ Kirigami.ApplicationWindow {
                         // What it is, and the way to make it something else:
                         // one control, because the name of the instrument and
                         // the list of instruments are the same question.
-                        QQC2.Button {
+                        PanelButton {
                             Layout.fillWidth: true
-                            flat: true
                             text: session.instrumentHere
                             onClicked: instrumentMenu.popup()
 
@@ -1590,25 +1634,14 @@ Kirigami.ApplicationWindow {
                      * naming a path on somebody's disk would open wrong
                      * everywhere else.
                      */
-                    QQC2.Button {
+                    PanelButton {
                         Layout.fillWidth: true
                         Layout.topMargin: Kirigami.Units.smallSpacing
                         visible: session.stringsHere > 0 || session.instrumentHere.length > 0
-                        flat: true
                         text: session.samplerHere.length > 0
                             ? i18n("Samples: %1", session.samplerHere)
                             : i18n("Samples: General MIDI")
                         onClicked: samplesMenu.popup()
-
-                        // A programme name is as long as somebody named it,
-                        // and the panel is as wide as it is.
-                        contentItem: QQC2.Label {
-                            text: parent.text
-                            elide: Text.ElideRight
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            color: Ink.ink
-                        }
 
                         QQC2.Menu {
                             id: samplesMenu
