@@ -182,6 +182,7 @@ QJsonObject Feedpak::arrangementFor(const Score &score, int track, const QList<i
         note.insert(QStringLiteral("ln"), event.letRing);
         note.insert(QStringLiteral("mt"), event.muted);
         note.insert(QStringLiteral("ac"), event.accent);
+        note.insert(QStringLiteral("vb"), event.vibrato);
 
         // How far the note bends, in semitones: the furthest the curve gets
         // from where it started. Nought where it does not bend, which is the
@@ -202,7 +203,7 @@ QJsonObject Feedpak::arrangementFor(const Score &score, int track, const QList<i
         }
         for (const QString &absent :
              {QStringLiteral("hm"), QStringLiteral("hp"), QStringLiteral("tr"),
-              QStringLiteral("tp"), QStringLiteral("vb"), QStringLiteral("fhm"),
+              QStringLiteral("tp"), QStringLiteral("fhm"),
               QStringLiteral("plk"), QStringLiteral("slp"), QStringLiteral("ig")}) {
             note.insert(absent, false);
         }

@@ -111,7 +111,52 @@ private:
         return found;
     }
 
+    /** The same page, with one note marked one way. */
+    static Tab::Layout pageWith(int bars, bool vibrato)
+    {
+        Score music = score(bars);
+        if (vibrato) {
+            Note note = music.notes.value(0);
+            note.vibrato = true;
+            music.notes.insert(0, note);
+        }
+        Tab::Style style;
+        style.pageWidth = 613.7;
+        style.pageHeight = 2000;
+        style.showTitle = false;
+        return Tab::layOut(music, 0, style);
+    }
+
 private Q_SLOTS:
+    /**
+     * A vibrato is drawn, and drawn on the note it belongs to.
+     *
+     * Asserted as ink that is there with the mark and not there without it,
+     * rather than by matching a shape: what matters is that a reader can see
+     * the hand is shaking, and a test that pinned the exact curve would fail
+     * every time the wave was made prettier.
+     */
+    void aVibratoIsDrawnOverTheNoteItBelongsTo()
+    {
+        const Tab::Layout plain = pageWith(2, false);
+        const Tab::Layout shaken = pageWith(2, true);
+        const QImage without = Tab::toImage(plain, 0, 2.0);
+        const QImage with = Tab::toImage(shaken, 0, 2.0);
+        QCOMPARE(without.size(), with.size());
+
+        int changed = 0;
+        for (int y = 0; y < with.height(); ++y) {
+            for (int x = 0; x < with.width(); ++x) {
+                changed += without.pixel(x, y) != with.pixel(x, y) ? 1 : 0;
+            }
+        }
+        QVERIFY2(changed > 0, "a note marked vibrato is drawn exactly like one that is not");
+        // A mark on one note and not a change to the whole page: a wave is a
+        // few dozen pixels, and anything like a thousand means the layout
+        // moved rather than that something was added to it.
+        QVERIFY2(changed < 1000, qPrintable(QStringLiteral("%1 pixels changed").arg(changed)));
+    }
+
     void everyBarLineIsDrawnWhereverItFalls()
     {
         const Tab::Layout layout = page(6);

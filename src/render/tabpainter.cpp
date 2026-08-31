@@ -7,6 +7,7 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPdfWriter>
 
 #include <algorithm>
@@ -407,6 +408,28 @@ void paintSystem(QPainter &painter, const Grid &grid, const Tab::Layout &layout,
                                    ? palette.accent
                                    : (playing ? palette.playingInk : palette.ink));
                 painter.drawText(box, Qt::AlignCenter, note.text);
+
+                if (note.vibrato) {
+                    // A wave over the number, which is how tablature has drawn
+                    // a shaking hand since before it was printed. Small and in
+                    // the accent, beside the fret rather than above the staff:
+                    // the marks that live above the staff -- palm muting,
+                    // letting ring -- are the ones that carry on over several
+                    // notes and need a line saying how far, and a vibrato
+                    // belongs to the one note under it.
+                    painter.setPen(QPen(palette.accent, grid.widthOf(0.8)));
+                    const qreal wave = 2.0;
+                    const qreal above = box.top() - 1.5;
+                    QPainterPath path;
+                    path.moveTo(noteX - 5, above);
+                    for (int step = 0; step < 2; ++step) {
+                        const qreal from = noteX - 5 + step * 5;
+                        path.quadTo(from + 1.25, above - wave, from + 2.5, above);
+                        path.quadTo(from + 3.75, above + wave, from + 5, above);
+                    }
+                    painter.setBrush(Qt::NoBrush);
+                    painter.drawPath(path);
+                }
             }
         }
     }

@@ -112,6 +112,7 @@ struct LaidNote {
     bool hammer = false;
     bool slide = false;
     bool letRing = false;
+    bool vibrato = false;
 };
 
 /** Which mark a run over the staff is: they share a row, so they are one list. */

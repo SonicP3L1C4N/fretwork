@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
+#include "gpif.h"
 #include "timeline.h"
 
+#include <QDir>
 #include <QTest>
 
 /**
@@ -145,6 +147,132 @@ private Q_SLOTS:
     }
 
     // ---- notes ----
+
+    /**
+     * Vibrato is played as what it is: a wobble of the pitch.
+     *
+     * It reuses the bend path rather than inventing one, so what is asserted
+     * is that the curve exists, that it goes both ways, and that it starts and
+     * ends where the note is written -- a vibrato that left the string sharp
+     * would be a vibrato that retuned the guitar.
+     */
+    void vibratoWobblesThePitchAndPutsItBack()
+    {
+        Score score = blank(1);
+        score.tempos.append({0, 0, 120});
+        Note note;
+        note.midi = 64;
+        note.string = 5;
+        note.vibrato = true;
+        fill(score, 0, {note});
+
+        const QList<int> order = Timeline::playedOrder(score);
+        const QList<Timeline::NoteEvent> notes = Timeline::notesFor(score, 0, order);
+        QCOMPARE(notes.size(), 1);
+
+        const QList<Timeline::BendPoint> curve = notes.first().bend;
+        QVERIFY2(!curve.isEmpty(), "a vibrato note has no pitch movement at all");
+        QCOMPARE(curve.first().cents, 0);
+        QCOMPARE(curve.last().cents, 0);
+
+        int highest = 0;
+        int lowest = 0;
+        for (const Timeline::BendPoint &point : curve) {
+            highest = std::max(highest, point.cents);
+            lowest = std::min(lowest, point.cents);
+        }
+        QVERIFY2(highest > 0 && lowest < 0, "a vibrato that only goes one way is a bend");
+        // A wrist and not a whammy bar: well under a semitone either side.
+        QVERIFY(highest < 100 && lowest > -100);
+    }
+
+    /**
+     * A note too short to hold a cycle gets none.
+     *
+     * One lurch of pitch on a semiquaver is not vibrato, and playing it as one
+     * makes fast passages sound out of tune rather than expressive.
+     */
+    void aNoteTooShortToVibrateDoesNot()
+    {
+        Score score = blank(1);
+        // Fast enough that a crotchet is well under a fifth of a second.
+        score.tempos.append({0, 0, 400});
+        Note note;
+        note.midi = 64;
+        note.string = 5;
+        note.vibrato = true;
+        fill(score, 0, {note});
+
+        const QList<Timeline::NoteEvent> notes =
+            Timeline::notesFor(score, 0, Timeline::playedOrder(score));
+        QCOMPARE(notes.size(), 1);
+        QVERIFY(notes.first().bend.isEmpty());
+    }
+
+    /** A written bend is not replaced by a wobble. */
+    void aBentNoteKeepsItsBend()
+    {
+        Score score = blank(1);
+        score.tempos.append({0, 0, 120});
+        Note note;
+        note.midi = 64;
+        note.string = 5;
+        note.vibrato = true;
+        note.bended = true;
+        note.bendOriginValue = 0;
+        note.bendDestinationValue = 200;
+        fill(score, 0, {note});
+
+        const QList<Timeline::NoteEvent> notes =
+            Timeline::notesFor(score, 0, Timeline::playedOrder(score));
+        const QList<Timeline::BendPoint> curve = notes.first().bend;
+        QVERIFY(!curve.isEmpty());
+        // The written bend arrives a whole tone up, which no vibrato does.
+        QCOMPARE(curve.last().cents, 200);
+    }
+
+    /**
+     * And on a real transcription, where the vibratos were put there by a
+     * person rather than by this test.
+     *
+     * Gated on the corpus like the importer's own checks: transcriptions are
+     * not ours to commit. What it asserts is the whole path -- a `.gp` read,
+     * the flag imported, and a curve on the far side of it.
+     */
+    void realScoresVibrateWhereTheySayTheyDo()
+    {
+        const QString corpus = qEnvironmentVariable("FRETWORK_CORPUS");
+        if (corpus.isEmpty()) {
+            QSKIP("set FRETWORK_CORPUS to a directory of .gp files to run this");
+        }
+        int marked = 0;
+        int wobbling = 0;
+        for (const QString &name :
+             QDir(corpus).entryList({QStringLiteral("*.gp")}, QDir::Files)) {
+            const Score score = Gpif::read(QDir(corpus).filePath(name));
+            for (auto note = score.notes.constBegin(); note != score.notes.constEnd(); ++note) {
+                marked += note->vibrato ? 1 : 0;
+            }
+            const QList<int> order = Timeline::playedOrder(score);
+            for (int track = 0; track < score.tracks.size(); ++track) {
+                for (const Timeline::NoteEvent &note : Timeline::notesFor(score, track, order)) {
+                    // Counted by shape rather than by "has a curve", or a
+                    // score full of written bends would pass this without a
+                    // single vibrato being played: a bend goes one way and
+                    // stays there, and only a wobble goes both.
+                    bool up = false;
+                    bool down = false;
+                    for (const Timeline::BendPoint &point : note.bend) {
+                        up = up || point.cents > 0;
+                        down = down || point.cents < 0;
+                    }
+                    wobbling += up && down ? 1 : 0;
+                }
+            }
+        }
+        QVERIFY2(marked > 0, "no transcription in the corpus has a vibrato in it");
+        QVERIFY2(wobbling > 0, "the corpus has vibratos written in it and none of them move");
+    }
 
     void everyStringGetsAChannelOfItsOwn()
     {

@@ -81,6 +81,17 @@ struct NoteEvent {
     bool palmMuted = false;
     bool letRing = false;
     bool accent = false;
+
+    /**
+     * Whether the hand is shaking the note.
+     *
+     * Carried as well as played, because the bend curve it becomes is a
+     * decision about how to sound it and not a record of what was written --
+     * a pack that read the curve back would say a note bent thirty cents
+     * sharp and thirty flat, which is a description of a wobble and not the
+     * word for one.
+     */
+    bool vibrato = false;
 };
 
 struct TempoEvent {

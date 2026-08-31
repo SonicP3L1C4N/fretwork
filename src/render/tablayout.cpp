@@ -284,6 +284,7 @@ Tab::LaidBar measure(const Score &score, int trackIndex, int barIndex,
                 laidNote.palmMuted = note->palmMuted;
                 laidNote.hammer = note->hammerOrigin || note->hammerDestination;
                 laidNote.slide = note->slide != SlideType::None;
+                laidNote.vibrato = note->vibrato;
                 laidNote.letRing = note->letRing;
                 laid.notes.append(laidNote);
             }

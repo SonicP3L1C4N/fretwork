@@ -30,6 +30,22 @@ constexpr int BendCentre = 8192;
 const Rational BendStep = Rational(1, 16);
 constexpr int MaximumBendSteps = 128;
 
+/**
+ * Vibrato: how fast the hand shakes, and how far.
+ *
+ * Five and a half times a second is an ordinary guitar vibrato -- slower is a
+ * ballad and faster is a caricature -- and thirty cents either way is a little
+ * under a third of a semitone, which is what a wrist does rather than what a
+ * whole-tone bend does. In hertz and cents rather than in beats and steps
+ * because a vibrato is a physical gesture: it does not get faster because the
+ * piece is.
+ */
+constexpr double VibratoHertz = 5.5;
+constexpr int VibratoCents = 30;
+
+/** A whole cycle is four points: nought, up, nought, down. */
+constexpr int VibratoPointsPerCycle = 4;
+
 int bendValueFor(int cents)
 {
     const double range = BendRangeSemitones * 100.0;
@@ -60,6 +76,40 @@ int velocityFor(Dynamic dynamic)
  * optional and marked absent with -1; a bend that starts where it ends is
  * still worth carrying, because a whammy dive can be flat and long.
  */
+/**
+ * Vibrato drawn as a bend, because that is what it is.
+ *
+ * A periodic wobble of the pitch, and the program already knows how to move a
+ * pitch continuously and how to put it back at the end: everything downstream
+ * of this -- the interpolation, the per-string channels, the return to centre
+ * -- works without being told that this curve came from a wrist rather than
+ * from a written bend.
+ *
+ * `seconds` is how long the note actually lasts, so that the rate is a rate.
+ * A note too short to hold even one cycle gets none: a single lurch of pitch
+ * on a semiquaver is not vibrato, it is a mistake.
+ */
+QList<Timeline::BendPoint> vibratoCurve(const Rational &duration, double seconds)
+{
+    const int cycles = int(seconds * VibratoHertz);
+    if (cycles < 1) {
+        return {};
+    }
+    const int points = cycles * VibratoPointsPerCycle;
+    QList<Timeline::BendPoint> curve;
+    curve.reserve(points + 1);
+    for (int point = 0; point <= points; ++point) {
+        int cents = 0;
+        if (point % VibratoPointsPerCycle == 1) {
+            cents = VibratoCents;
+        } else if (point % VibratoPointsPerCycle == 3) {
+            cents = -VibratoCents;
+        }
+        curve.append({duration * Rational(point, points), cents});
+    }
+    return curve;
+}
+
 QList<Timeline::BendPoint> bendCurve(const Note &note, const Rational &duration)
 {
     if (!note.bended) {
@@ -267,6 +317,10 @@ QList<Timeline::NoteEvent> Timeline::notesFor(const Score &score, int trackIndex
     }
     const Track &track = score.tracks.at(trackIndex);
 
+    // Built once, because vibrato is measured in hertz and the score is
+    // measured in quarters, and only this knows the exchange rate.
+    const Clock clock(score, order);
+
     Rational position;
     for (const int barIndex : order) {
         const MasterBar &master = score.masterBars.at(barIndex);
@@ -333,8 +387,18 @@ QList<Timeline::NoteEvent> Timeline::notesFor(const Score &score, int trackIndex
                     event.palmMuted = note->palmMuted;
                     event.letRing = note->letRing;
                     event.accent = note->accent;
+                    event.vibrato = note->vibrato;
                     event.channel = channelFor(track, *note);
                     event.bend = bendCurve(*note, sounding);
+                    if (event.bend.isEmpty() && note->vibrato) {
+                        // A written bend wins where a note has both. The two
+                        // are one curve on one channel, and a wobble laid over
+                        // a bend is a different shape again -- worth doing
+                        // properly one day, and not worth guessing at now.
+                        event.bend = vibratoCurve(sounding,
+                                                  clock.secondsAt(start + sounding)
+                                                      - clock.secondsAt(start));
+                    }
                     // A legato slide is fretted rather than picked, the same as
                     // the hammer-ons and pull-offs gpif calls Hopo.
                     event.legato = note->hammerDestination
