@@ -20,704 +20,115 @@ through its own amplifier simulation, and exported as an independent audio file.
 
 That last part is the reason the project exists. Linux already has a tablature
 editor: TuxGuitar has been at it for twenty years and is not going to be beaten
-at being TuxGuitar. What no tablature program on Linux does is treat the score as
-a multitrack session — one synth per track, per-track LV2 effects, real stems out
-the other end. Fretwork is that program, and everything else it does is in
+at being TuxGuitar. What no tablature program on Linux does is treat the score
+as a multitrack session — one synth per track, per-track LV2 effects, real stems
+out the other end. Fretwork is that program, and everything else it does is in
 service of it.
+
+![The Fretwork window: the parts down the left, the score as a page in the middle, the mixer on the right, and the bar ruler along the bottom](docs/window.png)
+
+## What it does
+
+**Reads and plays.** GP7 and GP8 `.gp` files, through PipeWire, with a synth
+per track so that solo and mute take effect while it plays — no re-render, no
+bounce. Repeats are expanded; where a score is beyond what it can honestly
+play, it says so rather than playing it wrongly.
+
+**Edits.** Click a string and type a fret. Marks (`x` dead, `g` ghost, `p` palm
+mute, `l` let ring), transposition, note durations, bars, parts, tuning, capo,
+tempo, time signature and section names are all editable, everything is
+undoable, and copy and paste keep the bars they came from. A bar that no longer
+adds up is marked rather than corrected — taking the difference out of the next
+note along would be rewriting music nobody asked it to touch.
+
+**Is a document.** The score is real A4 pages, broken where the printed PDF
+breaks them, stacked on a desk with a zoom in the status bar. What is on screen
+and what comes out of `--pdf` are the same document.
+
+![The bar ruler: section names in italic over the bars they start, a number every few bars, the playhead riding the line and the caret as an outlined box below it](docs/window-bars.png)
+
+**Knows what key a piece is in** — from the notes rather than from the page,
+since a key signature is something a transcriber has to go out of their way to
+set and almost nobody does. The **Scale** button draws that key on a fretboard
+over the score, roots marked, with the frets under your hand lit. The **Chords**
+button is a circle of fifths: turn it to a key, and its chords can be written
+into the score at the caret as real notes on real strings.
+
+**Tunes.** A chromatic tuner that knows the score's own tuning and capo, so it
+listens for the strings the piece is actually written for.
+
+![The tuner: the part's tuning as six strings, a ladder of blocks either side of the mark, and the level meter](docs/window-tuner.png)
+
+**Saves.** `Ctrl+S` writes a `.fw` — a ZIP holding readable JSON, so a file
+attached to a bug report can be understood by looking at it. Every score in the
+test corpus survives import, save and reopen describing exactly the same music.
+Fretwork deliberately **cannot write `.gp`**: reading a format nobody documented
+is one risk, and handing people files to open in somebody else's program is a
+different and worse one.
+
+**Prints.** The page carries what printed music has always carried — the title,
+the tuning, the tempo and the feel above the first bar:
+
+![The top of a printed page: the title, the tuning, the tempo marks and the section names](docs/page-direction.png)
+
+**Is still a command line tool when asked to be.**
+
+```
+fretwork FILE.gp --info                  # what is in it
+fretwork FILE.gp --play --solo 1         # play one track
+fretwork FILE.gp --stems out/            # one WAV per track, plus a mix
+fretwork FILE.gp --pdf score.pdf         # or --png with --page
+fretwork FILE.gp --save score.fw         # convert
+fretwork FILE.gp --tune                  # tune to this score
+```
 
 ## Status
 
-**P2 — it is an application.** `fretwork FILE.gp` opens a window: the tablature
-on the left, a mixer on the right, a transport across the top, and the bar being
-played lit up as it goes.
-
-![The Fretwork window showing Horses by Slomosa: tablature on the left, mixer on the right](docs/window.png)
-
-Every track is a row down the left with a drawing of what it is — a guitar, a
-bass, a drum kit — opposite the mixer, which says what it sounds like. Every
-bar of the piece is a box in a grid along the bottom, with the section names
-over the bars they start: click one and the caret and the playhead both go
-there, and while it plays the grid follows the music.
-
-The grid wraps. A row of two hundred boxes runs off the side of any window ever
-made and turns finding a bar back into scrolling for it, so the bars are laid
-out in as many columns as the window is wide enough for, in whole rows, growing
-to fit the score and stopping at a third of the window — a hundred and
-seventy-six bars would otherwise push the music it is a map of off the screen.
-Resize the window and the columns are recounted. **Sections are named** in the
-field over the grid: what it writes is what the grid and the page both print.
-
-The toolbar wraps too, in groups. A single row of every control is longer than
-a narrow window, and what ran off the end was not hidden so much as unreachable
-— which is worse than not fitting, because nothing says it is missing.
-
-Every track has a synthesiser of its own, so the **S** and **M** buttons take
-effect while it plays — no re-render, no bounce. The view follows the playhead
-until you scroll, and then leaves you where you looked. The bar strip, the
-mixer and the status bar can each be put away from the toolbar, and stay put
-away.
-
-**The bar strip is a ruler, not a grid.** A hundred and seventy-six numbered
-boxes at a legible size is four rows and a scrollbar, and the map of the music
-was taking a third of the window away from the music.
-
-![The bar ruler: section names in italic over the bars they start, tall ticks there and short ticks elsewhere, a number every fourth bar, the playhead as a magenta lozenge riding the line and the caret as an outlined box below it](docs/window-bars.png)
-
-A ruler says the same thing in one line. A tick a bar; a number every fourth,
-eighth or thirty-second depending on what the width allows, far enough apart to
-read as a scale rather than as a row of numbers; and the section names in
-italic over the bar each one starts, because the reason anybody goes looking
-for bar 96 is that it is where the second chorus begins. A section start is
-twice the height of its neighbours and no darker — saying it a second time in
-ink would be the ruler insisting. A score nobody has named a section in keeps
-none of that room.
-
-The two marks say different things and are drawn differently on purpose. The
-playhead is a filled lozenge riding the line, carrying its own bar number so
-that watching it does not mean reading along the ruler to find out where it is.
-The caret is an outline below the line, in the row the numbers are in, around
-the number of the bar it is on — and it prints that number whether or not the
-spacing would otherwise have put one there.
-
-Where a score is beyond what it can honestly play, it says so rather than
-playing it wrongly:
-
-![The Crimson Path by DVNE, with repeat signs and a warning that alternate endings are not flattened](docs/window-repeats.png)
-
-**P3 is done: it edits.** Click a string, type a fret number, and the score
-changes. Arrows move the caret, `Delete` clears a note, and every change is
-undoable — typing `1` then `2` is fret 12 and one press of undo, not two.
-
-`x` marks a dead note, `g` a ghost note, `p` palm mutes and `l` lets ring —
-the note under the caret or the whole selection, and on unless it is on
-already. Only those four, because they are the ones Fretwork can both draw and
-play: palm muting and letting ring are printed the way tablature prints them,
-as a label over the staff with a dashed line saying how far the hand keeps
-doing it.
-
-`+` and `-` transpose: the note under the caret, or everything in the
-selection, along the strings it is already on — refused outright where any of
-it would run off the neck, because a phrase with one note left behind is not
-the phrase that was asked for. `Alt` with an arrow moves a note to the next
-string and keeps its pitch, which is the one edit that changes a fret without
-changing the music.
-
-Rhythm is editable too: `Ctrl` and a digit sets how long a beat lasts — 1 a
-semibreve, 2 a minim, and on down by halves — `.` dots it, and `Ctrl` with an
-arrow doubles or halves it. `Insert` makes room for a beat and `Ctrl+Delete`
-takes one out, and typing a number past the end of a bar writes the beat as
-well as the note, which is how music reaches the end of a piece.
-
-A bar that no longer adds up to its time signature is marked rather than
-corrected: taking the difference out of the next note along would be rewriting
-music nobody asked it to touch.
-
-Shift with an arrow selects, and so does dragging across the score; `Ctrl+C`,
-`Ctrl+X` and `Ctrl+V` do what they do everywhere else. A clip keeps the bars it
-was copied from — four bars of a riff paste as four bars, because pasting them
-as one long bar would be the same notes and not the same music — and a paste
-that would run off the end of the score is refused outright rather than half
-done.
-
-The score can grow. `Ctrl+B` puts a bar on the end and the caret in it,
-`Ctrl+Shift+B` makes room at the caret, and `Ctrl+Shift+Delete` takes a bar
-out — in every track at once, because a master bar is the score's own unit of
-time and one added to the guitar alone would put the bass out of step for the
-rest of the piece. A new bar is worth what the one it displaced was, so a bar
-added to a piece in 6/8 is in 6/8, and the tempo changes written after it move
-along with the music. The last bar of a score is kept: a score with no bars is
-not a shorter score.
-
-**Parts can be added and taken away.** A part is a column through every bar of
-the score, so adding one puts an empty bar in every bar and removing one takes
-a column out — which is why they are deliberate buttons under the track list
-rather than a drag. A part can be renamed, moved up or down the order with its
-bars, and turned into something else: five instruments, which is what a
-tablature program writes for rather than the whole General MIDI bank. Changing
-what a part *is* leaves its tuning exactly as it was — turning a guitar into a
-bass is a question about what it sounds like, and which strings it is written
-for has an editor of its own.
-
-Taking a part out takes everything only it was using with it, found by sweeping
-from the parts that remain. Guitar Pro deduplicates beats — a four-part score
-of 704 bars can hold 235 distinct ones — so walking through the departing track
-instead would erase beats the other parts are still playing. The last part
-stays: a score with none is not a shorter score.
-
-And there is a **New score**: one guitar, one empty bar, and a tempo. Until now
-Fretwork could only change a score somebody else's program had made.
-
-**The instrument is editable.** The tuning sits under the track list, written
-as names because that is how a guitarist says one — type `D2 A2 D3 G3 B3 E4`
-and the part is in drop D. Retuning moves the pitches and leaves the frets,
-which is what retuning an instrument does: fret three is still fret three and
-now sounds a tone lower, and the tab on the page does not change because
-nobody rewrote it. The other reading — keep the pitches and move the frets —
-is transcribing a part for a different tuning, which is a different act and is
-reachable afterwards by transposing.
-
-The capo moves every note in the part with it, because a capo raises every
-string at once and the fret numbers under it are counted from the capo rather
-than from the nut. Past the twelfth fret it is refused, where a capo stops
-being a capo and starts being a shorter instrument. A drum kit has no strings
-and is not offered either.
-
-**The tempo is editable**, which it had to become the moment there was a
-metronome to hear it against. The field beside the transport reads what the
-caret's bar is played at and writing in it sets the tempo from that bar on —
-accented while the bar carries a change of its own, quiet while it is living
-under one written earlier, because those two look identical and behave
-differently when they are edited.
-
-At the bar line and not at the caret: gpif can put a change part way through a
-bar and Fretwork deliberately will not, because a caret on the third beat is
-where somebody is typing notes rather than a statement about where the music
-changes speed — and a change with no visible start is one nobody can find to
-remove. Setting a tempo sweeps up any other change already in that bar, so a
-bar has one tempo and one place to look for it. Something outside 20 to 400 is
-refused rather than clamped, since quietly turning 1100 into 400 leaves
-somebody hunting for the tempo they typed. The first bar keeps a tempo
-whatever happens: with nothing before it to inherit from, taking its marking
-off would mean playing at whatever the default happens to be, which is not
-what anybody means by removing one.
-
-**And so is the time signature**, in the field beside it. Writing `6/8` there
-sets it from the caret's bar until the next change — not that one bar. gpif
-keeps a signature on every master bar because that is how the file is shaped,
-but somebody who writes 3/4 at bar five means bars five onwards, so it runs
-forward over every bar sharing the old signature and stops at the first that
-does not, which is where the next change already is. A denominator that is not
-a power of two is refused: 4/5 is a slipped finger, not a bar anybody can
-write down.
-
-What is already in those bars stays exactly where it is. A bar of four
-crotchets asked to be 3/4 is now a bar that does not add up, and the page marks
-it — taking the difference out of the last note would be rewriting music nobody
-asked it to touch, which is the one thing an editor must never do quietly.
-
-The page carries it too, in the direction row above the section names, where
-printed music has always put it:
-
-![The top of Cold Shot: the title, the tuning, and "♩ = 110 · triplet quavers" in italic above the first bar](docs/page-direction.png)
-
-That row is on every page now rather than only where a feel starts. Once the
-tempo is printed there is no such thing as a score with nothing to say — every
-piece has a speed, and a page that does not give it is missing the first thing
-a player looks for.
-
-**It saves.** `Ctrl+S` writes a `.fw` — a ZIP holding readable JSON, so a file
-attached to a bug report can be understood by looking at it. Every score in the
-test corpus survives import, save and reopen describing exactly the same music.
-
-The command line converts too, which is also the only way to look at what a
-`.fw` is without opening a window:
-
-```
-$ fretwork "Slomosa-Horses.gp" --save Horses.fw
-  Horses.fw                     Fretwork 1
-
-$ fretwork Horses.fw --info
-  ...
-  format  Fretwork 1
-```
-
-It says which version of the format it is, and the reader checks. The number
-moves only when something an older reader would get wrong has changed —
-adding an optional key is not that, because unknown keys are ignored and
-missing ones default to what a blank would mean, so a file with more in it
-than a reader knows about opens with whatever the reader understands. When the
-number *has* moved, an older Fretwork refuses the file by name and number
-rather than reading as far as it goes: getting some of it would be getting
-some of it wrong. Files carry the build that wrote them, too, which is the
-first thing worth knowing about one that arrives attached to a bug report.
-
-A `.fw` holds *Fretwork's* model, not everything a `.gp` contained: lyrics,
-chord diagrams and Guitar Pro's own effects are read past on import and are not
-there to write out. And Fretwork deliberately **cannot write `.gp`** — reading a
-format nobody documented is one risk; handing people files to open in somebody
-else's program is a different and worse one. An imported score stays as its
-author wrote it.
-
-It is still a command line tool when asked to be:
-
-```
-$ fretwork --info "Beautiful Losers.gp"
-Beautiful Losers — Coheed And Cambria
-  Guitar Pro 8.1.4, 86 bars notated, 86 played, 3:24
-  tempo   76 bpm at bar 1
-  [0] Claudio                electricGuitar   prog 29     1436 notes   tuning 38 45 50 55 59 64
-  ...
-```
-
-**It plays**, through PipeWire, with a mixer:
-
-```
-fretwork FILE.gp --play                 # everything
-fretwork FILE.gp --play --solo 1        # just that track
-fretwork FILE.gp --play --mute 3        # everything but that one
-fretwork FILE.gp --play --click         # with a metronome
-```
-
-```
-$ fretwork "The Dogs Of War.gp" --play --solo 0
-  playing 1:06 through pipewire — gilmour
-  0:23 / 1:06
-```
-
-Soloing is what a synth per track buys: no re-render, no bounce, just that
-track's own audio and nothing else.
-
-**It counts.** `--click`, or the button beside the transport, puts a metronome
-on every beat — the beat a musician counts rather than the one the denominator
-names, so 6/8 is two beats of three quavers and not six of one, and 3/8 is
-three, because that is how everybody who plays it counts it. The first beat of
-every bar leans, including the first beat after a short pickup bar: a bar line
-you cannot hear is no use to count by.
-
-It is claves, at two levels — the same sound leaning about three decibels on
-the first beat, because an accent is emphasis and not a different instrument.
-The sound was chosen by measuring rather than by taste: against a rendered
-mix, a wood block sat far enough under the music to vanish and only the
-downbeat came through, which is a metronome that appears to be counting bars.
-
-The click is not a fixture. It is a part — a list of messages and an instrument
-to play them on — handed to the same synth as every track, which is why it has
-a strip of its own at the foot of the mixer with a level and no solo button:
-soloing the guitar to hear what it is doing is not a reason to lose the beat
-you are hearing it against. Nothing in the engine had to learn a new idea to
-have a metronome, which is the useful thing about it.
-
-`--render --click` writes `click.wav` beside the stems and deliberately leaves
-it out of the mix: stems exist to be put back together somewhere else, and a
-click baked into a mix is one nobody can take out again.
-
-`--render --dry` follows the same reasoning one step further. A part that went
-through an amplifier is written twice — `00-Guitar.wav` as the amplifier
-finished it, `00-Guitar-dry.wav` as the instrument played it. A wet stem is a
-decision already taken: it cannot be reamped, and the amplifier chosen against
-a rough mix on one evening is not always the one that survives the mix on
-another. Only parts with a chain get one, because a part without would be the
-same samples under two names.
-
-**It listens**, which is new: the first thing in the program that wants a
-guitar lead rather than a speaker.
-
-![The tuner across the bottom of the window: the score's tuning as six strings with the one being played lit, a ladder of blocks lit blue twelve cents flat of the mark, and the frequency](docs/window-tuner.png)
-
-A band across the bottom rather than a panel beside the score, because tuning
-is a thing done to the instrument and not to the document: it wants to be wide,
-read from across the room, and gone again when it is finished with. The input is
-open only while the panel is, because nothing about reading a tab justifies
-holding a microphone open behind a closed one — and it is the one panel that
-starts closed, for the same reason.
-
-**Which way, before how far.** Everywhere else in this window one accent is
-enough, because everywhere else the question is which of these is the one. A
-tuner is asked something different: "twelve cents" says how far and not which
-way, and a hand already on a machine head needs which way first. So direction
-is a colour here.
-
-![The same string read three ways: twelve cents flat with the ladder lit blue, in tune with the centre block filled amber, and eleven cents sharp with the ladder lit magenta](docs/tuner-directions.png)
-
-Flat is cold, sharp is the accent the rest of the window already uses, and both
-brighten as the string comes in. The blocks light from where the string is
-*inward to the mark* rather than out from it, because the thing being watched
-is the gap closing. They stand taller toward the middle for the reason a
-ruler's inch marks are taller than its eighths — the eye finds the centre
-without reading anything.
-
-Arriving is amber: a third colour rather than the brightest step of the other
-two, because arriving is not "very slightly flat". It is the thing being aimed
-at, and it should not look like the last of a series it is the end of. The
-centre block keeps its amber ring whether or not anything has landed on it, so
-the target is visible before the aim, and within three cents it fills and
-holds. It is the only warm colour in the program.
-
-The sentence beside the note says the same thing in words — `12 ¢ flat —
-tighten` — in the colour of the direction it names, so the ladder and the
-sentence agree without either being read twice. "Tighten" and "slacken" rather
-than "sharp" and "flat" alone: those two words name the thing to do, and the
-ladder has already said which side of the mark it is on. The scale under the
-blocks is built on the ladder's own slots rather than spaced by hand, because a
-nought that is not over the mark is a scale saying something false about the
-thing beside it.
-
-It is on the command line too, and needs no window there either:
-
-```
-fretwork FILE.gp --tune                  # tune to that score's own tuning
-fretwork --tune                          # no score: standard tuning
-fretwork FILE.gp --tune --input NAME     # listen on a particular input
-```
-
-```
-$ fretwork "Slomosa-Horses.gp" --tune
-  Guitar I: C2 F2 A#2 D#3 G3 C4
-  listening on the default input at 48000 Hz — Ctrl-C to stop
-
-  string 2  F2   ............|.o..........   +8 ¢    sharp    87.7 Hz
-```
-
-The tuning comes out of the file, and that is the whole difference between this
-and every other tuner: a chromatic tuner hears an F and says so, leaving the
-player to know whether an F is what this piece wants of that string. A capo is
-in the target, because the target is what the string will sound when it is
-plucked. Where what was played is too far from any string to be one of them it
-names the note and leaves the choice alone, rather than guessing between two
-pegs.
-
-The pitch is found with YIN rather than a Fourier transform: a plucked low
-string's second harmonic is routinely louder than its fundamental, and a
-spectrum peak-picker reports the octave above and is confidently wrong. One
-note at a time, and a strummed chord gets "hearing something, but no note in
-it", which is true.
-
-**It draws the tablature**:
-
-```
-fretwork FILE.gp --pdf out.pdf       # every page
-fretwork FILE.gp --png page.png --page 2 --track 1
-```
-
-Title, tuning, section names, bar numbers, time signatures, repeat signs, dead
-notes and ghost notes, palm-muted and let-ring runs labelled over the staff
-with a dashed line for as long as they last, and fret numbers coloured where a
-technique is marked on them. Under the
-strings, a row of stems saying how long each column lasts — beamed in the groups
-the time signature makes, flagged where there is nothing to beam to, with an
-open head for a minim and a mark in the staff where nothing sounds. Bar widths
-follow the square root of duration rather than duration itself, which is what
-engravers have used for centuries and the reason a bar of semiquavers is
-readable; lines are justified to the page except the last, which is left alone.
-
-**It renders audio**, which is what the project is for:
-
-```
-fretwork FILE.gp --render out/       # one WAV per track, and a mix
-fretwork FILE.gp -m out.mid          # a MIDI file
-fretwork FILE.gp --stems out/        # one MIDI file per track, plus a mix
-```
-
-```
-$ fretwork "The Dogs Of War.gp" --render out/
-  00-gilmour.wav                 1:06  peak 0.25
-  01-wright.wav                  1:06  peak 0.36
-  02-pratt.wav                   1:06  peak 0.14
-  03-mason.wav                   1:06  peak 0.18
-  mix.wav                        1:06  peak 0.46
-```
-
-Each track gets a FluidSynth of its own — sixteen channels each, so a guitar
-spends six on its strings and nothing collides. The mix is the sum of the
-stems, and they are written in one pass at about twenty times real time.
-
-All eleven files in the corpus read, with note counts agreeing exactly with the
-P0 spike, and bends, let ring and hammer-ons that the spike never attempted.
-Sixteen MIDI channels cannot hold a channel per string for four guitars at
-once, so the *MIDI* writer says what it gave up:
-
-```
-  note: pratt shares one MIDI channel across 4 strings, so a bend moves
-        every note it is holding
-```
-
-Audio rendering has no such limit, because nothing is shared: that compromise
-is a property of the MIDI file format, not of the program.
-
-**Each part can go through its own effects.** `--lv2 0=<uri>,<uri>`, or the
-chain in the mixer, puts LV2 plugins between a part's instrument and its
-fader — which is where an amplifier stands, and behind the fader the
-distortion would change every time somebody adjusted a level. `--effects`
-lists what is installed; on a desktop with guitarix that is over a hundred
-usable things.
-
-```
-$ fretwork "Horses.gp" --render out/ \
-    --sfz 0=…/emily_clean.sfz \
-    --lv2 "0=…/gx_amp#GUITARIX,…/gx_cabinet#CABINET"
-```
-
-That is the point of the project finally assembled: a sampled guitar, through
-its own amplifier, out as its own stem. Over the same twenty seconds the
-amplifier and cabinet take the crest factor from 8.8 to 4.7 and double the RMS
-while leaving the peak where it was — peaks squashed toward the average and
-harmonics added, which is what an amplifier is.
-
-Hosted in this process with lilv rather than delegated to Carla. That was an
-open question in the architecture, and the ports answered it: handing a chain
-to another process means the audio leaving the callback and coming back, which
-is a second clock and a buffer of latency per track. Guitarix's amplifiers will
-not instantiate without the LV2 worker extension, so there is a real one here —
-a thread and two lock-free rings — rather than the errand being run on the
-audio thread, which would have worked and would have been a lie about what the
-callback does.
-
-Mono plugins are instantiated twice, one per side, which is what every host
-does and what a player would do with two pedals.
-
-**And the knobs turn.** Every control a plugin declares is drawn in the mixer
-from what the plugin says about itself — its name, its range, and whether it is
-a knob, a switch or a list of named choices, because a slider from nought to
-eleven labelled nothing is a worse way to ask which valve model somebody wants.
-Turning one goes straight to the running chain: nothing is rebuilt and nothing
-stops. They are remembered across a rebuild too, because the player is rebuilt
-whenever a note is edited and an amplifier that reset itself every time
-somebody typed a fret would be an amplifier nobody could use.
-
-Our own controls rather than the plugin's own interface. Guitarix draws in GTK,
-this window is Qt Quick on Wayland, and there is no embedding one in the other
-that is not a second program in a second window — and this window is
-deliberately drawn rather than styled, so a panel of somebody else's widgets
-would look like somebody else's panel.
-
-From the command line the same knob is `--knob 0:0:Drive=8` — the track, which
-plugin along the chain, the name the plugin gives the control, and the value.
-Verbose, and every part of it is something the caller has to be able to say,
-because two amplifiers in one chain both have a Drive.
-
-A window opened with `--sfz` and `--lv2` comes up with that rig already on the
-part, rather than opening dry and asking somebody to rebuild by hand what they
-have just typed out.
-
-**And the rig is kept.** An evening spent getting a part to sound right is not
-work to do again tomorrow, so it is written to a file beside the score —
-`Horses.gp` gets `Horses.gp.rig` — and read back when the score is opened.
-Beside it rather than inside it, for the same reason the sample library is not
-in a `.fw`: a rig names plugins by URI and samples by path, and both of those
-are facts about one machine, whereas the score is the part that travels. The
-file is plain JSON and names each knob by the symbol its plugin publishes
-rather than by port number, so a rig still means what it meant after a plugin
-is rebuilt.
-
-A score that has never been saved has nowhere to keep a rig yet, and the
-effects panel says so rather than letting somebody find out by closing the
-window.
-
-**Somebody else's ears, as a starting point.** A chain at its defaults is an
-amplifier nobody has turned up. Guitarix ships nineteen presets named after the
-records they aim at, and the **Voicing** button on each plugin — or
-`--voicing 0:0=Iron Man`, and `--voicings` to list them — sets the amplifier to
-one. The valve, the tone stack, the cabinet and the levels are matched against
-the choices the plugin itself declares, so nothing here is a table of names
-that has to be kept up to date with guitarix.
-
-What it carries is the amplifier and nothing else, and it says so. A `.gx`
-preset describes the whole guitarix rig — forty modules, of which the ones the
-factory bank leans on hardest ship no LV2 plugin at all: `shaper` in nine of
-the nineteen, the `jconv` convolver in nine, `stereoverb` in six. Loading one
-of those and calling the result *Bass — Come Together* would be a sound that is
-not that sound, announced as though it were. So each voicing reports what it
-left behind, and a value the plugin will not take — the bank asks for −32 dB of
-master on a control that stops at −20 — is refused and named, along with where
-that leaves the knob, because "declined" on a master level means "louder than
-asked for" and should read that way.
-
-**A part can be played by recordings** rather than by a General MIDI
-programme. `--sfz 0=guitar.sfz` gives track 0 an SFZ instrument, and the parts
-without one carry on as they were — because a sample library exists for the
-guitar and does not for the organ, and a score is usually both.
-
-Round-robins are the reason the format is worth reading. A guitar recorded once
-per note and replayed is a guitar nobody believes: the same note twice is the
-identical waveform twice, which an ear notices immediately and cannot name. A
-library with four takes of each note played in turn is the cheapest fix in
-sampling, and it is the first thing this does with a file.
-
-It reads the subset a plucked-string library uses — where the sample is, which
-notes and strengths it answers to, how to pitch it, how loud and how wide,
-where it loops, which take of a run it is, and which group it silences — and
-skips the rest rather than refusing it. Several hundred opcodes exist; a
-library that would not load because it mentioned a filter cutoff is a library
-nobody can use.
-
-Libraries are found rather than navigated to. Anything under
-`~/.local/share/fretwork/instruments` is offered in a menu in the track panel,
-grouped by the library it came in — a drum kit alone can hold forty programmes,
-and a flat list of five hundred is a list nobody reads. Which library a part
-uses is kept for the session and **not** written into the score: which
-recordings a part is played through is a property of this machine, and a `.fw`
-naming a path on somebody's disk would open wrong everywhere else.
-
-Reading a real library was worth more than any amount of reasoning about the
-format. Karoryfer's guitars use `lorand`/`hirand` rather than `seq_position`
-for their round-robins — a number drawn per note, and the region whose range
-contains it plays — and a sampler ignoring that plays all five takes at once,
-which is not five times louder so much as a comb filter. They also carry
-release noises under `trigger=release`, which fired on the attack of every
-note until they were skipped, and per-region `delay`. None of that was
-guessable from the specification; all of it was obvious ten seconds after
-pointing this at a real instrument.
-
-Not sfizz: it is not packaged, and vendoring a large C++ library to use a dozen
-opcodes was the worse trade. The cost of that is stated rather than hidden —
-this interpolates in a straight line between two samples, which is audibly fine
-within a few semitones of where a recording was made and audibly not fine an
-octave away.
-
-**Every part is a pair of ports**, which is the point of a synth per track made
-true outside this window. Until now the only way to get a stem anywhere else
-was to render a WAV and import it; with `--ports`, or the switch at the foot of
-the mixer, a DAW links to these and records them as they play:
-
-```
-$ fretwork "Cold Shot.gp" --play --ports
-  5 pairs of ports in the graph — link them and record
-  playing 4:04 through pipewire ports — all tracks
-
-$ pw-link -o | grep Fretwork
-Fretwork:01_Vocals_FL
-Fretwork:02_Stevie_Ray_Vaughan_FL
-Fretwork:03_Tommy_Shannon_FL
-Fretwork:04_Chris_Whipper_Layton_FL
-Fretwork:05_Click_FL
-  ...
-```
-
-One node with many ports rather than a node per part. A node per part would be
-a clock per part — PipeWire drives each stream's callback on its own, and eight
-callbacks filling eight synths from eight ideas of "now" is eight things to
-drift apart. One filter has one callback, one position and one answer to what
-time it is, which is also what a hardware multitrack interface looks like from
-the other end of a cable. The fader and the mute reach the ports, so what a DAW
-records is what the mixer says.
-
-It plugs itself into the speakers. Nothing else will: a session manager
-patches a stream with a channel layout it recognises, and a node with ten
-ports named after parts of a song is a JACK client as far as any of them are
-concerned — the convention for those is that a human patches it, which meant
-turning the ports on made the piece play silently. Fretwork asks the graph
-which sink the desktop is using and links every part's pair to it, so the mix
-still comes out while a DAW records the parts separately. Where it cannot, the
-mixer says so rather than leaving somebody wondering.
-
-The node keeps processing whether or not anything is linked to it. A graph does
-not schedule a node with nothing attached, and a transport that would not start
-until a DAW had been wired up would look broken rather than patient.
-
-**And it follows the graph's transport**, with `--follow` or the switch under
-the ports, so the program recording the stems is the one that starts them:
-
-```
-$ fretwork "Cold Shot.gp" --play --follow
-  5 pairs of ports in the graph — link them and record
-  following the graph's transport — it rolls when the graph does
-```
-
-While this is on the mixer says whether the graph is rolling, because a
-follower with nothing to follow is a piece that does not play and says nothing
-about why. Press play in the DAW and Fretwork rolls from the same place in the
-piece;
-drag the playhead and it goes there, because anything that is not the next
-block along is treated as a seek and every synth is repositioned. Its own
-play button is disabled while this is on: the transport belongs to the graph
-then, and a button that did nothing would be worse than one that says it
-cannot.
-
-**And it drives**, which turned out to be the direction that matters. Reaper on
-Linux references `jack_transport_query` and none of `start`, `stop` or
-`locate`: it can follow a transport and cannot set one. The obvious
-arrangement — press play in the DAW, the stems roll — is not available on this
-desktop at all, so the program that presses play has to be this one. Press play
-in Fretwork and the graph's transport rolls; anything set to follow it rolls
-too, and Fretwork follows its own transport like any other client. Its stop
-puts the transport back, and quitting stops a transport it started rather than
-leaving it running with nothing playing.
-
-Through JACK, because PipeWire offers no other way: the position comes from the
-driver node, and the only public route to changing it is the JACK API, which
-PipeWire implements so that programs like this one work. The library is loaded
-at runtime and PipeWire's copy is preferred, because the loader would otherwise
-hand over the real JACK's — a library for talking to a server that is not
-running, whose failure is a timeout rather than an error.
-
-**It shuffles.** Guitar Pro records a triplet feel per bar, and a score that
-has one is not a score with a missing ornament — played evenly, a shuffle is
-the wrong music, and the kind of wrong that sounds like a decision. Fretwork
-plays the pair of quavers as two thirds and one third of a crotchet, which is
-what everybody means by a shuffle, along with the dotted and snapped feels
-Guitar Pro also writes.
-
-It is done as a warp of the bar's own time rather than as a rule about which
-notes count as a swung pair, which is the version that goes wrong. The warp is
-the identity at every pair boundary, so a crotchet on the beat does not move; a
-triplet written inside a swung bar — which happens, and is not a contradiction
-— is carried along with everything else instead of being argued about; and a
-7/8 bar, which holds three pairs and a quaver over, keeps that odd quaver where
-it was written and stays exactly as long as it was. A feel that changed how
-long a bar lasted would have quietly rewritten every bar after it.
-
-The page prints it, in the direction row above the section names where printed
-music has always put what it says to the player rather than what it draws for
-them to play — italic, over the bar the feel starts on, and again where it
-stops, because a shuffle that merely stopped being printed would read as one
-that carries on. It shares that row with the tempo marking, which is the other
-thing said rather than drawn.
-
-`--info` prints it too:
-
-```
-  feel    triplet quavers throughout
-```
-
-Not yet translated: slides, tremolo picking, harmonics, grace notes and trills
-sound as plain notes; alternate endings are not flattened, and a score using
-them says so.
-
-The P0 spike is still in `spike/`, and still the shortest way to hear one:
-
-```
-$ python3 spike/gp2midi.py "Slomosa-Horses.gp"
-Horses — Slomosa
-  Guitar Pro 8.1.3, 176 bars notated, 176 played
-  tempo   150 bpm at bar 1, 145 bpm at bar 103, 100 bpm at bar 170
-  [0] Guitar I               electricGuitar   prog 29   1429 notes   tuning 36 41 46 51 55 60
-  [1] Guitar II              electricGuitar   prog 29   1476 notes   tuning 36 41 46 51 55 60
-  [2] Electric Bass (pick)   electricBass     prog 34    872 notes   tuning 24 29 34 39
-  [3] Drums                  drumKit          prog 0    1292 notes   tuning 0 0 0 0 0 0
-```
-
-— and `--stems DIR` writes one WAV per track plus a mix. Eleven Guitar Pro 8
-files parse, play at the right tempo for the right length, and come out as
-separate stems.
+**0.1.0 is released.** Per-track LV2 chains and SFZ sampling are present and
+experimental, which is meant as it is written — they are the reason the program
+exists and the least settled thing in it.
+
+[CHANGELOG.md](CHANGELOG.md) is the honest account of what each release does and
+why, including the things that were got wrong and fixed.
+
+| | | |
+|---|---|---|
+| **P0** | Spike — parse, play, render stems | **done** |
+| **P1** | Headless converter: importers, model, technique translation, stem export. No window | **done** — the program is useful with no window |
+| **P2** | The player: tab rendering, transport, mixer, live playback | **done** |
+| **P3** | The editor | **done** |
+| **P4** | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | **begun** — a chain per part, reorderable, saved under a name and reusable |
+| P5 | Standard notation, MusicXML, GP6 | |
+| P6 | Harmony: the fretboard solver, key and chords | **done** — see [docs/roadmap.md](docs/roadmap.md) |
+
+P1 is the one that matters: at the end of it the program is useful with no user
+interface at all, which is the only honest definition of a foundation.
 
 ## Documents
 
 - **[docs/architecture.md](docs/architecture.md)** — what gets built, in what
   order, on what stack, and why each choice beat the alternative. Read this
   first.
+- **[docs/roadmap.md](docs/roadmap.md)** — the three directions past P5, with
+  their dependencies and their prices, and a record of what each one actually
+  cost when it was built.
 - **[docs/gpif-format.md](docs/gpif-format.md)** — how a `.gp` file is actually
   put together, measured against a real corpus rather than assumed. There is no
   vendor specification for any of this.
-- **[docs/wishlist.md](docs/wishlist.md)** — everything that has been thought of
-  and not promised, with the price of each next to it, and the things that are
-  refused on principle at the bottom.
+- **[docs/wishlist.md](docs/wishlist.md)** — everything thought of and not
+  promised, with the price of each, and the things refused on principle.
 
 ## The stack, briefly
 
-C++20 with Qt 6 and KDE Frameworks 6 for the application; FluidSynth for
-synthesis, one instance per track; lilv for per-track LV2 chains; PipeWire out.
-CMake and Ninja, KDE's own conventions, GPL — the reasoning for every line of
-that is in [docs/architecture.md](docs/architecture.md).
+C++20 with Qt 6 and KDE Frameworks 6; FluidSynth for synthesis, one instance per
+track; lilv for per-track LV2 chains; PipeWire out. CMake and Ninja, KDE's own
+conventions, GPL — the reasoning is in [docs/architecture.md](docs/architecture.md).
 
-The importers that exist are C++, because GP7 and GP8 are a ZIP and some XML
-rather than hand-rolled binary. **Rust behind a C ABI is the plan for GP3–GP5
-and GPX** — the only code here that would read untrusted bytes by hand, and
-where `cargo fuzz` finds what review does not. It is written down as a plan
-rather than as a line of the stack because none of it exists yet.
-
-## The plan
-
-| | | |
-|---|---|---|
-| **P0** | Spike — parse, play, render stems | **done**, and it plays |
-| **P1** | Headless converter: importers, model, technique translation, stem export. No window | **done** — the program is useful with no window |
-| **P2** | The player: tab rendering, transport, mixer, live playback | **done** |
-| **P3** | The editor | **done** — caret, fret entry, marks, transposition, beats, durations, bars, selection, copy and paste, undo, saving, tempo, time signature, sections, tuning, capo, parts, and a new score |
-| P4 | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | **begun** — ports per part, the graph's transport starts them, a part can be played from an SFZ library, and each part has an LV2 chain of its own |
-| P5 | Standard notation, PDF, MusicXML, GP6 | |
-
-P1 is the one that matters: at the end of it the program is useful with no user
-interface at all, which is the only honest definition of a foundation.
+The importers are C++, because GP7 and GP8 are a ZIP and some XML rather than
+hand-rolled binary. **Rust behind a C ABI is the plan for GP3–GP5 and GPX** —
+the only code here that would read untrusted bytes by hand, and where `cargo
+fuzz` finds what review does not. A plan rather than a line of the stack,
+because none of it exists yet.
 
 ## Building
 
@@ -738,58 +149,45 @@ ctest --test-dir build --output-on-failure
 ./build/bin/fretwork FILE.gp
 ```
 
-The test suite runs without any Guitar Pro files: every structural case is built
-in code. Point `FRETWORK_CORPUS` at a directory of `.gp` files to check real
-ones too — transcriptions are not ours to commit.
+The suite runs without any Guitar Pro files: every structural case is built in
+code. Point `FRETWORK_CORPUS` at a directory of `.gp` files to check real ones
+too — transcriptions are not ours to commit.
 
 ## Running the spike
 
-Needs `python3` and, for anything audible, `fluidsynth` with a SoundFont:
-
-```
-sudo apt install fluidsynth fluid-soundfont-gm
-
-python3 spike/gp2midi.py FILE.gp                 # write a MIDI file
-python3 spike/gp2midi.py FILE.gp --play          # play it now
-python3 spike/gp2midi.py FILE.gp --stems out/    # one WAV per track, plus a mix
-python3 spike/gp2midi.py FILE.gp --no-repeats    # as notated, not as played
-```
-
-No dependencies beyond the standard library, on purpose: a spike that needs a
+Needs `python3` and, for anything audible, `fluidsynth` with a SoundFont. No
+dependencies beyond the standard library, on purpose: a spike that needs a
 virtualenv is a spike nobody runs twice.
+
+```
+python3 spike/gp2midi.py FILE.gp --play          # or --stems out/, --no-repeats
+```
 
 ## The look
 
 Ink chrome, paper in the middle, and one magenta taken from the fret marker on
 the app icon. The colours are the application's own rather than the desktop's,
-which is the choice a PDF reader makes and for the same reason: the thing in
-the middle is a document, and a document that changed colour with the desktop
-theme would be a different document. The chrome is dark so that the paper is
-the brightest thing in the window.
+which is the choice a PDF reader makes and for the same reason: the thing in the
+middle is a document, and a document that changed colour with the desktop theme
+would be a different document.
 
 They live in exactly two places — `src/gui/Ink.qml` for the window and
-`Tab::Palette` in `src/render/tabpainter.h` for the page — because C++ paints
-the score and QML paints everything round it, and neither can read the other's
-constants. The page is printed on white rather than on the window's off-white,
-which is the one colour a sheet of paper wants left alone.
+`Tab::Palette` in `src/render/tabpainter.h` for the page — because C++ paints the
+score and QML paints everything round it, and neither can read the other's
+constants.
 
-## The icon
-
-An F built from a nut and strings, with a fret marker on it — drawn for this
-project, and ours like the rest of the artwork. Six raster sizes, a scalable
-copy, and a symbolic version, in `icons/`.
-
-The instrument drawings in the track list are ours too, in the same idiom and
-in the same directory: no icon theme ships a guitar, a bass or a drum kit, and
-a list that told them apart by their labels alone would be a list of words.
+The icon is an F built from a nut and strings with a fret marker on it, drawn for
+this project. The instrument drawings in the parts list are ours too: no icon
+theme ships a guitar, a bass and a drum kit, and a list that told them apart by
+their labels alone would be a list of words.
 
 ## Names and law
 
 "Guitar Pro" is a trademark of Arobas Music. Fretwork is not affiliated with
 them, not derived from their software, and ships none of their soundbanks or
-artwork. It reads a file format — which reverse engineering for
-interoperability expressly permits (EU Software Directive 2009/24/EC, Article
-6), and which is not the same thing as copying a program.
+artwork. It reads a file format — which reverse engineering for interoperability
+expressly permits (EU Software Directive 2009/24/EC, Article 6), and which is
+not the same thing as copying a program.
 
 The test corpus is transcriptions the author owns. It is not redistributed and
 not committed.

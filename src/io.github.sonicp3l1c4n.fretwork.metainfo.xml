@@ -56,11 +56,11 @@ SPDX-License-Identifier: CC0-1.0
   <screenshots>
     <screenshot type="default">
       <image>https://raw.githubusercontent.com/SonicP3L1C4N/fretwork/main/docs/window.png</image>
-      <caption>Tablature on the left, a mixer on the right, and the bar grid along the bottom</caption>
+      <caption>The parts on the left, the score as a page, and the mixer on the right</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/SonicP3L1C4N/fretwork/main/docs/window-repeats.png</image>
-      <caption>Repeats expanded, so the bar grid is the piece as it is played</caption>
+      <image>https://raw.githubusercontent.com/SonicP3L1C4N/fretwork/main/docs/window-bars.png</image>
+      <caption>The bar ruler, with the section names over the bars they start</caption>
     </screenshot>
     <screenshot>
       <image>https://raw.githubusercontent.com/SonicP3L1C4N/fretwork/main/docs/window-tuner.png</image>
