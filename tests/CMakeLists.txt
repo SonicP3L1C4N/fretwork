@@ -94,6 +94,11 @@ ecm_add_test(tablayouttest.cpp
     LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n
 )
 
+ecm_add_test(tabpaintertest.cpp
+    TEST_NAME tabpaintertest
+    LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n
+)
+
 ecm_add_test(samplertest.cpp
     TEST_NAME samplertest
     LINK_LIBRARIES Qt6::Test fretworkcore

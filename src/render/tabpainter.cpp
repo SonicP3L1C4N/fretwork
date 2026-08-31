@@ -10,6 +10,7 @@
 #include <QPdfWriter>
 
 #include <algorithm>
+#include <cmath>
 
 namespace
 {
@@ -28,6 +29,117 @@ QFont sansOf(qreal size, bool bold = false, bool italic = false)
     font.setBold(bold);
     font.setItalic(italic);
     return font;
+}
+
+/**
+ * The pixels a line has to land on to be seen at all.
+ *
+ * A page is laid out in fractions -- justifying six bars across a system puts
+ * their lines at x.00, x.47, x.97, x.49, x.98, x.50 -- and a stroke thinner
+ * than a pixel drawn at an arbitrary fraction is not a thinner line, it is a
+ * line that may not appear. Half its ink lands in one column and half in the
+ * next, and against a pale paper each half is nothing. So the bar lines that
+ * happened to fall near the middle of a pixel were drawn and the ones that
+ * fell on a boundary vanished, in a pattern that changed with every resize.
+ * Five of the six string lines went the same way.
+ *
+ * The answer is not a heavier line, which would make the page look wrong. It
+ * is to put every horizontal and vertical stroke on a whole number of device
+ * pixels and give it a whole number of them to fill.
+ *
+ * There is no such grid in a PDF: it is drawn once at whatever resolution it
+ * is printed at, and snapping to a grid that does not exist would move lines
+ * off the positions the layout worked out for them.
+ */
+struct Grid {
+    qreal scale = 0;        //< device pixels per logical unit; 0 where there are none
+    qreal xOffset = 0;
+    qreal yOffset = 0;
+
+    bool applies() const
+    {
+        return scale > 0;
+    }
+
+    /** How many whole device pixels a stroke of this weight comes to, never none. */
+    int pixelsFor(qreal weight) const
+    {
+        return applies() ? std::max(1, int(std::lround(weight * scale))) : 1;
+    }
+
+    /** What that many device pixels are worth in the coordinates being drawn in. */
+    qreal widthOf(qreal weight) const
+    {
+        return applies() ? pixelsFor(weight) / scale : weight;
+    }
+
+    /**
+     * The coordinate to draw on so the stroke covers whole pixels.
+     *
+     * A pen is centred on its line, so an odd number of pixels wants the
+     * middle of one and an even number wants the seam between two.
+     */
+    qreal align(qreal value, qreal offset, qreal weight) const
+    {
+        if (!applies()) {
+            return value;
+        }
+        const qreal device = value * scale + offset;
+        const qreal placed = pixelsFor(weight) % 2 == 1 ? std::floor(device) + 0.5
+                                                        : std::round(device);
+        return (placed - offset) / scale;
+    }
+};
+
+Grid gridOf(const QPainter &painter)
+{
+    Grid grid;
+    const QPaintDevice *device = painter.device();
+    if (!device) {
+        return grid;
+    }
+    // Asked of the device rather than of the paint engine, which is not the
+    // same question and gives the wrong answer: the score on screen goes
+    // through the scene graph, whose engine reports itself as OpenGL2 and not
+    // as a raster one, so testing the engine turned snapping off in exactly
+    // the case it was written for.
+    //
+    // What actually matters is whether the thing being drawn on has pixels. A
+    // printer or a picture has none -- a PDF is drawn once at whatever
+    // resolution it is printed at, and a hairline in it is exact at every one
+    // of them -- and everything else does, whatever is putting the ink down.
+    if (device->devType() == QInternal::Printer || device->devType() == QInternal::Picture) {
+        return grid;
+    }
+
+    // No page is ever rotated or sheared, so the whole of the transform that
+    // matters is the scale down the diagonal and the translation. The zoom and
+    // the screen's own pixel ratio are both already in it -- measured, not
+    // assumed: at QT_SCALE_FACTOR=2 this scale reads 2, so multiplying by the
+    // device pixel ratio again would count it twice.
+    const QTransform transform = painter.transform();
+    grid.scale = transform.m11() > 0 ? transform.m11() : 0;
+    grid.xOffset = transform.dx();
+    grid.yOffset = transform.dy();
+    return grid;
+}
+
+/** A vertical stroke, drawn where it will be seen. */
+void drawVertical(QPainter &painter, const Grid &grid, const QColor &colour, qreal weight,
+                  qreal x, qreal from, qreal to)
+{
+    painter.setPen(QPen(colour, grid.widthOf(weight)));
+    const qreal at = grid.align(x, grid.xOffset, weight);
+    painter.drawLine(QPointF(at, from), QPointF(at, to));
+}
+
+/** And a horizontal one. */
+void drawHorizontal(QPainter &painter, const Grid &grid, const QColor &colour, qreal weight,
+                    qreal y, qreal from, qreal to)
+{
+    painter.setPen(QPen(colour, grid.widthOf(weight)));
+    const qreal at = grid.align(y, grid.yOffset, weight);
+    painter.drawLine(QPointF(from, at), QPointF(to, at));
 }
 
 /** The vertical middle of a string's line, counting from the top of the staff. */
@@ -52,8 +164,9 @@ qreal lineY(const Tab::Layout &layout, qreal top, int string)
  * this project does not vendor until standard notation arrives; a plain bar
  * cannot say how long the silence is, and the stem already does.
  */
-void paintRhythm(QPainter &painter, const Tab::Layout &layout, const Tab::LaidBeat &beat,
-                 qreal x, qreal nextX, qreal top, const Tab::Palette &palette)
+void paintRhythm(QPainter &painter, const Grid &grid, const Tab::Layout &layout,
+                 const Tab::LaidBeat &beat, qreal x, qreal nextX, qreal top,
+                 const Tab::Palette &palette)
 {
     const Tab::Style &style = layout.style;
     const Tab::LaidRhythm &rhythm = beat.rhythm;
@@ -70,7 +183,7 @@ void paintRhythm(QPainter &painter, const Tab::Layout &layout, const Tab::LaidBe
     painter.setPen(QPen(palette.rhythm, 0.9));
     painter.setBrush(Qt::NoBrush);
     if (rhythm.stem) {
-        painter.drawLine(QPointF(x, stemTop), QPointF(x, foot));
+        drawVertical(painter, grid, palette.rhythm, 0.9, x, stemTop, foot);
     }
 
     // A minim and a semibreve are told from a crotchet by an open head, which
@@ -86,14 +199,14 @@ void paintRhythm(QPainter &painter, const Tab::Layout &layout, const Tab::LaidBe
     painter.setPen(QPen(palette.rhythm, style.beamThickness));
 
     for (int level = 0; level < rhythm.beamRight; ++level) {
-        painter.drawLine(QPointF(x, beamAt(level)), QPointF(nextX, beamAt(level)));
+        drawHorizontal(painter, grid, palette.rhythm, style.beamThickness, beamAt(level), x, nextX);
     }
     for (int index = 0; index < rhythm.stubs; ++index) {
         // The short beam on the semiquaver of a dotted pair: it points at the
         // note it belongs with rather than into the space beside it.
         const qreal reach = style.beamSpacing * (rhythm.stubRight ? 1.5 : -1.5);
-        painter.drawLine(QPointF(x, beamAt(shared + index)),
-                         QPointF(x + reach, beamAt(shared + index)));
+        drawHorizontal(painter, grid, palette.rhythm, style.beamThickness,
+                       beamAt(shared + index), x, x + reach);
     }
     for (int level = 0; level < rhythm.flags; ++level) {
         // A flag, not a beam: it runs to nothing, so it lifts away from the
@@ -166,8 +279,8 @@ void paintRuns(QPainter &painter, const Tab::Layout &layout, const Tab::System &
     }
 }
 
-void paintSystem(QPainter &painter, const Tab::Layout &layout, const Tab::System &system,
-                 const Tab::Palette &palette, int playingBar)
+void paintSystem(QPainter &painter, const Grid &grid, const Tab::Layout &layout,
+                 const Tab::System &system, const Tab::Palette &palette, int playingBar)
 {
     const Tab::Style &style = layout.style;
     const qreal left = style.margin;
@@ -193,28 +306,27 @@ void paintSystem(QPainter &painter, const Tab::Layout &layout, const Tab::System
                          palette.playing);
     }
 
-    // Wider than the bar lines are, which looks wrong written down and is
-    // right on a screen: the string lines are the palest thing on the page, and
-    // a pale line thinner than a pixel is antialiased into nothing at all.
-    painter.setPen(QPen(palette.staff, 0.9));
+    // One device pixel each, on the pixel rather than across two of it. They
+    // are the palest thing on the page, so they are the first to disappear
+    // when they are drawn between pixels -- and a page of tablature with no
+    // strings on it is a page of loose numbers.
     for (int string = 0; string < layout.strings; ++string) {
-        const qreal y = lineY(layout, top, string);
-        painter.drawLine(QPointF(left, y), QPointF(left + width, y));
+        drawHorizontal(painter, grid, palette.staff, 0.9, lineY(layout, top, string), left,
+                       left + width);
     }
 
     for (const Tab::LaidBar &bar : system.bars) {
         const qreal x = left + bar.x;
         const bool playing = bar.index == playingBar;
 
-        painter.setPen(QPen(palette.barline, bar.repeatStart ? 1.6 : 0.6));
-        painter.drawLine(QPointF(x, top), QPointF(x, top + staff));
+        const qreal weight = bar.repeatStart ? 1.6 : 0.6;
+        drawVertical(painter, grid, palette.barline, weight, x, top, top + staff);
         if (bar.repeatStart) {
-            painter.drawLine(QPointF(x + 3, top), QPointF(x + 3, top + staff));
+            drawVertical(painter, grid, palette.barline, weight, x + 3, top, top + staff);
         }
         if (bar.repeatEnd) {
             const qreal end = left + bar.x + bar.width;
-            painter.setPen(QPen(palette.barline, 1.6));
-            painter.drawLine(QPointF(end - 3, top), QPointF(end - 3, top + staff));
+            drawVertical(painter, grid, palette.barline, 1.6, end - 3, top, top + staff);
         }
 
         // Clear of the top string: a fret number there is centred on the line
@@ -275,7 +387,7 @@ void paintSystem(QPainter &painter, const Tab::Layout &layout, const Tab::System
             // the layout ever joins one to.
             const qreal nextX =
                 x + (index + 1 < bar.beats.size() ? bar.beats.at(index + 1).x : beat.x);
-            paintRhythm(painter, layout, beat, x + beat.x, nextX, top, palette);
+            paintRhythm(painter, grid, layout, beat, x + beat.x, nextX, top, palette);
         }
 
         painter.setFont(sansOf(style.fretSize));
@@ -302,8 +414,7 @@ void paintSystem(QPainter &painter, const Tab::Layout &layout, const Tab::System
     paintRuns(painter, layout, system, palette);
 
     // The closing barline of the system.
-    painter.setPen(QPen(palette.barline, 0.6));
-    painter.drawLine(QPointF(left + width, top), QPointF(left + width, top + staff));
+    drawVertical(painter, grid, palette.barline, 0.6, left + width, top, top + staff);
 }
 }
 
@@ -315,6 +426,10 @@ void Tab::paintPage(QPainter &painter, const Layout &layout, int pageIndex,
     }
     painter.setRenderHint(QPainter::Antialiasing, true);
     painter.setRenderHint(QPainter::TextAntialiasing, true);
+
+    // Worked out once, after the caller has set whatever scroll and zoom it is
+    // drawing at, since both are in the transform this reads.
+    const Grid grid = gridOf(painter);
 
     const Style &style = layout.style;
     if (pageIndex == 0 && style.showTitle) {
@@ -341,7 +456,7 @@ void Tab::paintPage(QPainter &painter, const Layout &layout, int pageIndex,
     }
 
     for (const System &system : layout.pages.at(pageIndex).systems) {
-        paintSystem(painter, layout, system, palette, playingBar);
+        paintSystem(painter, grid, layout, system, palette, playingBar);
     }
 }
 

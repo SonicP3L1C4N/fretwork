@@ -8,11 +8,15 @@
 /**
  * Where things go, checked by reading the numbers.
  *
- * The painting is checked by looking at it, which is the only way and not a
- * test. What can be tested is that bars run left to right without overlapping,
- * that a full line fills the page and the last one does not, and that a note
- * ends up on the string it was written on -- the mistakes that are obvious in
- * a picture and invisible in a diff.
+ * Mostly this is that bars run left to right without overlapping, that a full
+ * line fills the page and the last one does not, and that a note ends up on
+ * the string it was written on -- the mistakes that are obvious in a picture
+ * and invisible in a diff.
+ *
+ * This file used to say that the painting itself could only be checked by
+ * looking at it. That was wrong in a way that shipped, and what is checkable
+ * about it is now in `tabpaintertest.cpp` -- separately, because painting
+ * needs a GUI application and the arithmetic here does not.
  */
 class TabLayoutTest : public QObject
 {
@@ -146,6 +150,7 @@ private:
     }
 
 private Q_SLOTS:
+
     void laysBarsLeftToRightWithoutOverlapping()
     {
         const Tab::Layout layout = Tab::layOut(score(12), 0);
