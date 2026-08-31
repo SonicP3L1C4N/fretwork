@@ -189,6 +189,24 @@ bar lines not being drawn — and both say so.
   page rather than on it because it is a thing about the instrument: it does
   not scroll with the music, and it is not on any page that would be printed.
 
+- **Notes were played a little early, and how early depended on the buffer.**
+  Each track's synth was handed every note falling anywhere inside the block of
+  audio being rendered, and then asked to render the whole block — which put
+  every note in that block at the block's own start. So a note's position was
+  partly a fact about the caller's buffer size rather than about the music:
+  about a hundredth of a second out when exporting stems, and whatever the
+  audio graph's buffer happens to be when playing. It is now rendered in pieces
+  up to each note, so a note is where it was written whatever size the asks
+  are. Found by writing the first tests the per-track synth has ever had, on a
+  buffer big enough to show it plainly — asked for a whole second at once, a
+  note written half a second in arrived at nought.
+
+- **A seek left the old notes ringing over the new ones.** Moving the playhead
+  released what was sounding rather than stopping it, so the chord from where
+  you were decayed over the music you landed on. It stops them now. What
+  remains is the reverb they were played into, which does not stop because
+  somebody moved the playhead.
+
 - **Two controls in the parts panel were drawing their labels twice.** The
   instrument a part is, and the recordings it is played from, were the only
   controls in that panel wearing the desktop's clothes rather than the

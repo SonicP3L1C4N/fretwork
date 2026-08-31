@@ -119,18 +119,44 @@ void TrackSynth::dispatch(const Timeline::Message &message)
 
 void TrackSynth::fill(float *left, float *right, int frames, qint64 at)
 {
-    const qint64 until = at + frames;
-    while (m_next < m_events.size() && m_events.at(m_next).at < until) {
-        dispatch(m_events.at(m_next).message);
-        ++m_next;
+    // Rendered in pieces up to each event rather than all at once with the
+    // events thrown in first. Dispatching everything due in the block and then
+    // rendering the block puts every note in it at the block's own start,
+    // which makes a note's position a fact about the caller's buffer size: a
+    // tenth of a beat out at the renderer's 512 frames, and a sixth of a
+    // second out on the player's offline path, where a note written half a
+    // second in arrived at nought.
+    //
+    // Still nothing but arithmetic and dispatch, which is what an audio
+    // callback is allowed to be: no allocation, and the same walk through the
+    // event list as before, only stopping at each one.
+    int done = 0;
+    while (done < frames) {
+        const qint64 now = at + done;
+        while (m_next < m_events.size() && m_events.at(m_next).at <= now) {
+            dispatch(m_events.at(m_next).message);
+            ++m_next;
+        }
+
+        qint64 span = frames - done;
+        if (m_next < m_events.size()) {
+            // Every event left is now strictly after `now`, so this is at
+            // least one frame and the loop always advances.
+            span = std::min<qint64>(span, m_events.at(m_next).at - now);
+        }
+        fluid_synth_write_float(m_synth, int(span), left + done, 0, 1, right + done, 0, 1);
+        done += int(span);
     }
-    fluid_synth_write_float(m_synth, frames, left, 0, 1, right, 0, 1);
 }
 
 void TrackSynth::seek(qint64 sample)
 {
     for (int channel = 0; channel < 16; ++channel) {
-        fluid_synth_all_notes_off(m_synth, channel);
+        // Sounds and not notes: all_notes_off releases them, which lets them
+        // ring out over the release of their envelope, and the chord from
+        // where the playhead used to be then decays over the music it landed
+        // on. The header says this silences what was ringing, and now it does.
+        fluid_synth_all_sounds_off(m_synth, channel);
         // Any bend left over from where we were would apply to the first note
         // played where we are going.
         fluid_synth_pitch_bend(m_synth, channel, 8192);

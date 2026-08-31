@@ -150,6 +150,16 @@ ecm_add_test(jacktransporttest.cpp
     LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n
 )
 
+ecm_add_test(tracksynthtest.cpp
+    TEST_NAME tracksynthtest
+    LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n
+)
+
+ecm_add_test(audioportstest.cpp
+    TEST_NAME audioportstest
+    LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n
+)
+
 find_program(DESKTOP_FILE_VALIDATE desktop-file-validate)
 if(DESKTOP_FILE_VALIDATE)
     add_test(NAME desktopfiletest

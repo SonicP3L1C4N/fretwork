@@ -12,10 +12,13 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 > acted on. Its suggested order was followed almost exactly: there is CI now,
 > the SoundFont message, `renderer` and `wav` tests, rig persistence, an
 > AppStream metainfo, a man page, a `0.1.0` changelog heading and a matching
-> tag. Three of the test gaps it names are still open — `portedoutput`,
-> `tracksynth` and `audioinput` have no suite of their own. And the question it
-> declines to answer was answered its way: 0.1.0 shipped at the P3/P4 boundary
-> with LV2 and SFZ marked experimental.
+> tag. The last three test gaps it names — `portedoutput`, `tracksynth` and
+> `audioinput` — were closed on 31 August, and closing them found a real bug in
+> the per-track synth that nothing else had: note timing was quantised to
+> whatever block size the caller asked for. Its argument that the gap sat
+> exactly on the differentiator was right. And the question it declines to
+> answer was answered its way: 0.1.0 shipped at the P3/P4 boundary with LV2 and
+> SFZ marked experimental.
 
 Assessed against `main` as fetched 28 August 2026, `docs/wishlist.md`, and the
 phase table in `docs/architecture.md`.
