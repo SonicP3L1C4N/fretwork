@@ -144,6 +144,7 @@ class Session : public QObject
     Q_PROPERTY(QString tuningHere READ tuningHere NOTIFY cursorMoved)
     Q_PROPERTY(int capoHere READ capoHere NOTIFY cursorMoved)
     Q_PROPERTY(QString soundingKey READ soundingKeyName NOTIFY layoutChanged)
+    Q_PROPERTY(QString workingKeyName READ workingKeyName NOTIFY workingKeyChanged)
 
     /** How many strings the current track has; none for a drum kit. */
     Q_PROPERTY(int stringsHere READ stringsHere NOTIFY cursorMoved)
@@ -615,10 +616,35 @@ public:
      */
     Key::Signature soundingKey() const;
     QString soundingKeyName() const;
+    QString workingKeyName() const;
 
     /** The analysed key, taken apart so a control can start on it. */
     Q_INVOKABLE int soundingAccidentals() const;
     Q_INVOKABLE bool soundingMinor() const;
+
+    /**
+     * The key everything else in the window is talking about.
+     *
+     * The analysed one until somebody turns the circle, and whatever they
+     * turned it to afterwards. It is here rather than in the control because
+     * two things read it -- the circle offering chords, and the neck drawn
+     * over the score -- and a window that offered the chords of G major while
+     * showing the scale of C minor would be a window arguing with itself.
+     */
+    Key::Signature workingKey() const;
+    Q_INVOKABLE int workingAccidentals() const;
+    Q_INVOKABLE bool workingMinor() const;
+    Q_INVOKABLE void setWorkingKey(int accidentals, bool minor);
+
+    /**
+     * The frets the hand is over, as the caret's bar has it.
+     *
+     * The score already knows where a hand is and it is not one note: it is
+     * the frets being used around the caret. Open strings say nothing about it
+     * -- they need no hand -- so they are not counted. Both -1 where the bar
+     * has nothing fretted in it.
+     */
+    QPair<int, int> handHere() const;
 
     // ---- chords ----
 
@@ -755,6 +781,7 @@ Q_SIGNALS:
     void effectsChanged();
     void positionChanged();
     void layoutChanged();
+    void workingKeyChanged();
     void mixerChanged();
     void historyChanged();
     void cursorMoved();
@@ -806,6 +833,11 @@ private:
     // time they change, and not again until then.
     mutable bool m_keyKnown = false;
     mutable Key::Signature m_soundingKey;
+
+    // Unset until somebody turns the circle, which is not the same as being
+    // set to C major: unset means "whatever this piece sounds like".
+    bool m_keyChosen = false;
+    Key::Signature m_workingKey;
     int m_currentTrack = 0;
     bool m_click = false;
     bool m_ports = false;

@@ -1811,6 +1811,74 @@ bool Session::soundingMinor() const
     return soundingKey().minor;
 }
 
+Key::Signature Session::workingKey() const
+{
+    return m_keyChosen ? m_workingKey : soundingKey();
+}
+
+int Session::workingAccidentals() const
+{
+    return workingKey().accidentals;
+}
+
+bool Session::workingMinor() const
+{
+    return workingKey().minor;
+}
+
+QString Session::workingKeyName() const
+{
+    return hasScore() ? Key::nameOf(workingKey()) : QString();
+}
+
+void Session::setWorkingKey(int accidentals, bool minor)
+{
+    const Key::Signature wanted{accidentals, minor};
+    if (m_keyChosen && m_workingKey == wanted) {
+        return;
+    }
+    m_workingKey = wanted;
+    m_keyChosen = true;
+    Q_EMIT workingKeyChanged();
+}
+
+QPair<int, int> Session::handHere() const
+{
+    if (!hasScore() || m_currentTrack < 0 || m_currentTrack >= m_editor.score().tracks.size()) {
+        return {-1, -1};
+    }
+    const Score &score = m_editor.score();
+    const int bar = m_editor.cursor().bar;
+    if (bar < 0 || bar >= score.masterBars.size()) {
+        return {-1, -1};
+    }
+    const MasterBar &master = score.masterBars.at(bar);
+    if (m_currentTrack >= master.bars.size()) {
+        return {-1, -1};
+    }
+
+    int lowest = -1;
+    int highest = -1;
+    for (const int voiceId : score.bars.value(master.bars.at(m_currentTrack)).voices) {
+        if (voiceId < 0) {
+            continue;
+        }
+        for (const int beatId : score.voices.value(voiceId).beats) {
+            for (const int noteId : score.beats.value(beatId).notes) {
+                const Note &note = score.notes.value(noteId);
+                // An open string needs no hand, so it says nothing about where
+                // one is. A dead note has no fret worth the name either.
+                if (note.fret <= 0 || note.muted) {
+                    continue;
+                }
+                lowest = lowest < 0 ? note.fret : std::min(lowest, note.fret);
+                highest = std::max(highest, note.fret);
+            }
+        }
+    }
+    return {lowest, highest};
+}
+
 QString Session::keyName(int accidentals, bool minor) const
 {
     return Key::nameOf(Key::Signature{accidentals, minor});

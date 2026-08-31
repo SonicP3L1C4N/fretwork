@@ -211,18 +211,34 @@ ever be printed — the same reasoning that made the tuner a band of its own,
 reaching the opposite conclusion about *where* only because this one is read
 while reading the music rather than instead of it.
 
-Three smaller decisions worth keeping. Fifteen frets and not twenty-four, since
-the useful part is where a hand goes and the dusty end is the same shape again
-on a board half as wide per fret. Nearly opaque rather than half, because a
-neck with a stave showing through it is two diagrams in the same place and
-neither can be read. And the key is named on the panel, because an overlay of
-dots with no name on it is a puzzle rather than an answer.
+Smaller decisions worth keeping. Fifteen frets and not twenty-four, since the
+useful part is where a hand goes and the dusty end is the same shape again on a
+board half as wide per fret. Nearly opaque rather than half, because a neck
+with a stave showing through it is two diagrams in the same place and neither
+can be read. The key is named on the panel and every root carries its letter,
+because an overlay of unnamed dots is a puzzle rather than an answer. Inlays at
+the frets an instrument marks, behind the strings where they are on the thing
+itself, because that is how a player finds the ninth fret without counting to
+it.
 
-The hand position comes from the note under the caret, which is the closest
-this program gets to knowing where a hand is. That is the weakest part of it
-and the obvious thing to improve: a hand is a property of a passage rather than
-of one note, and the honest version reads a phrase and asks the solver, which
-is a question `phrase()` already answers.
+And the key it draws is the one the circle of fifths is turned to rather than
+the one the piece was analysed as — the same key for both, kept on the session.
+A window offering the chords of G major while showing the scale of C minor
+would be a window arguing with itself.
+
+The hand position was the weakest part of the first version and is now the
+part with the best answer, which arrived from the opposite direction to the
+one predicted here. It said a hand is a property of a passage rather than of
+one note, and that the honest version would read a phrase and ask the solver.
+It is a property of a passage, and the solver is not needed for it at all: the
+score already says where the hand is, because it says which frets are being
+played. The overlay lights the span of fretted notes in the bar the caret is
+in, and open strings are not counted, since a string that needs no hand says
+nothing about where one is.
+
+Worth keeping as a note about the roadmap rather than about the code. The
+prediction reached for the newest machinery in the project when the answer was
+sitting in the document the whole time.
 
 **Layer 4 — the circle of fifths, and writing.** **Done**, in
 `src/model/chord.{h,cpp}` with `Editor::insertChord` behind it, written

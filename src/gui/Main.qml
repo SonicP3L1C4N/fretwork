@@ -2391,18 +2391,12 @@ Kirigami.ApplicationWindow {
             visible: panels.chords && session.hasScore
             color: Ink.panelDeep
 
-            property int accidentals: session.soundingAccidentals()
-            property bool minor: session.soundingMinor()
-            // Re-read when the score changes, but never while somebody is
-            // turning it: a control that snapped back to the piece's own key
-            // would be a control that could not be turned.
-            Connections {
-                target: session
-                function onScoreChanged() {
-                    chordsPanel.accidentals = session.soundingAccidentals()
-                    chordsPanel.minor = session.soundingMinor()
-                }
-            }
+            // Kept on the session rather than here, because the neck drawn
+            // over the score reads it too: a window offering the chords of G
+            // major while showing the scale of C minor is a window arguing
+            // with itself. Unset it is whatever the piece sounds like.
+            readonly property int accidentals: session.workingAccidentals()
+            readonly property bool minor: session.workingMinor()
 
             RowLayout {
                 anchors.fill: parent
@@ -2435,10 +2429,7 @@ Kirigami.ApplicationWindow {
                                 y: parent.height / 2 + Math.sin(parent.angle) * parent.outer - height / 2
                                 text: session.keyName(parent.accidentals, false).split(" ")[0]
                                 picked: !chordsPanel.minor && chordsPanel.accidentals === parent.accidentals
-                                onPressed: {
-                                    chordsPanel.accidentals = parent.accidentals
-                                    chordsPanel.minor = false
-                                }
+                                onPressed: session.setWorkingKey(parent.accidentals, false)
                             }
 
                             KeySpot {
@@ -2447,10 +2438,7 @@ Kirigami.ApplicationWindow {
                                 small: true
                                 text: session.keyName(parent.accidentals, true).split(" ")[0].toLowerCase()
                                 picked: chordsPanel.minor && chordsPanel.accidentals === parent.accidentals
-                                onPressed: {
-                                    chordsPanel.accidentals = parent.accidentals
-                                    chordsPanel.minor = true
-                                }
+                                onPressed: session.setWorkingKey(parent.accidentals, true)
                             }
                         }
                     }

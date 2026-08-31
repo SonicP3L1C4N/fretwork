@@ -207,6 +207,16 @@ bar lines not being drawn — and both say so.
   every string above it — and what comes out is what is in the chord books: C
   as x32010, G as 320003, A minor as x02210, F as the barre 133211.
 
+  The neck drawn over the score follows the circle: turn it to G major and the
+  scale on the neck is G major. They are one key kept in one place, because a
+  window offering the chords of one key while showing the scale of another
+  would be a window arguing with itself. The neck also gained the things a
+  player navigates by — a letter on every root, and inlays at the frets an
+  instrument marks — and it now takes the hand position from the frets being
+  played in the caret's bar rather than from the single note under the caret,
+  which is a better answer and needed no new machinery: the score already knew
+  where the hand was.
+
   This is the first thing in Fretwork that writes notes nobody typed, so it is
   careful about it. It writes only when asked. It refuses whole and says which
   chord where an instrument cannot hold one anywhere — a chord with a note

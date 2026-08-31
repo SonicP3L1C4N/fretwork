@@ -7,6 +7,8 @@
 #include "key.h"
 #include "notename.h"
 
+#include <array>
+
 #include <QGuiApplication>
 #include <QMouseEvent>
 #include <QPainter>
@@ -55,6 +57,9 @@ constexpr qreal DeskMargin = 18;
  * the same shape again.
  */
 constexpr int Frets = 15;
+
+/** The frets an instrument marks, and a player counts from. */
+constexpr std::array<int, 5> Inlays = {3, 5, 7, 9, 12};
 
 /**
  * A sheet, and the shadow that says it is one.
@@ -464,11 +469,14 @@ void ScoreView::paintFretboard(QPainter &painter)
     }
 
     // Nothing to draw a scale for in a score with no pitched notes in it.
-    const QString named = m_session->soundingKeyName();
-    if (named.isEmpty()) {
+    const QString named = m_session->workingKeyName();
+    if (named.isEmpty() || m_session->soundingKeyName().isEmpty()) {
         return;
     }
-    const Key::Signature key = m_session->soundingKey();
+    // The key the window is talking about, which is the analysed one until
+    // somebody turns the circle. A neck showing one key while the circle
+    // offers the chords of another would be the window arguing with itself.
+    const Key::Signature key = m_session->workingKey();
     const int tonic = Key::midiOf(Key::tonicOf(key)) % 12;
     const Fretboard::Instrument instrument{tuning, m_session->capoHere(), Frets};
 
@@ -507,22 +515,43 @@ void ScoreView::paintFretboard(QPainter &painter)
     painter.drawText(QRectF(left + 12, boardTop, 62, board),
                      Qt::AlignLeft | Qt::AlignVCenter, named);
 
-    // The frets the hand is over, taken from the note under the caret. Drawn
+    // Where the hand is, which the score already knows and which is not one
+    // note: it is the frets being used in the bar the caret is in. Drawn
     // first, behind everything, because it is a wash and not a mark.
-    const int here = m_session->caretFret();
-    if (here > 0 && here <= Frets) {
-        const Fretboard::Hand hand{here, 4, true};
-        // Clipped at the end of the board rather than drawn off it: a hand at
-        // the fourteenth fret reaches two frets and not four here, which is
-        // also true of the instrument.
-        const int last = std::min(here + hand.span - 1, Frets);
+    const QPair<int, int> hand = m_session->handHere();
+    if (hand.first > 0 && hand.first <= Frets) {
+        const int from = hand.first;
+        // Clipped at the end of the board rather than drawn off it, and never
+        // narrower than a hand: a bar of one fretted note is still a hand
+        // somewhere rather than a hand one fret wide.
+        const int to = std::min(std::max(hand.second, from + 3), Frets);
         QColor reach(0xD6, 0x00, 0x6C);
         reach.setAlphaF(0.22);
         painter.setBrush(reach);
         painter.setPen(Qt::NoPen);
-        painter.drawRoundedRect(QRectF(neckLeft + here * fretWidth, boardTop - 6,
-                                       (last - here + 1) * fretWidth, board + 12),
+        painter.drawRoundedRect(QRectF(neckLeft + from * fretWidth, boardTop - 6,
+                                       (to - from + 1) * fretWidth, board + 12),
                                 3, 3);
+    }
+
+    // The inlays, which are how a player finds a position without counting.
+    // Behind the strings, since that is where they are on an instrument.
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(0x5A, 0x56, 0x56));
+    for (const int fret : Inlays) {
+        if (fret > Frets) {
+            continue;
+        }
+        const qreal x = neckLeft + (fret + 0.5) * fretWidth;
+        const qreal middle = boardTop + board / 2;
+        if (fret % 12 == 0) {
+            // The octave is two, which is the one every guitarist finds
+            // without looking.
+            painter.drawEllipse(QPointF(x, middle - stringGap * 0.9), 3, 3);
+            painter.drawEllipse(QPointF(x, middle + stringGap * 0.9), 3, 3);
+        } else {
+            painter.drawEllipse(QPointF(x, middle), 3, 3);
+        }
     }
 
     // The strings, lowest at the bottom, which is how tablature has always
@@ -548,9 +577,21 @@ void ScoreView::paintFretboard(QPainter &painter)
             }
             const qreal x = neckLeft + (fret + 0.5) * fretWidth;
             const bool root = midi % 12 == tonic;
+            // A root is filled and carries its letter; the rest of the scale
+            // is an outline. The root is the note a player is looking for, and
+            // a ring of unnamed dots is a puzzle rather than an answer.
             painter.setPen(root ? Qt::NoPen : QPen(QColor(0xF3, 0xF2, 0xF2), 1));
             painter.setBrush(root ? QColor(0xD6, 0x00, 0x6C) : QBrush(Qt::NoBrush));
-            painter.drawEllipse(QPointF(x, y), 4.2, 4.2);
+            painter.drawEllipse(QPointF(x, y), root ? 6.0 : 4.2, root ? 6.0 : 4.2);
+            if (root && fretWidth > 18) {
+                painter.setPen(QColor(0xF3, 0xF2, 0xF2));
+                QFont letter = painter.font();
+                letter.setPointSizeF(7);
+                letter.setBold(true);
+                painter.setFont(letter);
+                painter.drawText(QRectF(x - 12, y - 6, 24, 12), Qt::AlignCenter,
+                                 Key::nameOf(Key::spell(midi, key)));
+            }
         }
     }
 
@@ -562,7 +603,9 @@ void ScoreView::paintFretboard(QPainter &painter)
         if (fret > Frets) {
             continue;
         }
-        painter.drawText(QRectF(neckLeft + fret * fretWidth, boardTop + board + 2, fretWidth, 14),
+        // Below the wash that marks the hand rather than under it, so the
+        // numbers stay readable exactly where a reader most wants them.
+        painter.drawText(QRectF(neckLeft + fret * fretWidth, boardTop + board + 8, fretWidth, 14),
                          Qt::AlignCenter, QString::number(fret));
     }
     painter.setBrush(Qt::NoBrush);
