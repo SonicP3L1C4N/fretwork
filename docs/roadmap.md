@@ -539,6 +539,31 @@ use Ogg for the mix, and encoding it needs a dependency this does not have.
 **Stage 2 — honest techniques.** Slides, vibrato, harmonics, tremolo. Wishlist
 items with a reason attached, which is what a wishlist item is waiting for.
 
+**Half done, on 2026-08-31.** Vibrato and tremolo are imported, played, drawn
+and exported. Each needed a different mechanism, and the difference is the
+useful part: a vibrato is one note with something done to its pitch, so it is a
+bend curve and reuses everything the program already knows about moving a
+pitch; a tremolo is the same note struck again and again, so it is several note
+events and can reuse none of it.
+
+Two things learned that outlive the code. A vibrato has to be measured in
+hertz, not in beats — it is a gesture of the hand and does not speed up because
+the piece does — which is why `notesFor` now builds a clock. And gpif's tremolo
+value is a note against a *semibreve* while everything in this model is counted
+in quarters, so the file's `1/8` is a half here; reading it unchanged made every
+tremolo four times too fast, and the tests caught it as four times too many
+strikes.
+
+**Slides and harmonics are not done, and are waiting on evidence rather than on
+time.** There is not a single slide or harmonic anywhere in the test corpus, so
+neither can be checked against a real transcription the way vibrato was checked
+against eighty real ones. Harmonics are the riskier of the two: gpif has a
+`Harmonic` property, but whether a harmonic note's `Midi` already carries the
+*sounding* pitch or the fretted one cannot be settled without a file that has
+one — and getting it backwards produces a score that plays confidently in the
+wrong octave, which is the failure this project keeps finding is worse than not
+playing something at all. Waiting for a transcription that uses them.
+
 **Stage 3 — notation.** Once spelling exists.
 
 **Stage 4 — import.** Read a `.feedpak` back. Whether this is wanted at all is

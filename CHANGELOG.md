@@ -6,6 +6,36 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 # Changelog
 
+## 0.3.0 — unreleased
+
+Two of the four techniques the practice-pack exporter turned from wishes into
+requirements. A pack tells a learner what to play and marks them on playing it,
+so a technique the pack cannot name is one nobody can be marked on — which is
+what made these worth building.
+
+- **Vibrato is played, drawn and carried.** It was read out of a `.gp`, stored
+  on the note, and then dropped on the floor: not heard, not printed, and
+  written into a pack as absent. It is played as what it is — a wobble of the
+  pitch — which needed no new machinery, because moving a pitch continuously
+  and putting it back is what a bend already does. Five and a half times a
+  second and thirty cents either side, measured in real time rather than in
+  beats, because a vibrato is a gesture of the hand and does not speed up
+  because the music does. A note too short to hold one cycle gets none: a
+  single lurch of pitch on a semiquaver is not vibrato, it is out of tune. On
+  the page it is a wave over the note it belongs to.
+
+- **Tremolo is played, drawn and carried**, and it could not reuse any of that.
+  A vibrato is one note with something done to its pitch; a tremolo is the same
+  note struck again and again, so each strike is a note of its own. How fast is
+  what the file says rather than a guess — a held note repicked in quavers and
+  one repicked in demisemiquavers are two different effects — and on the page
+  it is slashes across the stem, where printed music puts them.
+
+Slides and harmonics are the other two and are not done. Neither appears
+anywhere in the test corpus, so unlike these two there is nothing real to check
+them against; they are waiting on a transcription that uses them rather than on
+the code.
+
 ## 0.2.0 — 2026-09-01
 
 Four directions, in the order they arrived.
