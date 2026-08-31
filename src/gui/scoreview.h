@@ -36,6 +36,8 @@ class ScoreView : public QQuickPaintedItem
     Q_PROPERTY(bool followPlayhead READ followPlayhead WRITE setFollowPlayhead
                    NOTIFY followPlayheadChanged)
     Q_PROPERTY(qreal zoom READ zoom WRITE setZoom NOTIFY zoomChanged)
+    Q_PROPERTY(bool fretboardShown READ isFretboardShown WRITE setFretboardShown
+                   NOTIFY fretboardShownChanged)
     Q_PROPERTY(int pageCount READ pageCount NOTIFY contentHeightChanged)
     Q_PROPERTY(int currentPage READ currentPage NOTIFY scrollYChanged)
 
@@ -58,6 +60,10 @@ public:
     qreal zoom() const;
     void setZoom(qreal zoom);
 
+    /** Whether the neck is drawn over the page, with the key marked on it. */
+    bool isFretboardShown() const;
+    void setFretboardShown(bool shown);
+
     /** How many sheets there are, and which one the reader is looking at. */
     int pageCount() const;
     int currentPage() const;
@@ -71,6 +77,7 @@ Q_SIGNALS:
     void contentHeightChanged();
     void followPlayheadChanged();
     void zoomChanged();
+    void fretboardShownChanged();
 
 protected:
     void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
@@ -83,6 +90,7 @@ private:
     void scrollCursorIntoView();
     qreal heightOfContent() const;
 
+    void paintFretboard(QPainter &painter);
     void paintSelection(QPainter &painter, int page, const Tab::Palette &palette);
     void paintCaret(QPainter &painter, int page, const Tab::Palette &palette);
 
@@ -97,6 +105,7 @@ private:
 
     Session *m_session = nullptr;
     qreal m_zoom = 1.0;
+    bool m_fretboardShown = false;
     qreal m_scrollY = 0;
     qreal m_contentHeight = 0;
     bool m_followPlayhead = true;

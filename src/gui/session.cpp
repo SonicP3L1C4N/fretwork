@@ -193,6 +193,8 @@ bool Session::open(const QString &path)
 
 void Session::rebuildLayout()
 {
+    m_keyKnown = false;
+
     if (m_editor.score().isEmpty()) {
         m_layout = Tab::Layout();
         Q_EMIT layoutChanged();
@@ -259,6 +261,15 @@ void Session::rebuildPlayer()
     m_player->setClickEnabled(m_click);
     m_player->setClickGain(float(m_clickGain));
     m_ticker.start();
+}
+
+int Session::caretFret() const
+{
+    if (!hasScore()) {
+        return -1;
+    }
+    const int noteId = Editing::noteIdAt(m_editor.score(), m_editor.cursor());
+    return noteId < 0 ? -1 : m_editor.score().notes.value(noteId).fret;
 }
 
 QString Session::caretText() const
@@ -1768,6 +1779,26 @@ QString Session::tuningHere() const
 int Session::stringsHere() const
 {
     return hasScore() ? m_editor.score().tracks.at(m_currentTrack).stringCount() : 0;
+}
+
+Key::Signature Session::soundingKey() const
+{
+    if (!m_keyKnown) {
+        m_soundingKey = Analysis::best(Analysis::weigh(m_editor.score())).key;
+        m_keyKnown = true;
+    }
+    return m_soundingKey;
+}
+
+QString Session::soundingKeyName() const
+{
+    // Nothing to say about a score with no pitched notes in it -- an empty
+    // one, or a drum kit on its own -- rather than naming whichever key sorts
+    // first out of twenty-four equally bad answers.
+    if (!hasScore() || Analysis::isSilent(Analysis::weigh(m_editor.score()))) {
+        return QString();
+    }
+    return Key::nameOf(soundingKey());
 }
 
 int Session::capoHere() const

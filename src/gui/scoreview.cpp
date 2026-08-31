@@ -3,6 +3,10 @@
 
 #include "scoreview.h"
 
+#include "fretboard.h"
+#include "key.h"
+#include "notename.h"
+
 #include <QGuiApplication>
 #include <QMouseEvent>
 #include <QPainter>
@@ -41,6 +45,16 @@ const QColor Desk = QColor(0xC6, 0xC1, 0xC1);
 
 /** The least desk to leave down either side of a page. */
 constexpr qreal DeskMargin = 18;
+
+/**
+ * How far up the neck the overlay draws.
+ *
+ * Fifteen and not twenty-four: the useful part of this is where a hand goes,
+ * and the top of the neck is where the same notes repeat an octave up on a
+ * board half as wide per fret. A player who needs the dusty end knows it is
+ * the same shape again.
+ */
+constexpr int Frets = 15;
 
 /**
  * A sheet, and the shadow that says it is one.
@@ -170,6 +184,21 @@ void ScoreView::setZoom(qreal zoom)
     Q_EMIT contentHeightChanged();
     setScrollY(middle * m_zoom - height() / 2);
     Q_EMIT zoomChanged();
+    update();
+}
+
+bool ScoreView::isFretboardShown() const
+{
+    return m_fretboardShown;
+}
+
+void ScoreView::setFretboardShown(bool shown)
+{
+    if (m_fretboardShown == shown) {
+        return;
+    }
+    m_fretboardShown = shown;
+    Q_EMIT fretboardShownChanged();
     update();
 }
 
@@ -396,6 +425,147 @@ void ScoreView::paint(QPainter *painter)
 
         painter->restore();
     }
+
+    // Over the pages and not on them: it is a thing about the instrument
+    // rather than about the document, so it does not scroll with the music and
+    // it is not something that would ever be printed.
+    if (m_fretboardShown) {
+        paintFretboard(*painter);
+    }
+}
+
+/**
+ * The neck, with the key marked on it.
+ *
+ * Tablature cannot carry this on the staff, and it is worth saying why rather
+ * than leaving it to look like a layout choice: the horizontal axis of a stave
+ * of tab is *time*. A fret is a number written along it, not a place on it, so
+ * there is nowhere on the page that means "the fifth fret" for the scale to be
+ * drawn at. A neck has to be a neck.
+ *
+ * What it answers is the question the analysis raises and cannot settle: the
+ * program says a piece is in F# minor, and a guitarist wants to know which
+ * frets that is. Roots are filled and the rest of the scale is outlined,
+ * because the root is the one a player is looking for; and the frets under the
+ * hand are lit, because "where can I play this without moving" is most of what
+ * the question means in practice.
+ */
+void ScoreView::paintFretboard(QPainter &painter)
+{
+    if (!m_session || m_session->layout().isEmpty()) {
+        return;
+    }
+    const Tab::Layout &layout = m_session->layout();
+    const QList<int> tuning = layout.tuning;
+    // A drum kit has no neck, which is the same as saying the question does
+    // not apply to it.
+    if (tuning.isEmpty()) {
+        return;
+    }
+
+    // Nothing to draw a scale for in a score with no pitched notes in it.
+    const QString named = m_session->soundingKeyName();
+    if (named.isEmpty()) {
+        return;
+    }
+    const Key::Signature key = m_session->soundingKey();
+    const int tonic = Key::midiOf(Key::tonicOf(key)) % 12;
+    const Fretboard::Instrument instrument{tuning, m_session->capoHere(), Frets};
+
+    const int strings = int(tuning.size());
+    const qreal stringGap = 15.0;
+    const qreal board = (strings - 1) * stringGap;
+    const qreal height = board + 44;
+    const qreal top = this->height() - height - 12;
+    const qreal left = 16;
+    const qreal right = width() - 16;
+    if (right - left < 200 || top < 0) {
+        return;
+    }
+
+    // The panel. Ink, like the toolbars, so that it reads as a piece of the
+    // program lying over the page rather than as something printed on it.
+    QColor panel(0x20, 0x1E, 0x1D);
+    // Nearly opaque rather than half: a neck with a stave showing through it
+    // is two diagrams in the same place and neither is readable.
+    panel.setAlphaF(0.97);
+    painter.setPen(QPen(QColor(0x60, 0x5D, 0x5D), 1));
+    painter.setBrush(panel);
+    painter.drawRoundedRect(QRectF(left, top, right - left, height), 6, 6);
+
+    const qreal neckLeft = left + 78;
+    const qreal neckRight = right - 14;
+    const qreal fretWidth = (neckRight - neckLeft) / (Frets + 1);
+    const qreal boardTop = top + 14;
+
+    // What key it is, said on the thing itself: an overlay of dots with no
+    // name on it is a puzzle.
+    painter.setPen(QColor(0x9B, 0x97, 0x97));
+    QFont label = painter.font();
+    label.setPointSizeF(9);
+    painter.setFont(label);
+    painter.drawText(QRectF(left + 12, boardTop, 62, board),
+                     Qt::AlignLeft | Qt::AlignVCenter, named);
+
+    // The frets the hand is over, taken from the note under the caret. Drawn
+    // first, behind everything, because it is a wash and not a mark.
+    const int here = m_session->caretFret();
+    if (here > 0 && here <= Frets) {
+        const Fretboard::Hand hand{here, 4, true};
+        // Clipped at the end of the board rather than drawn off it: a hand at
+        // the fourteenth fret reaches two frets and not four here, which is
+        // also true of the instrument.
+        const int last = std::min(here + hand.span - 1, Frets);
+        QColor reach(0xD6, 0x00, 0x6C);
+        reach.setAlphaF(0.22);
+        painter.setBrush(reach);
+        painter.setPen(Qt::NoPen);
+        painter.drawRoundedRect(QRectF(neckLeft + here * fretWidth, boardTop - 6,
+                                       (last - here + 1) * fretWidth, board + 12),
+                                3, 3);
+    }
+
+    // The strings, lowest at the bottom, which is how tablature has always
+    // drawn them and how a player looking down at the instrument sees them.
+    painter.setPen(QPen(QColor(0x60, 0x5D, 0x5D), 1));
+    for (int string = 0; string < strings; ++string) {
+        const qreal y = boardTop + (strings - 1 - string) * stringGap;
+        painter.drawLine(QPointF(neckLeft, y), QPointF(neckRight, y));
+    }
+    // The nut, and a line between the frets.
+    painter.setPen(QPen(QColor(0x7D, 0x79, 0x79), 1));
+    for (int fret = 0; fret <= Frets; ++fret) {
+        const qreal x = neckLeft + fret * fretWidth;
+        painter.drawLine(QPointF(x, boardTop), QPointF(x, boardTop + board));
+    }
+
+    for (int string = 0; string < strings; ++string) {
+        const qreal y = boardTop + (strings - 1 - string) * stringGap;
+        for (int fret = 0; fret <= Frets; ++fret) {
+            const int midi = Fretboard::pitchAt(instrument, string, fret);
+            if (!Key::isDiatonic(midi, key)) {
+                continue;
+            }
+            const qreal x = neckLeft + (fret + 0.5) * fretWidth;
+            const bool root = midi % 12 == tonic;
+            painter.setPen(root ? Qt::NoPen : QPen(QColor(0xF3, 0xF2, 0xF2), 1));
+            painter.setBrush(root ? QColor(0xD6, 0x00, 0x6C) : QBrush(Qt::NoBrush));
+            painter.drawEllipse(QPointF(x, y), 4.2, 4.2);
+        }
+    }
+
+    // The numbers a guitarist actually counts by, rather than all of them.
+    painter.setPen(QColor(0x7D, 0x79, 0x79));
+    label.setPointSizeF(8);
+    painter.setFont(label);
+    for (const int fret : {3, 5, 7, 9, 12, 15}) {
+        if (fret > Frets) {
+            continue;
+        }
+        painter.drawText(QRectF(neckLeft + fret * fretWidth, boardTop + board + 2, fretWidth, 14),
+                         Qt::AlignCenter, QString::number(fret));
+    }
+    painter.setBrush(Qt::NoBrush);
 }
 
 /** The wash behind a selection, in the coordinates of the page holding it. */

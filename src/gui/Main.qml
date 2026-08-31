@@ -106,6 +106,7 @@ Kirigami.ApplicationWindow {
         // room because it was last left listening to the room would be a
         // program nobody trusts twice.
         property bool tuner: false
+        property bool scale: false
 
         /**
          * Which side the parts list is on, and so which side the mixer is.
@@ -1197,6 +1198,16 @@ Kirigami.ApplicationWindow {
                 onToggled: panels.effects = checked
             }
 
+            // The neck over the page, with the key of the piece marked on it.
+            // Off by default: somebody opening a tab to read it is reading the
+            // tab, and this covers the bottom of it.
+            ChromeToggle {
+                text: i18n("Scale")
+                enabled: session.hasScore && session.soundingKey !== ""
+                checked: panels.scale
+                onToggled: panels.scale = checked
+            }
+
             ChromeToggle {
                 text: i18n("Tuner")
                 // The only panel toggle that does not want a score: a guitar
@@ -1680,6 +1691,7 @@ Kirigami.ApplicationWindow {
                     anchors.fill: parent
                     session: session
                     focus: true
+                    fretboardShown: panels.scale
 
                     Component.onCompleted: {
                         if (viewState.zoom > 0) {

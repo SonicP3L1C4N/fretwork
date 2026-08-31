@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "analysis.h"
 #include "editor.h"
 #include "gxpreset.h"
 #include "rigfile.h"
@@ -141,6 +142,7 @@ class Session : public QObject
      */
     Q_PROPERTY(QString tuningHere READ tuningHere NOTIFY cursorMoved)
     Q_PROPERTY(int capoHere READ capoHere NOTIFY cursorMoved)
+    Q_PROPERTY(QString soundingKey READ soundingKeyName NOTIFY layoutChanged)
 
     /** How many strings the current track has; none for a drum kit. */
     Q_PROPERTY(int stringsHere READ stringsHere NOTIFY cursorMoved)
@@ -512,6 +514,14 @@ public:
     int barCount() const;
     bool hasSections() const;
     int caretBar() const;
+
+    /**
+     * The fret of the note under the caret, or -1 where there is no note.
+     *
+     * Which is where the hand is, as far as anything in this program can tell:
+     * the caret is what somebody is working on.
+     */
+    int caretFret() const;
     int currentTrack() const;
     void setCurrentTrack(int track);
 
@@ -591,6 +601,19 @@ public:
     QString tuningHere() const;
     int capoHere() const;
     int stringsHere() const;
+
+    /**
+     * What key the notes say the piece is in, and what to call it.
+     *
+     * The analysis and not the page: a key signature is something a
+     * transcriber has to go out of their way to set and almost nobody does, so
+     * the signature on a `.gp` is nearly always Guitar Pro's untouched default
+     * and says nothing at all. Worked out once per layout rather than per
+     * repaint -- it walks every note in the score, which is cheap once and
+     * silly sixty times a second.
+     */
+    Key::Signature soundingKey() const;
+    QString soundingKeyName() const;
 
     /** Retunes the current track. Frets stay where they are; pitches move. */
     Q_INVOKABLE void setTuningHere(const QString &names);
@@ -730,6 +753,11 @@ private:
     std::unique_ptr<Player> m_player;
 
     Tab::Layout m_layout;
+
+    // Worked out from the notes when the layout is rebuilt, which is every
+    // time they change, and not again until then.
+    mutable bool m_keyKnown = false;
+    mutable Key::Signature m_soundingKey;
     int m_currentTrack = 0;
     bool m_click = false;
     bool m_ports = false;
