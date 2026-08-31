@@ -6,19 +6,36 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 # Changelog
 
-## 0.2.0 — unreleased
+## 0.2.0 — 2026-09-01
 
-Three things, in the order they arrived. **The rig**: the effects panel is laid
-out around the chain rather than around the plugins, the chain can be put in
-the order somebody wants it in, a sound can be kept under a name and used on
-another song, and the two side panels can change places. **Harmony**: Fretwork
-can work out what key a piece is actually in, draw that key on a fretboard over
-the score, and write the chords of any key into it from a circle of fifths. **The page**: the score is a document of real pages now, and
-the lines it is drawn with all turn up, which through 0.1.0 they did not.
+Four directions, in the order they arrived.
 
-Two of the entries below are corrections of things 0.1.0 shipped rather than
-additions to it — a capo that was only in half of the arithmetic, and half the
-bar lines not being drawn — and both say so.
+**The rig.** The effects panel is laid out around the chain rather than around
+the plugins, the chain can be put in the order somebody wants it in, a sound
+can be kept under a name and used on another song, and the two side panels can
+change places.
+
+**Harmony.** Fretwork works out what key a piece is actually in — from the
+notes, since a tablature file almost never says — draws that key on a fretboard
+over the score, and writes the chords of any key into it from a circle of
+fifths. Underneath all of that is a fretboard solver: given a pitch, which
+string and which fret, answered as a preference with a hand attached rather
+than as arithmetic.
+
+**Hardware.** A MIDI controller can drive it. The transport, the mixer and the
+eight encoders on whatever amplifier chain a part has; and notes typed in from
+a keyboard, where a chord is simply the keys held down together.
+
+**Documents.** The score is real pages now, the same ones the printer gets,
+with a zoom and a page count. It writes fee[dB]ack practice packs. And the
+lines it is drawn with all turn up, which through 0.1.0 they did not.
+
+**Five of the entries below are corrections of things 0.1.0 shipped** rather
+than additions to it, and each says so: a capo that was only in half of the
+arithmetic, half the bar lines not being drawn, two labels drawn twice over,
+notes played a little early, and a seek that let the old ones ring over the
+new. Three of the five were found by writing the first tests those parts of
+the program had ever had.
 
 - **The effects panel is a board and a bench.** Every plugin's front panel
   drawn at once made the band as tall as whichever plugin was largest and as

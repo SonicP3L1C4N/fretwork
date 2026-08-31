@@ -88,7 +88,7 @@ fretwork FILE.gp --tune                  # tune to this score
 
 ## Status
 
-**0.1.0 is released.** Per-track LV2 chains and SFZ sampling are present and
+**0.2.0 is released.** Per-track LV2 chains and SFZ sampling are present and
 experimental, which is meant as it is written — they are the reason the program
 exists and the least settled thing in it.
 
@@ -103,7 +103,9 @@ why, including the things that were got wrong and fixed.
 | **P3** | The editor | **done** |
 | **P4** | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | **begun** — a chain per part, reorderable, saved under a name and reusable |
 | P5 | Standard notation, MusicXML, GP6 | |
-| P6 | Harmony: the fretboard solver, key and chords | **done** — see [docs/roadmap.md](docs/roadmap.md) |
+| **P6** | Harmony: the fretboard solver, key spelling, analysis, the scale overlay, chords | **done** |
+| **P7** | MIDI in: a control surface, and notes typed from a keyboard | **done** |
+| P8 | fee[dB]ack practice packs | **begun** — packs are written; the techniques they cannot yet carry are named in [docs/roadmap.md](docs/roadmap.md) |
 
 P1 is the one that matters: at the end of it the program is useful with no user
 interface at all, which is the only honest definition of a foundation.

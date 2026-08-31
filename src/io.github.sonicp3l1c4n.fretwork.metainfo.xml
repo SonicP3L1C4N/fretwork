@@ -117,6 +117,28 @@ SPDX-License-Identifier: CC0-1.0
          mismatch between them. No type attribute, which means stable: 0.1.0 is
          tagged and released, and a software centre showing a released version
          as a development one tells people not to install it. -->
+    <release version="0.2.0" date="2026-09-01">
+      <description>
+        <p>
+          The score is a document of real pages now, with a zoom and a page
+          count, and the lines it is drawn with all appear.
+        </p>
+        <p>
+          Fretwork works out what key a piece is in from its notes, draws that
+          key on a fretboard over the score, and writes the chords of any key
+          into it from a circle of fifths.
+        </p>
+        <p>
+          A MIDI controller can drive the transport, the mixer and the knobs of
+          a part's amplifier chain, and notes can be typed in from a keyboard.
+        </p>
+        <p>
+          Effect chains can be reordered and saved under a name, and a score
+          can be written out as a fee[dB]ack practice pack.
+        </p>
+      </description>
+      <url type="details">https://github.com/SonicP3L1C4N/fretwork/blob/main/CHANGELOG.md</url>
+    </release>
     <release version="0.1.0" date="2026-09-01">
       <description>
         <p>
