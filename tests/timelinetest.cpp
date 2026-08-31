@@ -274,6 +274,81 @@ private Q_SLOTS:
         QVERIFY2(wobbling > 0, "the corpus has vibratos written in it and none of them move");
     }
 
+    /**
+     * A tremolo is picked again and again, and each strike is a note.
+     *
+     * Which is why it cannot be a curve the way vibrato is: what changes is
+     * not the pitch but how many times the string is hit.
+     */
+    void aTremoloIsPickedAgainAndAgain()
+    {
+        Score score = blank(1);
+        score.tempos.append({0, 0, 120});
+        Note note;
+        note.midi = 64;
+        note.string = 5;
+        fill(score, 0, {note});
+        // A crotchet, repicked in quavers: two strikes.
+        for (auto beat = score.beats.begin(); beat != score.beats.end(); ++beat) {
+            beat->tremolo = true;
+            // A quaver, in quarters.
+            beat->tremoloValue = Rational(1, 2);
+        }
+
+        const QList<Timeline::NoteEvent> notes =
+            Timeline::notesFor(score, 0, Timeline::playedOrder(score));
+        QCOMPARE(notes.size(), 2);
+        QCOMPARE(notes.at(0).pitch, 64);
+        QCOMPARE(notes.at(1).pitch, 64);
+        // Each strike begins where the last ended, and the run fills the beat
+        // rather than overrunning it.
+        QVERIFY(notes.at(0).end == notes.at(1).start);
+        QVERIFY(notes.at(1).end == Rational(1));
+        QVERIFY(notes.first().tremolo);
+    }
+
+    /** How fast it is picked is what the file said, not a guess. */
+    void howFastItIsPickedIsWhatWasWritten()
+    {
+        Score score = blank(1);
+        score.tempos.append({0, 0, 120});
+        Note note;
+        note.midi = 64;
+        note.string = 5;
+        fill(score, 0, {note});
+        for (auto beat = score.beats.begin(); beat != score.beats.end(); ++beat) {
+            beat->tremolo = true;
+            // A semiquaver: four to a crotchet.
+            beat->tremoloValue = Rational(1, 4);
+        }
+        QCOMPARE(Timeline::notesFor(score, 0, Timeline::playedOrder(score)).size(), 4);
+    }
+
+    /**
+     * A tremolo no faster than the note it is on is one strike.
+     *
+     * Not nought, and not a strike hanging off the end: a quaver marked as
+     * repicked in quavers is a quaver.
+     */
+    void aTremoloNoFasterThanTheNoteIsJustTheNote()
+    {
+        Score score = blank(1);
+        score.tempos.append({0, 0, 120});
+        Note note;
+        note.midi = 64;
+        note.string = 5;
+        fill(score, 0, {note});
+        for (auto beat = score.beats.begin(); beat != score.beats.end(); ++beat) {
+            beat->tremolo = true;
+            // A minim, which is longer than the crotchet it is written on.
+            beat->tremoloValue = Rational(2);
+        }
+        const QList<Timeline::NoteEvent> notes =
+            Timeline::notesFor(score, 0, Timeline::playedOrder(score));
+        QCOMPARE(notes.size(), 1);
+        QVERIFY(notes.first().end == Rational(1));
+    }
+
     void everyStringGetsAChannelOfItsOwn()
     {
         Score score = blank(1);

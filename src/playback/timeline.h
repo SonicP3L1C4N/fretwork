@@ -92,6 +92,9 @@ struct NoteEvent {
      * word for one.
      */
     bool vibrato = false;
+
+    /** Whether this strike is one of a tremolo-picked run. */
+    bool tremolo = false;
 };
 
 struct TempoEvent {

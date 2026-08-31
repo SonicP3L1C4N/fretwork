@@ -267,6 +267,9 @@ Tab::LaidBar measure(const Score &score, int trackIndex, int barIndex,
 
         Rational shortest(4);
         for (const Beat *beat : column.value().beats) {
+            // Any beat in the column being tremolo picked makes the column
+            // one: the slashes go on the stem, and the stem is shared.
+            laid.rhythm.tremolo = laid.rhythm.tremolo || beat->tremolo;
             const Rational duration = score.rhythms.value(beat->rhythm, Rational(1));
             if (duration < shortest) {
                 shortest = duration;

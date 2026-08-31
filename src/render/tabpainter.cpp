@@ -217,6 +217,19 @@ void paintRhythm(QPainter &painter, const Grid &grid, const Tab::Layout &layout,
                                  beamAt(level) - style.beamSpacing));
     }
 
+    if (rhythm.tremolo) {
+        // Slashes across the stem, which is how printed music says "keep
+        // picking this". Three of them, and at the top of the stem where the
+        // beams are not: a tremolo on a beamed run would otherwise draw over
+        // the beams that say how long the beat is.
+        painter.setPen(QPen(palette.rhythm, style.beamThickness));
+        const qreal middle = rhythm.stem ? (stemTop + foot) / 2 : foot;
+        for (int slash = 0; slash < 3; ++slash) {
+            const qreal y = middle - style.beamSpacing * 0.6 + slash * style.beamSpacing * 0.6;
+            painter.drawLine(QPointF(x - 2.4, y + 1.4), QPointF(x + 2.4, y - 1.4));
+        }
+    }
+
     if (rhythm.dots > 0) {
         // Above whatever else is down here, so a dotted quaver in a beamed run
         // does not put its dot through the beam.

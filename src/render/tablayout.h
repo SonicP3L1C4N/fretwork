@@ -171,6 +171,9 @@ struct LaidRhythm {
     int beamRight = 0;
     int flags = 0;              //< drawn only where nothing is beamed to it
 
+    /** Tremolo picked: slashes across the stem, as printed music draws it. */
+    bool tremolo = false;
+
     /**
      * Beams this column has that its neighbours do not -- the short stub on
      * the semiquaver of a dotted-quaver pair. It points towards the note it

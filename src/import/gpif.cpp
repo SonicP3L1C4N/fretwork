@@ -435,6 +435,24 @@ Score Gpif::parse(const QByteArray &xml, QString *error)
                                       beat.notes = ints(childText(element, QStringLiteral("Notes")));
                                       beat.dynamic = dynamicFrom(childText(element, QStringLiteral("Dynamic")));
                                       beat.tremolo = !element.firstChildElement(QStringLiteral("Tremolo")).isNull();
+                                      // "1/8", "1/16", "1/32" -- how fast it is
+                                      // picked, which the file says and which is
+                                      // the difference between two effects.
+                                      if (beat.tremolo) {
+                                          const QStringList halves =
+                                              childText(element, QStringLiteral("Tremolo"))
+                                                  .split(QLatin1Char('/'));
+                                          if (halves.size() == 2 && halves.at(1).toInt() > 0) {
+                                              // Times four: a file counts note
+                                              // values against a semibreve and
+                                              // this model counts them in
+                                              // quarters, so its 1/8 is a
+                                              // quaver and a quaver is a half.
+                                              beat.tremoloValue =
+                                                  Rational(4 * halves.at(0).toInt(),
+                                                           halves.at(1).toInt());
+                                          }
+                                      }
                                       beat.brush = hasProperty(element, QStringLiteral("Brush"));
                                       return beat;
                                   });

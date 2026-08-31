@@ -106,6 +106,25 @@ struct Beat {
     Dynamic dynamic = Dynamic::MF;
     bool tremolo = false;
     bool brush = false;
+
+    /**
+     * How fast a tremolo is picked, in quarters, like every other duration
+     * here.
+     *
+     * A file says `1/8`, `1/16` or `1/32` rather than merely that a beat is
+     * tremolo picked, and the difference is audible: the same held note
+     * repicked in quavers and in demisemiquavers is two different effects.
+     *
+     * **Not the file's fraction.** A file writes note values against a
+     * semibreve, so its `1/8` is a quaver; everything in this model is
+     * measured in quarters, where a quaver is a half. Storing the file's
+     * number would make a quaver tremolo a thirty-second one, which is what
+     * the first version of this did.
+     *
+     * Meaningless unless `tremolo` is set, and a quaver where a file says
+     * nothing.
+     */
+    Rational tremoloValue = Rational(1, 2);
 };
 
 struct Voice {

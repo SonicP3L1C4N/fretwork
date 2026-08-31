@@ -111,14 +111,20 @@ private:
         return found;
     }
 
-    /** The same page, with one note marked one way. */
-    static Tab::Layout pageWith(int bars, bool vibrato)
+    enum class Mark { None, Vibrato, Tremolo };
+
+    /** The same page, with one thing on it marked one way. */
+    static Tab::Layout pageWith(int bars, Mark mark)
     {
         Score music = score(bars);
-        if (vibrato) {
+        if (mark == Mark::Vibrato) {
             Note note = music.notes.value(0);
             note.vibrato = true;
             music.notes.insert(0, note);
+        } else if (mark == Mark::Tremolo) {
+            Beat beat = music.beats.value(0);
+            beat.tremolo = true;
+            music.beats.insert(0, beat);
         }
         Tab::Style style;
         style.pageWidth = 613.7;
@@ -138,8 +144,8 @@ private Q_SLOTS:
      */
     void aVibratoIsDrawnOverTheNoteItBelongsTo()
     {
-        const Tab::Layout plain = pageWith(2, false);
-        const Tab::Layout shaken = pageWith(2, true);
+        const Tab::Layout plain = pageWith(2, Mark::None);
+        const Tab::Layout shaken = pageWith(2, Mark::Vibrato);
         const QImage without = Tab::toImage(plain, 0, 2.0);
         const QImage with = Tab::toImage(shaken, 0, 2.0);
         QCOMPARE(without.size(), with.size());
@@ -155,6 +161,41 @@ private Q_SLOTS:
         // few dozen pixels, and anything like a thousand means the layout
         // moved rather than that something was added to it.
         QVERIFY2(changed < 1000, qPrintable(QStringLiteral("%1 pixels changed").arg(changed)));
+    }
+
+    /**
+     * A tremolo is drawn too, and on the stem rather than on the note.
+     *
+     * Which is where printed music puts it, and it is a different place from
+     * the vibrato's wave: one is about the pitch and belongs by the number,
+     * the other is about the picking and belongs on the thing that says how
+     * long the beat is.
+     */
+    void aTremoloIsDrawnOnTheStem()
+    {
+        const QImage without = Tab::toImage(pageWith(2, Mark::None), 0, 2.0);
+        const QImage with = Tab::toImage(pageWith(2, Mark::Tremolo), 0, 2.0);
+        QCOMPARE(without.size(), with.size());
+
+        int changed = 0;
+        int highest = with.height();
+        for (int y = 0; y < with.height(); ++y) {
+            for (int x = 0; x < with.width(); ++x) {
+                if (without.pixel(x, y) != with.pixel(x, y)) {
+                    ++changed;
+                    highest = std::min(highest, y);
+                }
+            }
+        }
+        QVERIFY2(changed > 0, "a beat marked tremolo is drawn exactly like one that is not");
+        QVERIFY2(changed < 1000, qPrintable(QStringLiteral("%1 pixels changed").arg(changed)));
+
+        // Below the staff, where the stems are, rather than up among the
+        // numbers.
+        const Tab::Layout layout = pageWith(2, Mark::Tremolo);
+        const Tab::System &system = layout.pages.constFirst().systems.constFirst();
+        QVERIFY2(highest > int((system.y + layout.staffHeight()) * 2.0) - 8,
+                 qPrintable(QStringLiteral("the mark starts at y %1").arg(highest)));
     }
 
     void everyBarLineIsDrawnWhereverItFalls()

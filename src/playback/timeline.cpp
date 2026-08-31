@@ -31,6 +31,16 @@ const Rational BendStep = Rational(1, 16);
 constexpr int MaximumBendSteps = 128;
 
 /**
+ * A tremolo is not allowed to become a denial of service.
+ *
+ * A hand-edited file asking for demisemiquavers across a semibreve at a very
+ * slow tempo is a few hundred strikes; one asking for them across a bar of
+ * 64/4 is not a performance, and the answer to a number nobody could play is
+ * to stop rather than to render it.
+ */
+constexpr int MaximumTremoloStrikes = 256;
+
+/**
  * Vibrato: how fast the hand shakes, and how far.
  *
  * Five and a half times a second is an ordinary guitar vibrato -- slower is a
@@ -388,6 +398,7 @@ QList<Timeline::NoteEvent> Timeline::notesFor(const Score &score, int trackIndex
                     event.letRing = note->letRing;
                     event.accent = note->accent;
                     event.vibrato = note->vibrato;
+                    event.tremolo = beat->tremolo;
                     event.channel = channelFor(track, *note);
                     event.bend = bendCurve(*note, sounding);
                     if (event.bend.isEmpty() && note->vibrato) {
@@ -425,6 +436,33 @@ QList<Timeline::NoteEvent> Timeline::notesFor(const Score &score, int trackIndex
                         event.end = start + sounding * Rational(1, 2);
                     }
                     event.velocity = velocity;
+
+                    if (beat->tremolo && beat->tremoloValue.numerator > 0
+                        && beat->tremoloValue < sounding) {
+                        // Picked again and again for as long as the beat
+                        // lasts. Each strike is a note of its own rather than
+                        // one note with something done to it, because that is
+                        // what tremolo picking is -- and it is why this cannot
+                        // be a curve the way vibrato can.
+                        const Rational step = beat->tremoloValue;
+                        int strikes = 0;
+                        for (Rational at = start; at < start + sounding; at = at + step) {
+                            NoteEvent strike = event;
+                            strike.start = at;
+                            strike.end = std::min(at + step, start + sounding);
+                            // The curve belongs to the note as a whole and
+                            // would restart on every strike, which is a siren
+                            // rather than a vibrato.
+                            strike.bend = {};
+                            events.append(strike);
+                            ringing.append(false);
+                            ++strikes;
+                            if (strikes > MaximumTremoloStrikes) {
+                                break;
+                            }
+                        }
+                        continue;
+                    }
 
                     events.append(event);
                     ringing.append(note->letRing);

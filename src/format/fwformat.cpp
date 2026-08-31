@@ -317,6 +317,15 @@ QByteArray encode(const Score &score)
                     object.insert(QStringLiteral("notes"), fromInts(beat.notes));
                     object.insert(QStringLiteral("dynamic"), nameOf(beat.dynamic));
                     putFlag(object, QStringLiteral("tremolo"), beat.tremolo);
+                    if (beat.tremolo && !(beat.tremoloValue == Rational(1, 2))) {
+                        // Only where it is not the ordinary one, like every
+                        // other optional key here. An added key is not a
+                        // format change: an older reader ignores it and gets
+                        // the quaver it would have assumed anyway.
+                        object.insert(QStringLiteral("tremoloValue"),
+                                      QJsonArray({beat.tremoloValue.numerator,
+                                                  beat.tremoloValue.denominator}));
+                    }
                     putFlag(object, QStringLiteral("brush"), beat.brush);
                     return QJsonValue(object);
                 }));
@@ -421,6 +430,12 @@ Score decode(const QByteArray &json, QString *error)
                                     beat.notes = toInts(object.value(QStringLiteral("notes")).toArray());
                                     beat.dynamic = dynamicFrom(object.value(QStringLiteral("dynamic")).toString());
                                     beat.tremolo = object.value(QStringLiteral("tremolo")).toBool();
+                                    const QJsonArray picked =
+                                        object.value(QStringLiteral("tremoloValue")).toArray();
+                                    if (picked.size() == 2 && picked.at(1).toInt() > 0) {
+                                        beat.tremoloValue = Rational(picked.at(0).toInt(),
+                                                                     picked.at(1).toInt());
+                                    }
                                     beat.brush = object.value(QStringLiteral("brush")).toBool();
                                     return beat;
                                 });
