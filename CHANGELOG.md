@@ -53,6 +53,30 @@ what made these worth building.
   them. It is the scrape in the intro of *Twilight Of The Thunder God*,
   confirmed by ear rather than inferred from the shape of the data.
 
+- **A pack carries the notation as well as the performance.** An arrangement
+  file says a note starts at 12.4 seconds and is fret 5 on string 2, which is
+  what a practice program marks against. A notation file says the same note is
+  a dotted quaver in the second bar of a piece in 4/4, which is what a reader
+  draws. Both are now written, and the manifest points at the second from the
+  first. This is notation *data* and not engraving — nothing in it decides
+  where a note head sits — and it was only cheap because the pitch spelling it
+  needs had already been built for the harmony work.
+
+  The schema came from reading the one real notation file on this machine, and
+  reading it carefully turned out to matter: that file is a transcription of a
+  *recording*, so its beats do not tile its bars and its rests are missing
+  rather than silent. A score read from a `.gp` was written down rather than
+  played, so what Fretwork writes is better formed than what it was learnt
+  from, and the tests assert bars that add up rather than hoping for them.
+
+  Two things it cannot do, both stated rather than discovered later. A bar
+  containing tuplets adds up to more than it lasts, because the format has no
+  field for a triplet and a triplet quaver is drawn as a quaver — 296 bars of
+  5,478 across the corpus, and no time is lost because every beat carries the
+  second it sounds at. And the `dot` field is written as a count of
+  augmentation dots, which is the only reading that makes musical sense, while
+  the single available example disagrees in a way one example cannot settle.
+
 Two corrections belong here, because both were claims about absence and both
 were wrong in the same way.
 

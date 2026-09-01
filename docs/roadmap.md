@@ -505,6 +505,14 @@ The architecture lists standard notation as "possibly never" because a layout
 engine is many people over many years. Emitting the data another program lays out costs a
 fraction of that, and it is most of the value.
 
+**One field could not be settled at all.** The sample writes `dot` as 1 on 922
+of its 992 beats, which cannot mean "dotted" — that would make Für Elise almost
+entirely dotted, and it contradicts the `dur` values sitting beside it. No
+second file exists to check against. This writes `dot` as the number of
+augmentation dots, which is the only reading that makes musical sense and the
+one the field's name gives, and records here that the single available example
+disagrees in a way one example cannot resolve.
+
 **What the slide fields taught, which was not what was expected.** All four
 wishlist techniques are built, and one of them still cannot be exported. `sl`
 and `slu` are integers rather than flags -- every note of every pack in the
@@ -639,11 +647,34 @@ bends made curves. Vibrato already leaked into it, quietly, at 0.3 of a
 semitone. A slide would have leaked five. `bn` now reports only what was written
 as a bend, because a practice program marks a learner against that number.
 
-**Stage 3 — notation.** Spelling now exists, so this is unblocked. It is the
-notation *file* — measures, signatures, tempo, staves with clefs, voices, and
-beats carrying `dur`, `dot` and `midi` — and the only piece missing under it is
-clef assignment, which is a rule about ranges rather than a layout engine. It is
-scheduled as P8.2, and it is the anchor of the long tail described below.
+**Stage 3 — notation. Done on 2026-09-01**, in `src/export/notation.{h,cpp}`.
+Measures, signatures, tempo, a staff with a clef, voices, and beats carrying
+`dur`, `dot` and `midi`, written as `notation_<part>.json` with the manifest
+pointing at it. Notation *data*, not engraving: nothing here decides where a
+note head sits.
+
+Three things it taught, none of them predicted.
+
+**Clef assignment is not a rule about ranges.** That was the plan, and the plan
+was wrong. The corpus holds a guitar in B standard whose highest open string is
+MIDI 59, and a six-string bass whose highest is 64 — so the ranges overlap, and
+a rule reading them puts each instrument in the other's clef. The file already
+says which instrument it is. There was nothing to infer.
+
+**The sample this schema was read off is a transcription of a recording, not of
+a page.** Its beats do not tile its bars, its rests are absent rather than
+written, and its onsets are a performer's. Everything read from a `.gp` was
+written down rather than played, so what this emits is better formed than what
+it was learnt from — rests included, bars adding up. That is asserted rather
+than hoped for.
+
+**Tuplets are the honest limitation.** The format's beats carry `t`, `dur`,
+`dot` and `notes` and nothing else, so there is no field for a triplet. A tuplet
+is written as the value it is notated with, which is what a reader draws, and a
+bar holding one adds up to more than it lasts: 296 voice-bars out of 5,478
+across the seven files, every one over rather than under. Nothing is dropped and
+no time is lost, because `t` is on every beat and is the truth about when it
+sounds — which is also how the sample works, its bars not tiling either.
 
 **Stage 4 — import.** Read a `.feedpak` back. Whether this is wanted at all is
 an open question, and it runs into the same argument as writing `.gp`: reading
@@ -700,7 +731,7 @@ and a materially better one.
 | **P7.2** | Step note entry from the keyboard | P6.0, P6.4 | **done** |
 | **P8.0** | feedpak export, walking skeleton | stems (done) | a week |
 | **P8.1** | Slides, vibrato, harmonics, tremolo | — | **done**, 2026-08-31 to 2026-09-01 |
-| **P8.2** | Notation data export | P6.1 | a week |
+| **P8.2** | Notation data export | P6.1 | **done**, 2026-09-01 |
 | **P8.3** | MusicXML export | P8.2 | a week |
 | **P8.4** | PDF export | — | **done**, and was already done when this row was written |
 | **P8.5** | GP6 `.gpx` import | a BCFS/BCFZ decompressor, in Rust | open |

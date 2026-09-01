@@ -3,6 +3,7 @@
 
 #include "feedpak.h"
 
+#include "notation.h"
 #include "renderer.h"
 #include "timeline.h"
 
@@ -131,6 +132,7 @@ QByteArray Feedpak::manifestFor(const Score &score, double duration)
             lines << QStringLiteral("  - %1").arg(offset);
         }
         lines << QStringLiteral("  capo: %1").arg(part.capo);
+        lines << QStringLiteral("  notation: notation_%1.json").arg(id);
     }
 
     return (lines.join(QLatin1Char('\n')) + QLatin1Char('\n')).toUtf8();
@@ -269,6 +271,15 @@ bool Feedpak::write(const Score &score, const QList<int> &order, const QString &
         ok = ok
             && archive.writeFile(QStringLiteral("arrangements/%1.json").arg(id),
                                  document.toJson(QJsonDocument::Compact));
+
+        // Beside the arrangement rather than inside `arrangements/`, which is
+        // where the sample pack keeps it and is not where it would have been
+        // put otherwise.
+        const QJsonDocument written(
+            Notation::documentFor(score, track, order, id));
+        ok = ok
+            && archive.writeFile(QStringLiteral("notation_%1.json").arg(id),
+                                 written.toJson(QJsonDocument::Compact));
     }
 
     if (ok && options.stems) {

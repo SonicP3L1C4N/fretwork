@@ -43,6 +43,11 @@ ecm_add_test(harmonictest.cpp
     LINK_LIBRARIES Qt6::Test fretworkcore
 )
 
+ecm_add_test(notationtest.cpp
+    TEST_NAME notationtest
+    LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n
+)
+
 ecm_add_test(keytest.cpp
     TEST_NAME keytest
     LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n

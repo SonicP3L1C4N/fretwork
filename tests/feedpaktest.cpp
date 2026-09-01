@@ -316,6 +316,18 @@ private Q_SLOTS:
         QVERIFY(archive.directory()->entry(QStringLiteral("manifest.yaml")));
         QVERIFY(archive.directory()->entry(QStringLiteral("arrangements/lead_guitar.json")));
         QVERIFY(archive.directory()->entry(QStringLiteral("arrangements/bass.json")));
+
+        // A notation file beside each arrangement, at the root rather than
+        // inside `arrangements/`, which is where the sample pack keeps it.
+        QVERIFY(archive.directory()->entry(QStringLiteral("notation_lead_guitar.json")));
+        QVERIFY(archive.directory()->entry(QStringLiteral("notation_bass.json")));
+
+        // And the manifest points at it, so a reader holding the pack knows
+        // the two files are about the same part.
+        const QString manifest =
+            QString::fromUtf8(Feedpak::manifestFor(score, 8.0));
+        QVERIFY2(manifest.contains(QStringLiteral("notation: notation_lead_guitar.json")),
+                 qPrintable(manifest));
     }
 
     /** Nothing fretted is nothing to write, and it says so. */

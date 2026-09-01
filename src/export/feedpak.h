@@ -22,9 +22,9 @@
  * and cannot render stems per part, and a DAW has the stems and knows nothing
  * about frets.
  *
- * This is the walking skeleton the roadmap asks for. A manifest, an
- * arrangement per fretted part, stems from the existing renderer, no notation
- * file, and **only the techniques this program can honestly claim**. The
+ * A manifest, an arrangement per fretted part, a notation file beside each of
+ * them, stems from the existing renderer, and **only the techniques this
+ * program can honestly claim**. The
  * missing ones are named in `docs/roadmap.md` and are the same ones the README
  * already admits to; a practice program is the worst place to guess, because a
  * learner is being marked against what the pack says is there.
