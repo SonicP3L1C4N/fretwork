@@ -734,7 +734,7 @@ and a materially better one.
 | **P8.2** | Notation data export | P6.1 | **done**, 2026-09-01 |
 | **P8.3** | MusicXML export | P8.2 | **done**, 2026-09-01 |
 | **P8.4** | PDF export | — | **done**, and was already done when this row was written |
-| **P8.5** | GP6 `.gpx` import | a BCFS/BCFZ decompressor, in Rust | **boundary done**; decoding waits on a file |
+| **P8.5** | GP3–GP5 and GP6 import | a BCFS/BCFZ decompressor, in Rust | **not planned** — boundary built, decoding out of scope |
 | — | Real-time MIDI recording | P7.2, a quantisation policy | open |
 | — | feedpak import | a decision, not code | open |
 
@@ -809,8 +809,8 @@ Kept apart, they read honestly:
   new thing and printing was the missing half; nobody ran `--pdf --help` before
   writing it down. See the note below, because this is the second time in one
   day.
-- **P8.5, GP6.** Correctly last, and half of the half that could be done was
-  done on 2026-09-01. `.gpx` wraps the same document in a bit-level compression
+- **P8.5, the older formats. Closed on 2026-09-01**, with the boundary built
+  and the decoding not planned. `.gpx` wraps the same document in a bit-level compression
   of its own, so there is a decompressor to write before there is any XML to
   read, and that belongs in Rust with the other binary importers.
 
@@ -821,25 +821,44 @@ Kept apart, they read honestly:
   only ruling one out — "this is a Guitar Pro 5 file, which Fretwork cannot
   read yet" rather than "not a ZIP container".
 
-  What stopped it going further is the thing this document spent the day
-  learning. **There is not one `.gpx`, `.gp3`, `.gp4` or `.gp5` file on this
-  machine.** A binary parser has no physics under it the way the harmonics did,
-  and no published specification the way MusicXML did; it has only what other
-  implementations worked out, and the only way to know a reading is right is to
-  read a file somebody else wrote. A decoder checked against fixtures written by
-  the same hand as the decoder is a decoder that agrees with itself, which is
-  the exact failure this project has now caught in itself twice in one day.
+  **The decoding is not planned, and the reason is scope rather than
+  difficulty.** Decided on 2026-09-01. These are formats from 2005 to 2010;
+  everything this program is actually asked to read is `.gp`, which is GP7 and
+  GP8, and every file in the corpus is one. Reading the older ones would serve
+  somebody else's archive, not this project's own use, and it would cost a
+  decoder per version plus a bit-level decompressor before that.
 
-  So it waits on a file, which is a better thing to wait on than an afternoon.
-  A `.gp5` would be the more useful of the two: it is the format most tab on
-  the internet is still written in, and it is four versions of one decoder
-  rather than a decompressor and then a decoder.
+  There was a second reason, and it is the one worth recording, because it is
+  what the rest of this document spent the day learning. **There is not one
+  `.gpx`, `.gp3`, `.gp4` or `.gp5` file on this machine.** A binary parser has
+  no physics under it the way the harmonics did, and no published specification
+  the way MusicXML did; it has only what other implementations worked out, and
+  the only way to know a reading is right is to read a file somebody else
+  wrote. A decoder checked against fixtures written by the same hand as the
+  decoder is a decoder that agrees with itself — the exact failure caught twice
+  in one day elsewhere in this file. Sourcing files to fix that is a cost, and
+  it is a cost paid for a feature nobody here wants.
 
-**Renumbering them does not move any of them closer.** P8.5 is exactly as far
-away as it was as part of P5, and an engraver is still probably never. What the
-fold buys is that the plan no longer says "never, probably" over a week of work
-that is unblocked today, and no longer implies that four items with four
-different dependencies will arrive together.
+  So this is closed rather than queued. What was built stands on its own: a
+  refusal that names the format is a finished thing, not a stub, and it is all
+  the older formats were ever going to be asked for.
+
+  **If it is ever reopened**, the honest note for whoever does it is that the
+  Rust crate is not load-bearing for what remains. The case for Rust was
+  parsing untrusted binary, and detection is thirty-one bytes read with bounds
+  checks — twenty lines of C++ would do it. The crate is kept because it costs
+  a builder without cargo nothing and because it is the only proof the C ABI
+  boundary works; if the answer stays no for long enough, folding detection
+  into C++ and deleting the crate is the tidier end.
+
+**Renumbering them did not move any of them closer**, and the day proved that
+in both directions. Three of the four turned out to be a day's work between
+them, because the thing under them had already been built for something else.
+The fourth is closed rather than done, and by a decision about scope rather
+than by running out of time. What the fold bought was a plan that stopped
+saying "never, probably" over a week of unblocked work, and stopped implying
+that four items with four different dependencies would arrive together — which
+is exactly what did not happen.
 
 ## What this costs, honestly
 

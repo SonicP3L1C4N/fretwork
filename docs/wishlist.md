@@ -180,13 +180,16 @@ edits it cannot yet make.
 
 ## Reading and writing more
 
-- **GP3, GP4, GP5.** The old binary formats, and the ones most tab on the
-  internet is still written in. Bounded work, well-charted by other projects,
-  and entirely in the Rust importer where untrusted input belongs.
+- **GP3, GP4, GP5, and GP6 `.gpx`.** ~~The old binary formats.~~ **Refused on
+  scope, 2026-09-01**, which is the only entry in this document to be refused
+  for that rather than on principle — and it is worth the strikethrough rather
+  than deletion, because the reasoning is the useful part.
 
-- **GP6 `.gpx`.** The compressed BCFS container. Scheduled as P8.5, and the
-  furthest away of anything in this section: it needs a bit-level decompressor
-  before there is a document to parse at all.
+  They are formats from 2005 to 2010. Everything this program is actually asked
+  to read is `.gp`, which is GP7 and GP8, and the cost is a decoder per version
+  with a bit-level decompressor before the last of them. What is built is the
+  part that pays for itself: a file from one of them is *named* rather than
+  merely refused. See P8.5 in [roadmap.md](roadmap.md).
 
 - **MusicXML, both ways.** Half done: `--musicxml` writes it, as of P8.3, which
   is the honest answer to "can I have this file in something else" — a question

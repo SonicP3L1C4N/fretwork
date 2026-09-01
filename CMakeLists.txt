@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-project(fretwork VERSION 0.2.0)
+project(fretwork VERSION 0.3.0)
 
 set(QT_MIN_VERSION 6.6.0)
 set(KF_MIN_VERSION 6.0.0)

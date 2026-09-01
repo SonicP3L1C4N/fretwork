@@ -6,12 +6,25 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 # Changelog
 
-## 0.3.0 — unreleased
+## 0.3.0 — 2026-09-01
 
-All four of the techniques the practice-pack exporter turned from wishes into
-requirements. A pack tells a learner what to play and marks them on playing it,
-so a technique the pack cannot name is one nobody can be marked on — which is
-what made these worth building.
+Everything a score can say, and two more ways out of the program.
+
+The first half is the four techniques the practice-pack exporter turned from
+wishes into requirements. A pack tells a learner what to play and marks them on
+playing it, so a technique the pack cannot name is one nobody can be marked on
+— which is what made them worth building, and what made getting them wrong
+worse than leaving them out.
+
+The second half is interchange. A practice pack now carries the notation as
+well as the performance; a score can be written as MusicXML, which is the
+honest answer to "can I have this file in something else"; and the first Rust
+in the project sits behind a C ABI so that a file from an older Guitar Pro is
+named rather than merely refused.
+
+Two of the entries below are corrections, both of claims that something was
+missing, both wrong in the same way. They are here rather than quietly fixed
+because the pattern is the useful part.
 
 - **Vibrato is played, drawn and carried.** It was read out of a `.gp`, stored
   on the note, and then dropped on the floor: not heard, not printed, and

@@ -117,6 +117,25 @@ SPDX-License-Identifier: CC0-1.0
          mismatch between them. No type attribute, which means stable: 0.1.0 is
          tagged and released, and a software centre showing a released version
          as a development one tells people not to install it. -->
+    <release version="0.3.0" date="2026-09-01">
+      <description>
+        <p>
+          Slides, vibrato, tremolo picking and harmonics are played, drawn and
+          exported. A harmonic sounds where a harmonic sounds, rather than at
+          the pitch of the note under the finger.
+        </p>
+        <p>
+          A score can be written as MusicXML, which is the way to open it in
+          another program.
+        </p>
+        <p>
+          A practice pack now carries the notation as well as the performance,
+          and a file from an older Guitar Pro is named rather than merely
+          refused.
+        </p>
+      </description>
+      <url type="details">https://github.com/SonicP3L1C4N/fretwork/blob/main/CHANGELOG.md</url>
+    </release>
     <release version="0.2.0" date="2026-09-01">
       <description>
         <p>
