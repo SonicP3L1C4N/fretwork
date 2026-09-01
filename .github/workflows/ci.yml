@@ -26,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        config: [full, no-lilv, no-pipewire]
+        config: [full, no-lilv, no-pipewire, no-rust]
 
     steps:
       - name: Install dependencies
@@ -37,12 +37,28 @@ jobs:
             qt6-base qt6-declarative qt6-tools \
             karchive kcoreaddons ki18n kirigami \
             fluidsynth soundfont-fluid \
-            lilv pipewire zlib
+            lilv pipewire zlib \
+            rust
 
       - uses: actions/checkout@v4
 
+      # cargo is not a pkg-config dependency, it is a whole toolchain, so it
+      # is removed by taking it off the PATH rather than by hiding a .pc file.
+      # A machine with no Rust is the ordinary case for a packager, and this
+      # job is what proves the program still builds and still passes on one.
+      - name: Remove cargo
+        if: matrix.config == 'no-rust'
+        run: |
+          for tool in cargo rustc; do
+            for found in $(command -v -a "$tool" || true); do
+              mv "$found" "$found.hidden"
+            done
+          done
+          ! command -v cargo || { echo "cargo is still on the PATH"; exit 1; }
+          echo "cargo and rustc are gone"
+
       - name: Remove optional dependency
-        if: matrix.config != 'full'
+        if: matrix.config != 'full' && matrix.config != 'no-rust'
         run: |
           case "${{ matrix.config }}" in
             no-lilv)     pc=lilv-0 ;;
@@ -83,6 +99,14 @@ jobs:
           QT_QPA_PLATFORM: offscreen
           QT_LOGGING_RULES: "*.debug=false"
         run: ctest --test-dir build --output-on-failure --no-tests=error
+
+      # The crate's own tests, which check the parsing the C++ side cannot
+      # see. Offline and locked for the same reason the build is: a crate with
+      # no dependencies that reaches the network is doing something nobody
+      # asked for.
+      - name: Test gpbinary
+        if: matrix.config != 'no-rust'
+        run: cargo test --offline --locked --manifest-path rust/gpbinary/Cargo.toml
 
       - name: Report skipped tests
         if: always()

@@ -43,7 +43,7 @@ Wayland, PipeWire 1.6.2.
 | Layer | Choice | Version here | Why |
 |---|---|---|---|
 | Application language | C++20 | GCC 15 | Every library below is a C API; the audio thread's rules are what C++ expresses natively; it is the language the rest of this author's KDE work is in |
-| Binary-format importers | Rust, behind a C ABI | not yet written | For GP3–GP5 and GPX only — hand-rolled binary with no specification, where `cargo fuzz` finds what review does not. GP7/8 is a ZIP and XML, so it is C++ |
+| Binary-format importers | Rust, behind a C ABI | boundary built, decoding not | For GP3–GP5 and GPX only — hand-rolled binary with no specification, where `cargo fuzz` finds what review does not. GP7/8 is a ZIP and XML, so it is C++. Optional: no cargo, no Rust half, and the program builds and runs |
 | UI toolkit | Qt 6 + KDE Frameworks 6 | Qt 6.10.2, KF6 6.24.0 | Custom-painted dense canvas, mature; matches the platform the program is for |
 | Build | CMake + Ninja, ECM | CMake 3.20+ | KDE's own conventions, so the project stays proposable upstream |
 | Synthesis | FluidSynth | 2.4.8 | SoundFont playback, one instance per track, offline rendering built in |
@@ -113,6 +113,16 @@ is banked for GP3–GP5 and GPX, which are hand-rolled binary formats with no
 specification — where a fuzzer finds in an afternoon what review does not find
 at all. Writing it in Rust now would be following the letter of a decision
 while missing what the decision was for.
+
+**The boundary was built on 2026-09-01** and the decoding was not, which is a
+distinction worth keeping. `rust/gpbinary` is a dependency-free crate behind a
+C ABI, wired into CMake, optional, and proved in both directions: it reads the
+first bytes of a file and says which Guitar Pro format they announce, so a
+refusal can name what it is refusing. What is not there is anything that
+decodes a bar of music, because there is not one `.gpx`, `.gp3`, `.gp4` or
+`.gp5` file to check a decoder against — and a binary parser tested only
+against fixtures written by the same hand as the parser is a parser that agrees
+with itself.
 
 Two rules that pay for themselves:
 

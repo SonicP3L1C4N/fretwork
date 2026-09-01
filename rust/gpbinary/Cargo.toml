@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
+
+[package]
+name = "gpbinary"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL"
+publish = false
+
+# No dependencies, and that is a decision rather than an accident. A parser for
+# untrusted binary input needs nothing from a registry, and a build that fetches
+# from the network is a build that fails on a machine without one -- including
+# every packaging environment this project hopes to end up in.
+[dependencies]
+
+[lib]
+name = "gpbinary"
+# Static, so that the C++ side links one object and ships one binary. A cdylib
+# would mean a second file to install and a search path to get wrong.
+crate-type = ["staticlib"]
+
+[profile.release]
+panic = "abort"
+opt-level = 2

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
 #include "gpif.h"
+#include "gpbinary.h"
 #include "musicxml.h"
 #include "key.h"
 #include "timeline.h"
@@ -217,6 +218,34 @@ private Q_SLOTS:
                                   QStringLiteral("BCFZ/whatever"));
         QVERIFY(Gpif::read(path, &why).isEmpty());
         QVERIFY2(why.contains(QStringLiteral("Guitar Pro 7")), qPrintable(why));
+    }
+
+    /**
+     * A file from an older Guitar Pro is named rather than merely refused.
+     *
+     * Skipped where there is no Rust half, because naming it is what the Rust
+     * half is for: without one the message is the older, vaguer, still true
+     * one, and asserting the better message on a build that cannot produce it
+     * would be asserting the wrong thing.
+     */
+    void saysWhichOlderFormatAFileActuallyIs()
+    {
+        if (!Gpbinary::isAvailable()) {
+            QSKIP("built without cargo, so nothing can name the older formats");
+        }
+        const QString path = m_directory.path() + QStringLiteral("/old.gp5");
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        const QByteArray text = QByteArrayLiteral("FICHIER GUITAR PRO v5.10");
+        QByteArray header(1, char(text.size()));
+        header.append(text);
+        header.resize(31);
+        file.write(header);
+        file.close();
+
+        QString why;
+        QVERIFY(Gpif::read(path, &why).isEmpty());
+        QVERIFY2(why.contains(QStringLiteral("Guitar Pro 5")), qPrintable(why));
     }
 
     void refusesWhatIsNotAZipAtAll()

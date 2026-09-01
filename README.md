@@ -154,8 +154,9 @@ sudo apt install build-essential cmake ninja-build pkg-config gettext \
     zlib1g-dev libfluidsynth-dev fluid-soundfont-gm
 
 # Optional. Without lilv there are no per-track LV2 chains; without
-# PipeWire's headers there is no transport.
-sudo apt install liblilv-dev libpipewire-0.3-dev
+# PipeWire's headers there is no transport; without cargo, a file from an
+# older Guitar Pro is refused without being named.
+sudo apt install liblilv-dev libpipewire-0.3-dev cargo
 
 cmake -B build -G Ninja
 cmake --build build

@@ -734,7 +734,7 @@ and a materially better one.
 | **P8.2** | Notation data export | P6.1 | **done**, 2026-09-01 |
 | **P8.3** | MusicXML export | P8.2 | **done**, 2026-09-01 |
 | **P8.4** | PDF export | — | **done**, and was already done when this row was written |
-| **P8.5** | GP6 `.gpx` import | a BCFS/BCFZ decompressor, in Rust | open |
+| **P8.5** | GP6 `.gpx` import | a BCFS/BCFZ decompressor, in Rust | **boundary done**; decoding waits on a file |
 | — | Real-time MIDI recording | P7.2, a quantisation policy | open |
 | — | feedpak import | a decision, not code | open |
 
@@ -809,12 +809,31 @@ Kept apart, they read honestly:
   new thing and printing was the missing half; nobody ran `--pdf --help` before
   writing it down. See the note below, because this is the second time in one
   day.
-- **P8.5, GP6.** Unchanged and correctly last. `.gpx` wraps the same document
-  in a bit-level compression of its own, so there is a decompressor to write
-  before there is any XML to read, and that belongs in Rust with the other
-  binary importers. The only thing built so far is a *refusal*: the importer
-  recognises a BCFZ container and says which format it is *not*, rather than
-  misparsing it.
+- **P8.5, GP6.** Correctly last, and half of the half that could be done was
+  done on 2026-09-01. `.gpx` wraps the same document in a bit-level compression
+  of its own, so there is a decompressor to write before there is any XML to
+  read, and that belongs in Rust with the other binary importers.
+
+  **The boundary exists and the decoding does not.** `rust/gpbinary` is a
+  crate with no dependencies behind a C ABI, built by CMake, optional, and
+  tested from both sides; it reads the bytes a file opens with and says which
+  Guitar Pro format they announce. The refusal now names the format instead of
+  only ruling one out — "this is a Guitar Pro 5 file, which Fretwork cannot
+  read yet" rather than "not a ZIP container".
+
+  What stopped it going further is the thing this document spent the day
+  learning. **There is not one `.gpx`, `.gp3`, `.gp4` or `.gp5` file on this
+  machine.** A binary parser has no physics under it the way the harmonics did,
+  and no published specification the way MusicXML did; it has only what other
+  implementations worked out, and the only way to know a reading is right is to
+  read a file somebody else wrote. A decoder checked against fixtures written by
+  the same hand as the decoder is a decoder that agrees with itself, which is
+  the exact failure this project has now caught in itself twice in one day.
+
+  So it waits on a file, which is a better thing to wait on than an afternoon.
+  A `.gp5` would be the more useful of the two: it is the format most tab on
+  the internet is still written in, and it is four versions of one decoder
+  rather than a decompressor and then a decoder.
 
 **Renumbering them does not move any of them closer.** P8.5 is exactly as far
 away as it was as part of P5, and an engraver is still probably never. What the

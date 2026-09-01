@@ -12,6 +12,7 @@ add_library(fretworkcore STATIC
     model/key.cpp
     model/analysis.cpp
     model/chord.cpp
+    import/gpbinary.cpp
     import/gpif.cpp
     import/zipreader.cpp
     export/midi.cpp
@@ -88,6 +89,47 @@ if(PipeWire_FOUND)
     if(FRETWORK_SPA_UMP)
         target_compile_definitions(fretworkcore PRIVATE FRETWORK_HAVE_UMP)
     endif()
+endif()
+
+# The binary Guitar Pro formats, in Rust behind a C ABI.
+#
+# Optional in exactly the way lilv and PipeWire are, and for a sharper reason:
+# this adds a second toolchain to the build, and a project that cannot be built
+# without one is a project most packagers will not build at all. Without cargo
+# the program compiles, runs, and reads GP7 and GP8 as it always has; what it
+# loses is the ability to say which of the older formats a file it cannot read
+# actually is.
+#
+# `--offline` is not caution, it is the contract: the crate has no dependencies,
+# so a build that reaches the network is a build doing something unintended, and
+# failing is the right response. `--locked` says the same thing about the lock
+# file.
+find_program(CARGO_EXECUTABLE cargo)
+if(CARGO_EXECUTABLE)
+    set(gpbinary_source ${CMAKE_CURRENT_SOURCE_DIR}/../rust/gpbinary)
+    set(gpbinary_target ${CMAKE_BINARY_DIR}/rust)
+    set(gpbinary_library ${gpbinary_target}/release/libgpbinary.a)
+
+    add_custom_command(
+        OUTPUT ${gpbinary_library}
+        COMMAND ${CMAKE_COMMAND} -E env CARGO_TERM_COLOR=always
+                ${CARGO_EXECUTABLE} build --release --offline --locked
+                --manifest-path ${gpbinary_source}/Cargo.toml
+                --target-dir ${gpbinary_target}
+        DEPENDS ${gpbinary_source}/src/lib.rs
+                ${gpbinary_source}/Cargo.toml
+                ${gpbinary_source}/Cargo.lock
+        COMMENT "Building gpbinary with cargo"
+        VERBATIM)
+    add_custom_target(gpbinary DEPENDS ${gpbinary_library})
+    add_dependencies(fretworkcore gpbinary)
+
+    # A Rust staticlib brings its own runtime, which wants these.
+    target_link_libraries(fretworkcore PRIVATE ${gpbinary_library} ${CMAKE_DL_LIBS})
+    target_compile_definitions(fretworkcore PRIVATE FRETWORK_HAVE_GPBINARY)
+    message(STATUS "Binary Guitar Pro formats: cargo found, gpbinary will be built")
+else()
+    message(STATUS "Binary Guitar Pro formats: no cargo, gpbinary will be skipped")
 endif()
 
 # The window. The QML types are registered by the target that owns the QML

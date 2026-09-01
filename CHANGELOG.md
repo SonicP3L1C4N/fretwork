@@ -94,6 +94,27 @@ what made these worth building.
   says. The only differences anywhere are the harmonics, and they differ because
   they are correct.
 
+- **A file from an older Guitar Pro is now named, not just refused.** "This is
+  a Guitar Pro 5 file, which Fretwork cannot read yet" instead of "not a ZIP
+  container", which is the difference between an answer and a shrug.
+
+  Behind it is the first Rust in the project: `rust/gpbinary`, a crate with no
+  dependencies behind a C ABI. The architecture has said since P0 that the
+  hand-rolled binary formats belong in a language with bounds checks, and this
+  is that decision becoming a build rather than a paragraph. It is **optional**
+  — without cargo the program compiles, runs and reads everything it read
+  before, because adding a second toolchain to a build is a real cost to
+  whoever packages it, and CI now builds and tests a configuration with no Rust
+  at all to prove that is true rather than intended.
+
+  What it does *not* contain is anything that decodes a bar of music, and that
+  is deliberate. There is not one `.gpx`, `.gp3`, `.gp4` or `.gp5` file on the
+  machine this was written on. A binary format has no physics under it the way
+  the harmonics did and no published specification the way MusicXML has, so the
+  only way to know a reading is right is to read a file somebody else wrote —
+  and a parser checked only against fixtures written by the same hand as the
+  parser is a parser that agrees with itself.
+
 Two corrections belong here, because both were claims about absence and both
 were wrong in the same way.
 

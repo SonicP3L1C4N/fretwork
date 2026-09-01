@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
+#include "gpbinary.h"
 #include "gpif.h"
 
 #include "swing.h"
@@ -559,12 +560,22 @@ Score Gpif::read(const QString &path, QString *error)
 
     if (document.isNull()) {
         if (error) {
-            // GP6 and earlier are ZIPs too, and their contents are not this.
-            // Saying which format it is not turns a shrug into a bug report.
-            *error = why.startsWith(QLatin1String("no Content/score.gpif"))
-                ? QStringLiteral("no Content/score.gpif inside: this is not a "
-                                 "Guitar Pro 7 or 8 file")
-                : why;
+            // Saying which format it is not turns a shrug into a bug report;
+            // saying which format it *is* turns it into an answer. The second
+            // needs the Rust half, and where that is absent this says what it
+            // has always said.
+            const Gpbinary::Format actual = Gpbinary::formatOf(path);
+            if (actual != Gpbinary::Format::Unknown
+                && actual != Gpbinary::Format::Gp7) {
+                *error = QStringLiteral("this is a %1 file, which Fretwork "
+                                        "cannot read yet")
+                             .arg(Gpbinary::nameOf(actual));
+            } else {
+                *error = why.startsWith(QLatin1String("no Content/score.gpif"))
+                    ? QStringLiteral("no Content/score.gpif inside: this is not a "
+                                     "Guitar Pro 7 or 8 file")
+                    : why;
+            }
         }
         return {};
     }

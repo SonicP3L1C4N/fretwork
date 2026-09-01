@@ -34,3 +34,12 @@ path = ".claude/**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Gary Bissett <gary.bissett@gmail.com>"
 SPDX-License-Identifier = "GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL"
+
+# Cargo's lock file. It is generated, and cargo rewrites it whole, so a header
+# put in it would be removed by the next build that touched a dependency --
+# which is exactly the kind of file this mechanism exists for.
+[[annotations]]
+path = "rust/**/Cargo.lock"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Gary Bissett <gary.bissett@gmail.com>"
+SPDX-License-Identifier = "GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL"
