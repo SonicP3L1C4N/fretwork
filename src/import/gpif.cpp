@@ -132,6 +132,22 @@ Dynamic dynamicFrom(const QString &name)
 /**
  * A slide is a bit field rather than a name, and the bits are not documented
  * anywhere except in the implementations that worked them out.
+ *
+ * Counted across the corpus on 2026-09-01, which is the only way anything here
+ * is known: 0x01 seventy-six times, 0x04 nineteen, 0x02 nineteen, 0x10 three,
+ * and 0x40 twice. Every value seen so far is a single bit, so the order of
+ * these tests has never yet decided anything -- but a slide *into* a note and a
+ * slide *out of* it are independent gestures that gpif can set together, and
+ * when a file finally does so this function will still answer with only one of
+ * them. That is a known simplification rather than a discovered fact.
+ *
+ * 0x40 was the value that found this comment. It appears twice, in bar 16 of
+ * Twilight Of The Thunder God, on the two lowest strings of the rhythm guitar,
+ * both open -- and it used to fall through to None, so the program dropped it
+ * in silence. It is a pick scrape, confirmed by ear against the recording: the
+ * intro has one. 0x80 is its upward partner and has not been seen in any file
+ * here; it is mapped on the strength of the pair being symmetrical, which is
+ * weaker evidence than the rest of this function rests on and is worth saying.
  */
 SlideType slideFrom(int flags)
 {
@@ -146,6 +162,12 @@ SlideType slideFrom(int flags)
     }
     if (flags & 0x08) {
         return SlideType::OutUp;
+    }
+    if (flags & 0x40) {
+        return SlideType::PickScrapeDown;
+    }
+    if (flags & 0x80) {
+        return SlideType::PickScrapeUp;
     }
     if (flags & 0x10) {
         return SlideType::InFromBelow;

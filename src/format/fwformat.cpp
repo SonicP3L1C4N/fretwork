@@ -63,6 +63,8 @@ QString nameOf(SlideType slide)
     case SlideType::OutUp:       return QStringLiteral("outUp");
     case SlideType::InFromBelow: return QStringLiteral("inFromBelow");
     case SlideType::InFromAbove: return QStringLiteral("inFromAbove");
+    case SlideType::PickScrapeDown: return QStringLiteral("pickScrapeDown");
+    case SlideType::PickScrapeUp:   return QStringLiteral("pickScrapeUp");
     }
     return QString();
 }
@@ -76,6 +78,8 @@ SlideType slideFrom(const QString &name)
         {QStringLiteral("outUp"), SlideType::OutUp},
         {QStringLiteral("inFromBelow"), SlideType::InFromBelow},
         {QStringLiteral("inFromAbove"), SlideType::InFromAbove},
+        {QStringLiteral("pickScrapeDown"), SlideType::PickScrapeDown},
+        {QStringLiteral("pickScrapeUp"), SlideType::PickScrapeUp},
     };
     return known.value(name, SlideType::None);
 }

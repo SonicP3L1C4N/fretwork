@@ -56,12 +56,20 @@ enum class TripletFeel {
     Scottish16th,
 };
 
-/** How a note gets from its own pitch to the next one. */
+/**
+ * How a note gets from its own pitch to the next one.
+ *
+ * The last two are the odd ones out and are kept here because gpif keeps them
+ * here: a pick scrape is not a move between two pitches at all, it is a
+ * plectrum dragged along a wound string, and it arrives in the same bit field
+ * as the rest.
+ */
 enum class SlideType {
     None,
     Legato,      //< into the following note
     Shift,       //< into the following note, restruck
     OutDown, OutUp, InFromBelow, InFromAbove,
+    PickScrapeDown, PickScrapeUp,
 };
 
 struct Note {

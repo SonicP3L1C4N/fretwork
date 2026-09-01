@@ -129,6 +129,46 @@ private:
         return path;
     }
 
+    /**
+     * One note per slide flag, so the bit field can be read a value at a time.
+     * Note id `i` carries flag `flags[i]` and is fretted at `i`, which keeps
+     * the assertions readable when one of them fails.
+     */
+    static QByteArray slideDocument(const QList<int> &flags)
+    {
+        QString ids, beats, notes;
+        for (int i = 0; i < flags.size(); ++i) {
+            ids += QString::number(i) + QLatin1Char(' ');
+            beats += QStringLiteral(
+                "<Beat id=\"%1\"><Rhythm ref=\"0\"/><Notes>%1</Notes></Beat>").arg(i);
+            notes += QStringLiteral(
+                "<Note id=\"%1\"><Properties>"
+                "<Property name=\"Midi\"><Number>%2</Number></Property>"
+                "<Property name=\"String\"><String>0</String></Property>"
+                "<Property name=\"Fret\"><Fret>%1</Fret></Property>"
+                "<Property name=\"Slide\"><Flags>%3</Flags></Property>"
+                "</Properties></Note>").arg(i).arg(40 + i).arg(flags.at(i));
+        }
+        return QStringLiteral(R"(<?xml version="1.0" encoding="UTF-8"?>
+<GPIF>
+  <GPVersion>8.1.3</GPVersion>
+  <Score><Title>Slides</Title></Score>
+  <MasterTrack><Tracks>0</Tracks></MasterTrack>
+  <Tracks><Track id="0"><Name>Guitar</Name>
+    <InstrumentSet><Type>electricGuitar</Type></InstrumentSet>
+    <Staves><Staff><Properties>
+      <Property name="Tuning"><Pitches>40 45 50 55 59 64</Pitches></Property>
+    </Properties></Staff></Staves></Track></Tracks>
+  <MasterBars><MasterBar><Time>4/4</Time><Bars>0</Bars></MasterBar></MasterBars>
+  <Bars><Bar id="0"><Voices>0 -1 -1 -1</Voices></Bar></Bars>
+  <Voices><Voice id="0"><Beats>%1</Beats></Voice></Voices>
+  <Beats>%2</Beats>
+  <Notes>%3</Notes>
+  <Rhythms><Rhythm id="0"><NoteValue>Quarter</NoteValue></Rhythm></Rhythms>
+</GPIF>
+)").arg(ids.trimmed(), beats, notes).toUtf8();
+    }
+
     QTemporaryDir m_directory;
 
 private Q_SLOTS:
@@ -306,6 +346,43 @@ private Q_SLOTS:
         QVERIFY(score.notes.value(2).bended);
         QCOMPARE(score.notes.value(2).bendDestinationValue, 200);
         QVERIFY(score.notes.value(3).accent);
+    }
+
+    /**
+     * Every bit of the slide field, including the two the corpus has never
+     * shown. 0x40 is the reason this test exists: it appears twice in one real
+     * transcription, and until 2026-09-01 it fell through to None, so the
+     * program dropped a pick scrape without saying anything. An unknown value
+     * still maps to None, which is the honest answer -- but the flags that
+     * *are* known should never reach it, and nothing checked that before.
+     */
+    void readsEverySlideFlagIncludingThePickScrape()
+    {
+        const QList<int> flags = {0, 1, 2, 4, 8, 16, 32, 64, 128, 256};
+        const QList<SlideType> expected = {
+            SlideType::None,            // no bits set at all
+            SlideType::Shift,
+            SlideType::Legato,
+            SlideType::OutDown,
+            SlideType::OutUp,
+            SlideType::InFromBelow,
+            SlideType::InFromAbove,
+            SlideType::PickScrapeDown,
+            SlideType::PickScrapeUp,
+            SlideType::None,            // a bit nobody has ever seen
+        };
+
+        const Score score = Gpif::parse(slideDocument(flags));
+        QCOMPARE(score.notes.size(), flags.size());
+        for (int i = 0; i < flags.size(); ++i) {
+            QCOMPARE(score.notes.value(i).fret, i);   // the fixture, not the flag
+            if (score.notes.value(i).slide != expected.at(i)) {
+                QFAIL(qPrintable(QStringLiteral("flag %1 gave %2, wanted %3")
+                                     .arg(flags.at(i))
+                                     .arg(int(score.notes.value(i).slide))
+                                     .arg(int(expected.at(i)))));
+            }
+        }
     }
 
     void readsTempoFromTheMasterTrackRatherThanTheBar()
