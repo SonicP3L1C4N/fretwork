@@ -82,6 +82,7 @@ fretwork FILE.gp --info                  # what is in it
 fretwork FILE.gp --play --solo 1         # play one track
 fretwork FILE.gp --stems out/            # one WAV per track, plus a mix
 fretwork FILE.gp --pdf score.pdf         # or --png with --page
+fretwork FILE.gp --musicxml score.xml    # open it in something else
 fretwork FILE.gp --save score.fw         # convert
 fretwork FILE.gp --tune                  # tune to this score
 ```
@@ -102,7 +103,7 @@ why, including the things that were got wrong and fixed.
 | **P2** | The player: tab rendering, transport, mixer, live playback | **done** |
 | **P3** | The editor | **done** |
 | **P4** | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | **begun** — a chain per part, reorderable, saved under a name and reusable |
-| ~~P5~~ | Standard notation, MusicXML, GP6 | retired — folded into **P8.2** to **P8.5** in [docs/roadmap.md](docs/roadmap.md) |
+| ~~P5~~ | Standard notation, MusicXML, GP6 | retired — folded into **P8.2** to **P8.5** in [docs/roadmap.md](docs/roadmap.md); MusicXML and PDF are done |
 | **P6** | Harmony: the fretboard solver, key spelling, analysis, the scale overlay, chords | **done** |
 | **P7** | MIDI in: a control surface, and notes typed from a keyboard | **done** |
 | P8 | fee[dB]ack practice packs | **begun** — packs are written; the techniques they cannot yet carry are named in [docs/roadmap.md](docs/roadmap.md) |

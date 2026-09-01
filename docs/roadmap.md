@@ -732,7 +732,7 @@ and a materially better one.
 | **P8.0** | feedpak export, walking skeleton | stems (done) | a week |
 | **P8.1** | Slides, vibrato, harmonics, tremolo | — | **done**, 2026-08-31 to 2026-09-01 |
 | **P8.2** | Notation data export | P6.1 | **done**, 2026-09-01 |
-| **P8.3** | MusicXML export | P8.2 | a week |
+| **P8.3** | MusicXML export | P8.2 | **done**, 2026-09-01 |
 | **P8.4** | PDF export | — | **done**, and was already done when this row was written |
 | **P8.5** | GP6 `.gpx` import | a BCFS/BCFZ decompressor, in Rust | open |
 | — | Real-time MIDI recording | P7.2, a quantisation policy | open |
@@ -779,11 +779,30 @@ Kept apart, they read honestly:
 
 - **P8.2, notation data.** Unblocked, a week, and already the dependency of the
   feedpak notation file. Not engraving: the data another program lays out.
-- **P8.3, MusicXML.** The strongest of the four by argument rather than by
-  price. It is the only interchange format with no vendor behind it, and
-  therefore the honest answer to "can I have this file in something else" — a
-  question this program otherwise refuses to answer, because it will not write
-  `.gp`. Export only; reading it is a separate decision.
+- **P8.3, MusicXML. Done on 2026-09-01**, in `src/export/musicxml.{h,cpp}`
+  behind `--musicxml`. The only interchange format with no vendor behind it,
+  and therefore the honest answer to "can I have this file in something else" —
+  a question this program otherwise refuses, because it will not write `.gp`.
+  Export only; reading it back is a separate decision and a different kind of
+  work, since an exporter satisfies one schema and an importer has to survive
+  everything anybody has ever emitted.
+
+  It is the first thing in the project to need something MIDI export never did.
+  A note here is a letter, an accidental and an octave, and no pitch number
+  decides which letter: MIDI 66 is an F sharp in G major and a G flat in D flat
+  major, and both are correct. `Key::spell` answers that and was written for
+  the harmony work with no thought of this — which is the argument for building
+  the small dependency-free pieces first, arriving three months late and in
+  writing.
+
+  Verified against the corpus rather than only against fixtures. Every one of
+  the **26,140 notated pitches** across the seven files comes out at the pitch
+  the transcription says, and the only differences anywhere are the harmonics,
+  which differ because they are right: a harmonic's `Midi` is the fretted pitch
+  and what is written is the pitch it sounds. Every voice-bar fills its bar
+  except where the *source* does not — 50 bars of Virtual Insanity are written
+  2/4 and hold four quarters, which is reproduced rather than corrected,
+  because this describes a transcription and does not grade it.
 - **P8.4, PDF.** **Already done, and had been for months when this row was
   written on 2026-09-01.** `--pdf` lays a track out and draws it, and has since
   P2. The row was written on the assumption that the paged score view was the

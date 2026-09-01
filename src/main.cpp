@@ -11,6 +11,7 @@
 #include "lv2chain.h"
 #include "session.h"
 #include "midi.h"
+#include "musicxml.h"
 #include "pitchdetector.h"
 #include "player.h"
 #include "renderer.h"
@@ -944,6 +945,10 @@ int main(int argc, char *argv[])
                                      i18n("Write a fee[dB]ack practice pack"),
                                      i18n("file.feedpak"));
     parser.addOption(feedpak);
+    const QCommandLineOption musicxml(QStringLiteral("musicxml"),
+                                      i18n("Write the score as MusicXML"),
+                                      i18n("file.musicxml"));
+    parser.addOption(musicxml);
     const QCommandLineOption pdf(QStringLiteral("pdf"),
                                  i18n("Draw the tablature as a PDF"), i18n("file.pdf"));
     parser.addOption(pdf);
@@ -1071,6 +1076,7 @@ int main(int argc, char *argv[])
     // nothing in particular, it is an application and opens a window.
     const bool asked = parser.isSet(info) || parser.isSet(midi) || parser.isSet(stems)
         || parser.isSet(render) || parser.isSet(feedpak) || parser.isSet(pdf) || parser.isSet(png)
+        || parser.isSet(musicxml)
         || parser.isSet(playing) || parser.isSet(tune) || parser.isSet(saving);
     if (!asked) {
         QQuickStyle::setStyle(QStringLiteral("org.kde.desktop"));
@@ -1195,6 +1201,25 @@ int main(int argc, char *argv[])
                            parser.values(muted), parser.isSet(clicking),
                            parser.isSet(porting), parser.isSet(following), samplers, effects,
                            parser.values(knob), parser.values(voicing))) {
+                ++failures;
+            }
+        }
+        if (parser.isSet(musicxml)) {
+            // Notated rather than played: a document, so the repeats stay
+            // written as repeats and whatever opens it decides how to take
+            // them. That is the opposite of what a practice pack wants.
+            const QString path = parser.value(musicxml);
+            QFile file(path);
+            if (file.open(QIODevice::WriteOnly)
+                && file.write(Musicxml::documentFor(score)) >= 0) {
+                file.close();
+                out << QStringLiteral("  %1  %2\n")
+                           .arg(QFileInfo(path).fileName(), -28)
+                           .arg(i18n("MusicXML, %1 parts, %2 bars",
+                                     score.tracks.size(), score.masterBars.size()));
+            } else {
+                error << QStringLiteral("fretwork: %1: %2\n")
+                             .arg(path, file.errorString());
                 ++failures;
             }
         }

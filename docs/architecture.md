@@ -224,8 +224,8 @@ first real score is on screen and scrolling is measured, not before).
 
 MIDI, per-track WAV stems, a mixed WAV, PDF, and eventually MusicXML. Stems come
 free from the engine rule above; everything else is a separate afternoon. All of
-these exist except MusicXML, which is scheduled in [roadmap.md](roadmap.md) as
-P8.3.
+these now exist, MusicXML included: `--musicxml` writes the whole score, every
+part, as a `score-partwise` document.
 
 ## Phases
 

@@ -13,23 +13,6 @@ namespace
 /** The version this file writes, which is the version the sample carries. */
 constexpr int NotationVersion = 1;
 
-/**
- * A written value as musicians number it: 4 is a crotchet, 8 a quaver.
- *
- * The model counts in quarters, so a crotchet is 1 and a quaver a half, and
- * the denominator is four divided by that. Nought for anything that is not a
- * written value at all -- a tuplet, most obviously -- which the caller treats
- * as a beat it cannot describe rather than as a beat lasting no time.
- */
-int denominatorOf(const Rational &value)
-{
-    if (value.numerator <= 0) {
-        return 0;
-    }
-    const Rational quarters = Rational(4) / value;
-    return quarters.denominator == 1 ? int(quarters.numerator) : 0;
-}
-
 /** Whether this track's beats are worth writing down as notation at all. */
 bool isWritable(const Score &score, int track)
 {
@@ -151,7 +134,7 @@ QJsonObject Notation::documentFor(const Score &score, int track,
                     // about when it sounds, which is also how the sample file
                     // works, since its beats do not tile its bars either.
                     const NoteValue::Written value = NoteValue::of(duration);
-                    const int denominator = denominatorOf(value.value);
+                    const int denominator = NoteValue::denominatorOf(value.value);
                     if (denominator > 0) {
                         QJsonObject written;
                         written.insert(QStringLiteral("t"),

@@ -77,6 +77,23 @@ what made these worth building.
   augmentation dots, which is the only reading that makes musical sense, while
   the single available example disagrees in a way one example cannot settle.
 
+- **`--musicxml` writes the score for something else to open.** This program
+  will not write `.gp` — reading a format is one risk and handing somebody a
+  file to open in another company's program is a different one — and that
+  refusal is only honest if there is some other way out. MusicXML is the only
+  interchange format for music with no vendor behind it, and this is it.
+
+  It is the first thing here to need something MIDI export never did. A note in
+  MusicXML is a letter, an accidental and an octave, and no pitch number decides
+  which letter: MIDI 66 is an F sharp in G major and a G flat in D flat major,
+  and both are right. That was already built, for the harmony work, months
+  before anything needed it for this.
+
+  Checked against the corpus and not only against fixtures: all 26,140 notated
+  pitches across the seven test files come out at the pitch the transcription
+  says. The only differences anywhere are the harmonics, and they differ because
+  they are correct.
+
 Two corrections belong here, because both were claims about absence and both
 were wrong in the same way.
 

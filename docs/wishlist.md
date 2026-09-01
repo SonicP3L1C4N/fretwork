@@ -188,9 +188,11 @@ edits it cannot yet make.
   furthest away of anything in this section: it needs a bit-level decompressor
   before there is a document to parse at all.
 
-- **MusicXML, both ways.** The only interchange format with no vendor behind
-  it, and therefore the honest answer to "can I have this file in something
-  else" — a question Fretwork refuses to answer by writing `.gp`.
+- **MusicXML, both ways.** Half done: `--musicxml` writes it, as of P8.3, which
+  is the honest answer to "can I have this file in something else" — a question
+  this program otherwise refuses, because it will not write `.gp`. Reading it
+  back is the other half and a different kind of work: an exporter satisfies one
+  schema, an importer has to survive everything anybody has ever emitted.
 
 - **MIDI import.** Cheap, and immediately useful for getting a drum part in
   from a drum machine.

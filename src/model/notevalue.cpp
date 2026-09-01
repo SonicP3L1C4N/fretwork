@@ -75,6 +75,18 @@ Rational NoteValue::valueOf(int denominator)
     return (value < Shortest || Longest < value) ? Rational() : value;
 }
 
+int NoteValue::denominatorOf(const Rational &value)
+{
+    if (value.numerator <= 0) {
+        return 0;
+    }
+    // The inverse of valueOf: four quarters to a semibreve, so the denominator
+    // is four divided by the value -- and is only a denominator at all where
+    // that division comes out whole.
+    const Rational quarters = Rational(4) / value;
+    return quarters.denominator == 1 ? int(quarters.numerator) : 0;
+}
+
 int NoteValue::beamsOf(const Rational &value)
 {
     // A quaver is half a quarter and carries one beam; every halving adds one.

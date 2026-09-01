@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
 #include "gpif.h"
+#include "musicxml.h"
 #include "key.h"
 #include "timeline.h"
 
@@ -11,6 +12,7 @@
 #include <QTemporaryDir>
 #include <QElapsedTimer>
 #include <QTest>
+#include <QXmlStreamReader>
 
 /**
  * The importer, against documents this file writes itself.
@@ -492,6 +494,17 @@ private Q_SLOTS:
 
             const QList<int> order = Timeline::playedOrder(score);
             QVERIFY(!order.isEmpty());
+
+            // Every real score has to come out as XML something else can
+            // parse. Checked here rather than in musicxmltest because that
+            // one writes its own scores, and a document built by hand cannot
+            // contain the thing a transcriber did that nobody expected.
+            QXmlStreamReader reader(Musicxml::documentFor(score));
+            while (!reader.atEnd()) {
+                reader.readNext();
+            }
+            QVERIFY2(!reader.hasError(),
+                     qPrintable(name + QStringLiteral(": ") + reader.errorString()));
 
             for (int track = 0; track < score.tracks.size(); ++track) {
                 const QList<Timeline::NoteEvent> notes =

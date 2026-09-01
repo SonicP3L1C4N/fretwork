@@ -15,6 +15,7 @@ add_library(fretworkcore STATIC
     import/gpif.cpp
     import/zipreader.cpp
     export/midi.cpp
+    export/musicxml.cpp
     export/notation.cpp
     export/feedpak.cpp
     audio/renderer.cpp

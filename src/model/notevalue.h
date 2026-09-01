@@ -56,6 +56,16 @@ Rational durationOf(const Written &written);
 /** The value musicians name by its denominator: 4 is a crotchet, 8 a quaver. */
 Rational valueOf(int denominator);
 
+/**
+ * The denominator back again, which is what every format writes.
+ *
+ * A pack says `dur: 8` and MusicXML says `<type>eighth</type>`; both are this
+ * number, and both exporters were about to work it out for themselves. Nought
+ * for anything that is not a written value, which a caller should treat as a
+ * duration it cannot name rather than as one lasting no time.
+ */
+int denominatorOf(const Rational &value);
+
 /** How many beams a value carries: none for a crotchet, one for a quaver. */
 int beamsOf(const Rational &value);
 
