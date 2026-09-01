@@ -37,25 +37,32 @@ jobs:
             qt6-base qt6-declarative qt6-tools \
             karchive kcoreaddons ki18n kirigami \
             fluidsynth soundfont-fluid \
-            lilv pipewire zlib \
-            rust
+            lilv pipewire zlib
 
       - uses: actions/checkout@v4
 
-      # cargo is not a pkg-config dependency, it is a whole toolchain, so it
-      # is removed by taking it off the PATH rather than by hiding a .pc file.
-      # A machine with no Rust is the ordinary case for a packager, and this
-      # job is what proves the program still builds and still passes on one.
-      - name: Remove cargo
+      # cargo is not a pkg-config dependency, it is a whole toolchain, so the
+      # configuration without it is made by not installing it rather than by
+      # hiding a file. That is also what a machine without Rust actually looks
+      # like, which is the state this job exists to build on.
+      #
+      # An earlier version of this removed cargo from the PATH after installing
+      # it, with `command -v -a` -- a bashism, in a step whose shell is `sh`.
+      # Nothing was removed, and the guard below is what caught it: without a
+      # check that the thing is really gone, this job would have been quietly
+      # testing the ordinary build a second time.
+      - name: Install Rust
+        if: matrix.config != 'no-rust'
+        run: pacman -S --noconfirm --needed rust
+
+      - name: Check Rust really is absent
         if: matrix.config == 'no-rust'
         run: |
-          for tool in cargo rustc; do
-            for found in $(command -v -a "$tool" || true); do
-              mv "$found" "$found.hidden"
-            done
-          done
-          ! command -v cargo || { echo "cargo is still on the PATH"; exit 1; }
-          echo "cargo and rustc are gone"
+          if command -v cargo > /dev/null 2>&1; then
+            echo "cargo is installed, so this job is not testing what it claims"
+            exit 1
+          fi
+          echo "no cargo, which is the point of this configuration"
 
       - name: Remove optional dependency
         if: matrix.config != 'full' && matrix.config != 'no-rust'
