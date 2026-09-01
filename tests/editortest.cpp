@@ -138,7 +138,7 @@ private:
             {note.accent, 'a'},         {note.vibrato, 'v'},
             {note.hammerOrigin, 'h'},   {note.hammerDestination, 'H'},
             {note.tieOrigin, 't'},      {note.tieDestination, 'T'},
-            {note.tapped, 'k'},         {note.harmonic, 'r'},
+            {note.tapped, 'k'},         {note.isHarmonic(), 'r'},
             {note.bended, 'b'},         {note.slide != SlideType::None, 's'},
         };
         for (const auto &flag : flags) {

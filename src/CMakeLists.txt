@@ -8,6 +8,7 @@ add_library(fretworkcore STATIC
     model/instruments.cpp
     model/notename.cpp
     model/fretboard.cpp
+    model/harmonic.cpp
     model/key.cpp
     model/analysis.cpp
     model/chord.cpp

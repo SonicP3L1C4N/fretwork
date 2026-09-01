@@ -118,6 +118,25 @@ int propertyInt(const QDomElement &owner, const QString &name,
     return value.isEmpty() ? fallback : int(value.toDouble());
 }
 
+/** The same, where the value is a decimal: HarmonicFret is `9.600000`. */
+double propertyDouble(const QDomElement &owner, const QString &name,
+                      const QString &tag, double fallback = 0.0)
+{
+    const QDomElement found = property(owner, name);
+    if (found.isNull()) {
+        return fallback;
+    }
+    const QString value = childText(found, tag);
+    return value.isEmpty() ? fallback : value.toDouble();
+}
+
+/** The same again, where the value is a word: HarmonicType is `natural`. */
+QString propertyText(const QDomElement &owner, const QString &name, const QString &tag)
+{
+    const QDomElement found = property(owner, name);
+    return found.isNull() ? QString() : childText(found, tag);
+}
+
 Dynamic dynamicFrom(const QString &name)
 {
     static const QHash<QString, Dynamic> known = {
@@ -265,6 +284,48 @@ MasterBar readMasterBar(const QDomElement &element)
     return bar;
 }
 
+/**
+ * The harmonic, and the pitch it turns the note into.
+ *
+ * This is the one place in the importer that changes a pitch rather than
+ * copying it, and it is deliberate. gpif's `Midi` on a harmonic note is the
+ * *fretted* pitch: across the corpus it equals `tuning[String] + Fret` for
+ * every harmonic, exactly as it does for every plain note. The model's `midi`
+ * is documented as the pitch that sounds. Those two are different numbers for
+ * this technique and no other, so something has to reconcile them, and the
+ * importer is the right place -- it is where this format's conventions stop
+ * and the model's begin. Everything downstream then plays, exports and packs
+ * the right note without knowing harmonics exist.
+ *
+ * The open string is recovered as `Midi - Fret` rather than looked up from the
+ * track, which keeps this function local to the note it is reading. That
+ * subtraction is the same invariant, used in the other direction.
+ *
+ * A file that says `Harmonic` without saying which kind is read as natural.
+ * Nothing in the corpus does that -- the two properties always arrive together
+ * -- but the older formats this project has yet to read may, and a harmonic of
+ * an unstated kind is far more likely to be the ordinary one than to be none.
+ */
+void readHarmonic(const QDomElement &element, Note &note)
+{
+    if (!hasProperty(element, QStringLiteral("Harmonic"))) {
+        return;
+    }
+
+    note.harmonic = Harmonic::typeFrom(
+        propertyText(element, QStringLiteral("HarmonicType"), QStringLiteral("HType")));
+    if (note.harmonic == Harmonic::Type::None) {
+        note.harmonic = Harmonic::Type::Natural;
+    }
+    note.harmonicFret =
+        propertyDouble(element, QStringLiteral("HarmonicFret"), QStringLiteral("HFret"));
+
+    if (note.midi >= 0) {
+        note.midi = Harmonic::sounding(note.harmonic, note.midi - note.fret,
+                                       note.fret, note.harmonicFret);
+    }
+}
+
 Note readNote(const QDomElement &element)
 {
     Note note;
@@ -289,7 +350,7 @@ Note readNote(const QDomElement &element)
     note.hammerOrigin = hasProperty(element, QStringLiteral("HopoOrigin"));
     note.hammerDestination = hasProperty(element, QStringLiteral("HopoDestination"));
     note.tapped = hasProperty(element, QStringLiteral("Tapped"));
-    note.harmonic = hasProperty(element, QStringLiteral("Harmonic"));
+    readHarmonic(element, note);
     note.slide = slideFrom(
         propertyInt(element, QStringLiteral("Slide"), QStringLiteral("Flags")));
 

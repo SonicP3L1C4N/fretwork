@@ -121,7 +121,15 @@ QJsonObject fromNote(const Note &note)
     putFlag(object, QStringLiteral("hammerOrigin"), note.hammerOrigin);
     putFlag(object, QStringLiteral("hammerDestination"), note.hammerDestination);
     putFlag(object, QStringLiteral("tapped"), note.tapped);
-    putFlag(object, QStringLiteral("harmonic"), note.harmonic);
+
+    // Written as the kind and the node rather than as a flag, because `midi`
+    // above already carries the sounding pitch and the two together are what
+    // says how it got there. A reader that kept only a boolean could not tell
+    // a twelfth-fret harmonic from a seventh-partial one.
+    if (note.isHarmonic()) {
+        object.insert(QStringLiteral("harmonic"), Harmonic::nameOf(note.harmonic));
+        object.insert(QStringLiteral("harmonicFret"), note.harmonicFret);
+    }
 
     if (note.slide != SlideType::None) {
         object.insert(QStringLiteral("slide"), nameOf(note.slide));
@@ -162,7 +170,9 @@ Note toNote(const QJsonObject &object)
     note.hammerOrigin = flag("hammerOrigin");
     note.hammerDestination = flag("hammerDestination");
     note.tapped = flag("tapped");
-    note.harmonic = flag("harmonic");
+    note.harmonic =
+        Harmonic::typeFrom(object.value(QStringLiteral("harmonic")).toString());
+    note.harmonicFret = object.value(QStringLiteral("harmonicFret")).toDouble();
     note.slide = slideFrom(object.value(QStringLiteral("slide")).toString());
 
     const QJsonObject bend = object.value(QStringLiteral("bend")).toObject();

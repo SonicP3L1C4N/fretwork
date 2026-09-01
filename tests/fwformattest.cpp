@@ -121,7 +121,7 @@ private:
         for (const int id : std::as_const(ids)) {
             const Note note = score.notes.value(id);
             out.append(QStringLiteral("note %1 m%2 s%3 f%4 %5%6%7%8%9%10%11%12%13%14 sl%15 "
-                                      "b%16:%17,%18,%19,%20,%21,%22,%23")
+                                      "b%16:%17,%18,%19,%20,%21,%22,%23 k%24 h%25:%26")
                            .arg(id)
                            .arg(note.midi)
                            .arg(note.string)
@@ -144,7 +144,10 @@ private:
                            .arg(note.bendOriginOffset)
                            .arg(note.bendMiddleOffset1)
                            .arg(note.bendMiddleOffset2)
-                           .arg(note.bendDestinationOffset));
+                           .arg(note.bendDestinationOffset)
+                           .arg(note.tapped)
+                           .arg(Harmonic::nameOf(note.harmonic))
+                           .arg(note.harmonicFret));
         }
 
         ids = score.rhythms.keys();
@@ -230,7 +233,8 @@ private:
         decorated.hammerOrigin = true;
         decorated.hammerDestination = true;
         decorated.tapped = true;
-        decorated.harmonic = true;
+        decorated.harmonic = Harmonic::Type::Natural;
+        decorated.harmonicFret = 5.8;
         decorated.slide = SlideType::InFromBelow;
         decorated.bended = true;
         decorated.bendOriginValue = 0;

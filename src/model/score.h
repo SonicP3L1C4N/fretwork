@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "harmonic.h"
 #include "key.h"
 #include "rational.h"
 
@@ -90,7 +91,21 @@ struct Note {
     bool hammerOrigin = false;  //< gpif calls hammer-ons and pull-offs "Hopo"
     bool hammerDestination = false;
     bool tapped = false;
-    bool harmonic = false;
+
+    /**
+     * A harmonic, and where on the string it is touched.
+     *
+     * `midi` above is the pitch this *sounds*, with the harmonic already
+     * applied, which is why nothing downstream of the importer has to know any
+     * of this. `fret` stays where the hand is, so the tab still reads the way
+     * it was written. The two disagreeing is the point rather than a mistake:
+     * a harmonic is the one technique where the note you play and the note you
+     * hear are different notes.
+     */
+    Harmonic::Type harmonic = Harmonic::Type::None;
+    double harmonicFret = 0.0;   //< gpif's HarmonicFret: the node, in frets
+
+    bool isHarmonic() const { return harmonic != Harmonic::Type::None; }
     SlideType slide = SlideType::None;
 
     /**

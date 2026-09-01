@@ -130,14 +130,18 @@ private:
     }
 
     /**
-     * One note per slide flag, so the bit field can be read a value at a time.
-     * Note id `i` carries flag `flags[i]` and is fretted at `i`, which keeps
-     * the assertions readable when one of them fails.
+     * A document holding one note per entry, with that entry's XML dropped
+     * into the note's Properties.
+     *
+     * Note `i` is fretted at `i` and pitched at 40 + i, so an assertion that
+     * fails names a note the reader can find. The properties are given as
+     * strings because that is what is being tested: how the importer reads a
+     * shape gpif writes, not how a struct is filled in.
      */
-    static QByteArray slideDocument(const QList<int> &flags)
+    static QByteArray notesDocument(const QStringList &properties)
     {
         QString ids, beats, notes;
-        for (int i = 0; i < flags.size(); ++i) {
+        for (int i = 0; i < properties.size(); ++i) {
             ids += QString::number(i) + QLatin1Char(' ');
             beats += QStringLiteral(
                 "<Beat id=\"%1\"><Rhythm ref=\"0\"/><Notes>%1</Notes></Beat>").arg(i);
@@ -146,13 +150,12 @@ private:
                 "<Property name=\"Midi\"><Number>%2</Number></Property>"
                 "<Property name=\"String\"><String>0</String></Property>"
                 "<Property name=\"Fret\"><Fret>%1</Fret></Property>"
-                "<Property name=\"Slide\"><Flags>%3</Flags></Property>"
-                "</Properties></Note>").arg(i).arg(40 + i).arg(flags.at(i));
+                "%3</Properties></Note>").arg(i).arg(40 + i).arg(properties.at(i));
         }
         return QStringLiteral(R"(<?xml version="1.0" encoding="UTF-8"?>
 <GPIF>
   <GPVersion>8.1.3</GPVersion>
-  <Score><Title>Slides</Title></Score>
+  <Score><Title>Fixture</Title></Score>
   <MasterTrack><Tracks>0</Tracks></MasterTrack>
   <Tracks><Track id="0"><Name>Guitar</Name>
     <InstrumentSet><Type>electricGuitar</Type></InstrumentSet>
@@ -167,6 +170,18 @@ private:
   <Rhythms><Rhythm id="0"><NoteValue>Quarter</NoteValue></Rhythm></Rhythms>
 </GPIF>
 )").arg(ids.trimmed(), beats, notes).toUtf8();
+    }
+
+    /** One note per slide flag value. */
+    static QByteArray slideDocument(const QList<int> &flags)
+    {
+        QStringList properties;
+        properties.reserve(flags.size());
+        for (const int flag : flags) {
+            properties += QStringLiteral(
+                "<Property name=\"Slide\"><Flags>%1</Flags></Property>").arg(flag);
+        }
+        return notesDocument(properties);
     }
 
     QTemporaryDir m_directory;
@@ -383,6 +398,64 @@ private Q_SLOTS:
                                      .arg(int(expected.at(i)))));
             }
         }
+    }
+
+    /**
+     * The importer turns a harmonic into the pitch it sounds, which is the one
+     * place it changes a number rather than copying it.
+     *
+     * gpif's `Midi` on a harmonic note is the fretted pitch -- the same
+     * `tuning[String] + Fret` it uses for a plain note -- while the model's
+     * `midi` is documented as the pitch that sounds. Something has to
+     * reconcile those, and if it were left undone every harmonic in every
+     * score would play an octave or three too low without anything looking
+     * broken.
+     *
+     * `fret` must survive untouched, because the tab has to keep reading the
+     * way it was written. A harmonic is the one technique where the note you
+     * play and the note you hear are different notes, and the model has to
+     * hold both.
+     */
+    void turnsAHarmonicIntoThePitchItSounds()
+    {
+        const Score score = Gpif::parse(notesDocument({
+            // Note 0: fretted at 0 on the low E, touched at the twelfth.
+            QStringLiteral("<Property name=\"Harmonic\"><Enable/></Property>"
+                           "<Property name=\"HarmonicType\"><HType>natural</HType></Property>"
+                           "<Property name=\"HarmonicFret\"><HFret>12.000000</HFret></Property>"),
+            // Note 1: the same node, pinched off a note held at the first fret.
+            QStringLiteral("<Property name=\"Harmonic\"><Enable/></Property>"
+                           "<Property name=\"HarmonicType\"><HType>semi</HType></Property>"
+                           "<Property name=\"HarmonicFret\"><HFret>12.000000</HFret></Property>"),
+            // Note 2: says it is a harmonic without saying which kind.
+            QStringLiteral("<Property name=\"Harmonic\"><Enable/></Property>"
+                           "<Property name=\"HarmonicFret\"><HFret>12.000000</HFret></Property>"),
+            // Note 3: no harmonic at all.
+            QString(),
+        }));
+
+        // Open low E, touched at the twelfth: the octave. The written fret
+        // stays where the transcription put it.
+        QCOMPARE(score.notes.value(0).harmonic, Harmonic::Type::Natural);
+        QCOMPARE(score.notes.value(0).harmonicFret, 12.0);
+        QCOMPARE(score.notes.value(0).fret, 0);
+        QCOMPARE(score.notes.value(0).midi, 52);
+
+        // Held at the first fret and pinched: an octave above *that*, so 41
+        // becomes 53 rather than 52.
+        QCOMPARE(score.notes.value(1).harmonic, Harmonic::Type::Semi);
+        QCOMPARE(score.notes.value(1).fret, 1);
+        QCOMPARE(score.notes.value(1).midi, 53);
+
+        // An unstated kind reads as natural, which is the likelier of the two
+        // ways to be wrong about a file that does not say.
+        QCOMPARE(score.notes.value(2).harmonic, Harmonic::Type::Natural);
+        QCOMPARE(score.notes.value(2).midi, 52);
+
+        // And an ordinary note is left exactly alone.
+        QVERIFY(!score.notes.value(3).isHarmonic());
+        QCOMPARE(score.notes.value(3).midi, 43);
+        QCOMPARE(score.notes.value(3).fret, 3);
     }
 
     void readsTempoFromTheMasterTrackRatherThanTheBar()
