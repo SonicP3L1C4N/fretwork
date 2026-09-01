@@ -12,3 +12,16 @@ spike/out/
 *.mid
 *.wav
 __pycache__/
+
+# Transcriptions, and anything printed from one. The test corpus is scores the
+# author owns and does not redistribute -- see the legal position in
+# docs/architecture.md -- so a stray `git add -A` must not be able to publish
+# one. The corpus lives outside the tree and is found through FRETWORK_CORPUS;
+# these patterns are here for the copies that land in the folder while a
+# technique is being worked on.
+*.gp
+*.gpx
+*.gp3
+*.gp4
+*.gp5
+*.pdf
