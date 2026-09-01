@@ -554,15 +554,34 @@ in quarters, so the file's `1/8` is a half here; reading it unchanged made every
 tremolo four times too fast, and the tests caught it as four times too many
 strikes.
 
-**Slides and harmonics are not done, and are waiting on evidence rather than on
-time.** There is not a single slide or harmonic anywhere in the test corpus, so
-neither can be checked against a real transcription the way vibrato was checked
-against eighty real ones. Harmonics are the riskier of the two: gpif has a
-`Harmonic` property, but whether a harmonic note's `Midi` already carries the
-*sounding* pitch or the fretted one cannot be settled without a file that has
-one — and getting it backwards produces a score that plays confidently in the
-wrong octave, which is the failure this project keeps finding is worse than not
-playing something at all. Waiting for a transcription that uses them.
+**Slides and harmonics are not done.** This paragraph said, on 2026-08-31, that
+neither appeared anywhere in the test corpus and that both were therefore
+waiting on evidence rather than on time. Half of that was false, and the way it
+was found out is worth keeping.
+
+On 2026-09-01 two more transcriptions arrived — ZZ Top's *Sharp Dressed Man* and
+Amon Amarth's *Twilight Of The Thunder God* — and counting the techniques in
+them meant counting the techniques in everything. **The five files that were
+already here carry 42 slides between them**, in four of the five files, using
+flag values 1, 2, 4 and 16. There was never an evidence problem. There was a
+claim made without a measurement, in a document whose whole argument is that
+measurements beat assumptions, and it stood for a day because it sounded
+plausible.
+
+The lesson is narrower than "check things", which nobody ever acts on. It is
+that **a claim about the absence of something is a measurement like any other,
+and it is the one most likely to be made by not looking.** Vibrato was counted
+(eighty). Tremolo was counted (eight). Slides were *asserted* to be zero, and a
+census would have taken the same two minutes it eventually took.
+
+Harmonics were genuinely absent, and are absent no longer: seven natural
+harmonics in the ZZ Top file and five marked `semi` in the Amon Amarth one.
+That was enough to settle the question this paragraph used to pose. **A harmonic
+note's `Midi` carries the fretted pitch, not the sounding one** — for all twelve
+harmonics in both files, `Midi` equals `tuning[String] + Fret` exactly, the same
+formula that holds for all 32,140 plain notes in the corpus. Playing `Midi` as
+it stands therefore sounds a harmonic at the pitch of the note under the finger,
+which is the confident wrong octave that was worth being afraid of.
 
 **Stage 3 — notation.** Spelling now exists, so this is unblocked. It is the
 notation *file* — measures, signatures, tempo, staves with clefs, voices, and

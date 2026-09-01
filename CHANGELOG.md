@@ -31,10 +31,16 @@ what made these worth building.
   one repicked in demisemiquavers are two different effects — and on the page
   it is slashes across the stem, where printed music puts them.
 
-Slides and harmonics are the other two and are not done. Neither appears
-anywhere in the test corpus, so unlike these two there is nothing real to check
-them against; they are waiting on a transcription that uses them rather than on
-the code.
+Slides and harmonics are the other two and are not done.
+
+An earlier draft of this entry said neither appears anywhere in the test corpus.
+That was wrong about slides, and the error was mine rather than the corpus's:
+four of the five files carry 42 slides between them, in three of the four
+flag values the importer knows. Slides were never waiting on evidence. They were
+waiting on nobody having looked properly, which is a worse reason and a
+correctable one.
+
+Harmonics genuinely were absent, and are absent no longer.
 
 ## 0.2.0 — 2026-09-01
 
