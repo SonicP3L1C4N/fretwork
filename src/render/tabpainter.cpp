@@ -417,10 +417,42 @@ void paintSystem(QPainter &painter, const Grid &grid, const Tab::Layout &layout,
                 // drawn through it, which is how tablature has always been set.
                 painter.fillRect(box.adjusted(2.5, 1, -2.5, -1),
                                  playing ? palette.playing : palette.paper);
-                painter.setPen(note.bend || note.slide || note.hammer
+                const bool slides = note.slide != SlideType::None;
+                painter.setPen(note.bend || slides || note.hammer
                                    ? palette.accent
                                    : (playing ? palette.playingInk : palette.ink));
                 painter.drawText(box, Qt::AlignCenter, note.text);
+
+                if (slides && note.slideDirection != 0) {
+                    // The diagonal printed tablature has always used, beside
+                    // the number rather than between two of them: a line drawn
+                    // all the way to the next fret needs both to be on the
+                    // same system and the same bar, and a stub says the same
+                    // thing without ever being wrong about where it lands.
+                    //
+                    // Which side it sits on is the difference between arriving
+                    // and leaving. A slide into a note is drawn coming up to
+                    // it; every other kind is drawn going away.
+                    painter.setPen(QPen(palette.accent, grid.widthOf(0.9)));
+                    const bool arriving = note.slide == SlideType::InFromBelow
+                        || note.slide == SlideType::InFromAbove;
+                    const qreal reach = 4.5;
+                    // y grows downwards, so a slide upwards lifts the far end
+                    // by a negative amount.
+                    const qreal lift = -2.6 * note.slideDirection;
+
+                    // The end touching the number always sits on the string;
+                    // the far end is the one that has moved.
+                    if (arriving) {
+                        const qreal edge = box.left() - 1.0;
+                        painter.drawLine(QPointF(edge - reach, centre - lift),
+                                         QPointF(edge, centre));
+                    } else {
+                        const qreal edge = box.right() + 1.0;
+                        painter.drawLine(QPointF(edge, centre),
+                                         QPointF(edge + reach, centre + lift));
+                    }
+                }
 
                 if (note.vibrato) {
                     // A wave over the number, which is how tablature has drawn

@@ -8,7 +8,7 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## 0.3.0 — unreleased
 
-Two of the four techniques the practice-pack exporter turned from wishes into
+All four of the techniques the practice-pack exporter turned from wishes into
 requirements. A pack tells a learner what to play and marks them on playing it,
 so a technique the pack cannot name is one nobody can be marked on — which is
 what made these worth building.
@@ -31,16 +31,48 @@ what made these worth building.
   one repicked in demisemiquavers are two different effects — and on the page
   it is slashes across the stem, where printed music puts them.
 
-Slides and harmonics are the other two and are not done.
+- **Harmonics sound where they actually sound.** Every other technique leaves
+  the pitch alone; a harmonic does not, and the program did. A harmonic note's
+  `Midi` in a `.gp` is the pitch under the finger, not the one you hear, so
+  every harmonic in every score played two or three octaves low — confidently,
+  and looking like a bad transcription rather than a bug. What a harmonic
+  sounds is now worked out from where the string is touched, which is physics
+  rather than a file format convention and is therefore checkable: the tests
+  assert the notes a guitarist would name, and the numbers in them were worked
+  out before the code was.
 
-An earlier draft of this entry said neither appears anywhere in the test corpus.
-That was wrong about slides, and the error was mine rather than the corpus's:
-four of the five files carry 42 slides between them, in three of the four
-flag values the importer knows. Slides were never waiting on evidence. They were
-waiting on nobody having looked properly, which is a worse reason and a
-correctable one.
+- **Slides move the pitch.** They had been imported since P1 and had never done
+  anything at all. The two that connect glide to the next note on the string,
+  which is the only case the file gives a destination for. The rest sweep a
+  fixed three semitones, because the file says a slide happens and never says
+  how far — an invented number, and the comment defining it says so. On the
+  page they are the diagonal printed tablature has always used.
 
-Harmonics genuinely were absent, and are absent no longer.
+- **A pick scrape is no longer dropped in silence.** Slide flag `0x40` fell
+  through to nothing, so two notes in the corpus arrived with no technique on
+  them. It is the scrape in the intro of *Twilight Of The Thunder God*,
+  confirmed by ear rather than inferred from the shape of the data.
+
+Two corrections belong here, because both were claims about absence and both
+were wrong in the same way.
+
+An earlier draft of this entry said neither slides nor harmonics appear anywhere
+in the test corpus. That was wrong about slides: four of the five files carry 42
+between them. Slides were never waiting on evidence — they were waiting on
+nobody having looked, which is a worse reason and a correctable one. The same
+morning, the roadmap gained a row pricing PDF export at a few days' work, for a
+program that has had `--pdf` since P2.
+
+A claim that something is missing is a measurement like any other, and it is the
+one most likely to be made by not looking.
+
+Two things are still not said, and both on purpose. A pack's `sl` and `slu`
+fields stay written as "not stated" even though slides now work: they are
+integers rather than flags, no pack in the library contains a slide, and a
+number invented here would be used to mark a learner. And a `semi` harmonic is
+reported as a harmonic but not as a pinch, though it is played like one --
+that reading is an inference, and somebody else's format is the wrong place to
+write one down as a fact.
 
 ## 0.2.0 — 2026-09-01
 

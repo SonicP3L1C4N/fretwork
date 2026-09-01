@@ -137,6 +137,98 @@ private Q_SLOTS:
         QVERIFY(qAbs(muted.value(QStringLiteral("sus")).toDouble() - 0.25) < 0.001);
     }
 
+    /**
+     * A harmonic is said, and a pinch is only said where the file said pinch.
+     *
+     * `hm` and `hp` are booleans in every note of every pack in the library,
+     * which is why they can be filled in at all. The pitch already sounds
+     * where the harmonic puts it, so this is the label rather than the note.
+     */
+    void aHarmonicIsSaidAndAPinchIsNotGuessedAt()
+    {
+        const auto flagsFor = [](Harmonic::Type type) {
+            Score score = twoPartsAndAKit();
+            Note note = score.notes.value(0);
+            note.harmonic = type;
+            note.harmonicFret = 12.0;
+            score.notes.insert(0, note);
+            return notesOf(score, 0).first().toObject();
+        };
+
+        QVERIFY(!flagsFor(Harmonic::Type::None).value(QStringLiteral("hm")).toBool());
+
+        const QJsonObject natural = flagsFor(Harmonic::Type::Natural);
+        QVERIFY(natural.value(QStringLiteral("hm")).toBool());
+        QVERIFY(!natural.value(QStringLiteral("hp")).toBool());
+
+        // gpif calls this one a pinch, so the pack may too.
+        QVERIFY(flagsFor(Harmonic::Type::Pinch).value(QStringLiteral("hp")).toBool());
+
+        // A `semi` harmonic is played like a pinch and is not called one here.
+        // Believing it is would be an inference written down as a fact.
+        const QJsonObject semi = flagsFor(Harmonic::Type::Semi);
+        QVERIFY(semi.value(QStringLiteral("hm")).toBool());
+        QVERIFY(!semi.value(QStringLiteral("hp")).toBool());
+    }
+
+    /**
+     * A slide is not reported as a bend, and neither is a vibrato.
+     *
+     * Both become bend curves inside this program, because moving a pitch
+     * continuously is how both are played. `bn` is what a practice program
+     * marks a learner against, so it has to mean the thing that was written on
+     * the page rather than the mechanism used to sound it.
+     */
+    void aSlideIsNotExportedAsABend()
+    {
+        const auto bendOf = [](void (*decorate)(Note &)) {
+            Score score = twoPartsAndAKit();
+            Note note = score.notes.value(0);
+            decorate(note);
+            score.notes.insert(0, note);
+            return notesOf(score, 0).first().toObject()
+                .value(QStringLiteral("bn")).toDouble();
+        };
+
+        QCOMPARE(bendOf([](Note &n) { n.slide = SlideType::Legato; }), 0.0);
+        QCOMPARE(bendOf([](Note &n) { n.slide = SlideType::OutDown; }), 0.0);
+        QCOMPARE(bendOf([](Note &n) { n.vibrato = true; }), 0.0);
+
+        // A written bend is still a bend, and still says how far -- in both
+        // directions, which the old reading of the curve could not do.
+        QCOMPARE(bendOf([](Note &n) {
+                     n.bended = true;
+                     n.bendDestinationValue = 200;
+                 }),
+                 2.0);
+        QCOMPARE(bendOf([](Note &n) {
+                     n.bended = true;
+                     n.bendDestinationValue = -100;
+                 }),
+                 -1.0);
+    }
+
+    /**
+     * Slides stay unstated, and that is a decision rather than an oversight.
+     *
+     * `sl` and `slu` are integers -- every note of every pack in the library
+     * carries -1 -- and not one of those packs contains a slide, so what a
+     * number in them would mean cannot be measured. Slides are imported,
+     * played and drawn; what they are not is guessed at in somebody else's
+     * format and used to mark a learner.
+     */
+    void aSlideIsStillNotWrittenIntoTheSlideFields()
+    {
+        Score score = twoPartsAndAKit();
+        Note note = score.notes.value(0);
+        note.slide = SlideType::Shift;
+        score.notes.insert(0, note);
+
+        const QJsonObject first = notesOf(score, 0).first().toObject();
+        QCOMPARE(first.value(QStringLiteral("sl")).toInt(), -1);
+        QCOMPARE(first.value(QStringLiteral("slu")).toInt(), -1);
+    }
+
     /** The techniques that survive the trip, and only those. */
     void onlyWhatTheProgramCanHonestlySayIsSaid()
     {

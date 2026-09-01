@@ -103,6 +103,19 @@ struct NoteEvent {
      * three semitones flat and have no word for why.
      */
     SlideType slide = SlideType::None;
+
+    /**
+     * Whether the curve above was *written* as a bend.
+     *
+     * The curve is not enough to tell. A vibrato and a slide both become bend
+     * points, and something reading the curve back would report a note as
+     * having been bent when the player never touched it that way -- which in a
+     * practice pack means marking somebody against a bend nobody played.
+     */
+    bool bended = false;
+
+    /** The harmonic, for the same reason: `pitch` already has it applied. */
+    Harmonic::Type harmonic = Harmonic::Type::None;
 };
 
 struct TempoEvent {

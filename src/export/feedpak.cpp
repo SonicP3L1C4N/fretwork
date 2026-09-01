@@ -186,25 +186,53 @@ QJsonObject Feedpak::arrangementFor(const Score &score, int track, const QList<i
         note.insert(QStringLiteral("tr"), event.tremolo);
 
         // How far the note bends, in semitones: the furthest the curve gets
-        // from where it started. Nought where it does not bend, which is the
-        // great majority of notes.
+        // from where it started, in whichever direction it went. Nought where
+        // it does not bend, which is the great majority of notes.
+        //
+        // Only a *written* bend counts. A vibrato and a slide are both curves
+        // on the same list, and reporting either of them here would tell a
+        // practice program that somebody bent a string when they did not --
+        // which is the one kind of mistake this format is worst at absorbing,
+        // because a learner would then be marked on it.
         int cents = 0;
-        for (const Timeline::BendPoint &point : event.bend) {
-            cents = std::max(cents, point.cents);
+        if (event.bended) {
+            for (const Timeline::BendPoint &point : event.bend) {
+                if (std::abs(point.cents) > std::abs(cents)) {
+                    cents = point.cents;
+                }
+            }
         }
         note.insert(QStringLiteral("bn"), cents / 100.0);
+
+        // Harmonics. `hm` and `hp` are booleans in every real pack read here,
+        // and the note's pitch already sounds where the harmonic puts it.
+        //
+        // `hp` is claimed only for the kind gpif itself calls a pinch. A
+        // `semi` harmonic behaves like one and is played like one, but saying
+        // so in somebody else's format would be an inference written down as a
+        // fact, and `hm` alone is true either way.
+        note.insert(QStringLiteral("hm"), event.harmonic != Harmonic::Type::None);
+        note.insert(QStringLiteral("hp"), event.harmonic == Harmonic::Type::Pinch);
 
         // Everything this program cannot honestly say. Written as absent
         // rather than left out, because a reader filling in a missing field
         // with its own default is a reader deciding something about somebody's
         // playing that nobody told it.
+        //
+        // `sl` and `slu` stay here even though slides are now imported, played
+        // and drawn, which is worth explaining rather than looking like an
+        // oversight. They are integers, not flags -- every note of every pack
+        // in the library carries -1 -- and no pack here has a single slide in
+        // it, so what a number in those fields would mean cannot be measured.
+        // A guess would be a number this program invented, put into somebody
+        // else's format, and used to mark a learner. -1 says "not stated",
+        // which is the truth.
         for (const QString &absent : {QStringLiteral("sl"), QStringLiteral("slu"),
                                       QStringLiteral("rh"), QStringLiteral("pkd")}) {
             note.insert(absent, -1);
         }
         for (const QString &absent :
-             {QStringLiteral("hm"), QStringLiteral("hp"),
-              QStringLiteral("tp"), QStringLiteral("fhm"),
+             {QStringLiteral("tp"), QStringLiteral("fhm"),
               QStringLiteral("plk"), QStringLiteral("slp"), QStringLiteral("ig")}) {
             note.insert(absent, false);
         }

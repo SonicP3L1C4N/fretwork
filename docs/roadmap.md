@@ -480,10 +480,10 @@ From a real arrangement file, a note is `{"t","s","f","sus","sl","slu","bn",
 | `ho`, `po` | `Note::hammerOrigin` — one flag for both | **have**, needs splitting by pitch direction |
 | `ac` | `Dynamic` | **have** |
 | `bn` | bends, imported and played | **have** |
-| `sl`, `slu` | slides | *wishlist* |
-| `vb` | vibrato | *wishlist* |
-| `hm`, `hp` | harmonics, pinch harmonics | *wishlist* |
-| `tr` | tremolo picking | *wishlist* |
+| `sl`, `slu` | slides | imported, played and drawn — **still written as "not stated"**, see below |
+| `vb` | vibrato | **have** |
+| `hm`, `hp` | harmonics, pinch harmonics | **have**; `hp` only where gpif says pinch |
+| `tr` | tremolo picking | **have** |
 | `tp`, `plk`, `slp`, `pkd` | tapping, pick direction | not in the model at all |
 
 This is the useful part of the exercise: **the export target names the missing
@@ -504,6 +504,27 @@ It is also worth noticing what this is *not*: notation **data**, not engraving.
 The architecture lists standard notation as "possibly never" because a layout
 engine is many people over many years. Emitting the data another program lays out costs a
 fraction of that, and it is most of the value.
+
+**What the slide fields taught, which was not what was expected.** All four
+wishlist techniques are built, and one of them still cannot be exported. `sl`
+and `slu` are integers rather than flags -- every note of every pack in the
+library carries -1 -- so a value would have to mean something, and nothing here
+says what. Not one pack in the library contains a slide to read the convention
+off. So they stay at -1, which is the format's own way of saying nothing.
+
+That is worth writing down because it is the opposite lesson to the one this
+document keeps recording. Everywhere else, the answer was to go and measure
+rather than assume. Here the measurement was taken -- every note of every
+available pack -- and it came back empty, and the right response to an empty
+measurement is to keep saying nothing rather than to fall back on the guess
+that was going to be made anyway. A number invented here would not sit in a
+file doing no harm: a practice program would mark a learner against it.
+
+The same reasoning, more finely, on harmonics. `hm` is written because the
+field is a boolean in every real pack and the note either is a harmonic or is
+not. `hp` is claimed only for the kind gpif itself calls a pinch -- a `semi`
+harmonic is played like one here, and saying so in somebody else's format would
+be an inference recorded as a fact.
 
 ### The staging
 
@@ -539,7 +560,8 @@ use Ogg for the mix, and encoding it needs a dependency this does not have.
 **Stage 2 — honest techniques.** Slides, vibrato, harmonics, tremolo. Wishlist
 items with a reason attached, which is what a wishlist item is waiting for.
 
-**Half done, on 2026-08-31.** Vibrato and tremolo are imported, played, drawn
+**Done, on 2026-09-01.** Vibrato and tremolo landed on 2026-08-31, slides and
+harmonics the day after. Taking the first pair: they are imported, played, drawn
 and exported. Each needed a different mechanism, and the difference is the
 useful part: a vibrato is one note with something done to its pitch, so it is a
 bend curve and reuses everything the program already knows about moving a
@@ -554,10 +576,10 @@ in quarters, so the file's `1/8` is a half here; reading it unchanged made every
 tremolo four times too fast, and the tests caught it as four times too many
 strikes.
 
-**Slides and harmonics are not done.** This paragraph said, on 2026-08-31, that
-neither appeared anywhere in the test corpus and that both were therefore
-waiting on evidence rather than on time. Half of that was false, and the way it
-was found out is worth keeping.
+**Slides and harmonics followed on 2026-09-01.** This paragraph said, the day
+before, that neither appeared anywhere in the test corpus and that both were
+therefore waiting on evidence rather than on time. Half of that was false, and
+the way it was found out is worth keeping.
 
 On 2026-09-01 two more transcriptions arrived — ZZ Top's *Sharp Dressed Man* and
 Amon Amarth's *Twilight Of The Thunder God* — and counting the techniques in
@@ -589,6 +611,33 @@ harmonics in both files, `Midi` equals `tuning[String] + Fret` exactly, the same
 formula that holds for all 32,140 plain notes in the corpus. Playing `Midi` as
 it stands therefore sounds a harmonic at the pitch of the note under the finger,
 which is the confident wrong octave that was worth being afraid of.
+
+What a harmonic *does* sound is in `src/model/harmonic.{h,cpp}`, and the good
+thing about it is that it is physics rather than convention: a partial n sounds
+12·log₂(n) semitones above the open string and has nodes at 12·log₂(n/(n−k))
+frets along it, which is true of a guitar and not merely true of a file format.
+So it can be derived and then checked against what a real file happens to carry,
+instead of being read out of one file and hoped about. Three details earned
+their comments — the offsets are not rounded, because the seventh partial is 31
+cents flat of a minor seventh and rounding belongs at the edge; where nodes
+coincide the lowest partial wins, because that is what the string does; and the
+tolerance for matching a stored node cannot be made unambiguous, since nodes of
+high partials sit 0.077 of a fret apart, so the comment says so rather than
+picking a round number that hides it.
+
+The slides needed no new physics and one new shape: a pass over the finished
+events, because a connecting slide arrives at the *next* note on its string and
+nothing knows what that is until the whole track exists. It runs before let
+ring, so a note held into the next bar slides when the hand moved rather than
+when the sound stopped. What could not be derived was how far an unwritten slide
+travels — gpif says that one happens and never says how far — so three semitones
+is invented, and the constant defining it says the word "invented" out loud.
+
+And a bug the slides exposed on their way through: a pack's `bn` field was
+taking the largest value on the bend curve, which was fine while only written
+bends made curves. Vibrato already leaked into it, quietly, at 0.3 of a
+semitone. A slide would have leaked five. `bn` now reports only what was written
+as a bend, because a practice program marks a learner against that number.
 
 **Stage 3 — notation.** Spelling now exists, so this is unblocked. It is the
 notation *file* — measures, signatures, tempo, staves with clefs, voices, and
@@ -650,7 +699,7 @@ and a materially better one.
 | **P6.4** | Circle of fifths, chord insertion | P6.0, P6.3 | **done** |
 | **P7.2** | Step note entry from the keyboard | P6.0, P6.4 | **done** |
 | **P8.0** | feedpak export, walking skeleton | stems (done) | a week |
-| **P8.1** | Slides, vibrato, harmonics, tremolo | — | weeks |
+| **P8.1** | Slides, vibrato, harmonics, tremolo | — | **done**, 2026-08-31 to 2026-09-01 |
 | **P8.2** | Notation data export | P6.1 | a week |
 | **P8.3** | MusicXML export | P8.2 | a week |
 | **P8.4** | PDF export | — | **done**, and was already done when this row was written |

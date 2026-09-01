@@ -106,13 +106,25 @@ struct Style {
 struct LaidNote {
     qreal x = 0;
     int string = 0;             //< 0 is the lowest, as everywhere else
+    int fret = 0;               //< the number itself, for the sums `text` cannot do
     QString text;               //< usually a fret number; "x" for a dead note
     bool bend = false;
     bool palmMuted = false;
     bool hammer = false;
-    bool slide = false;
     bool letRing = false;
     bool vibrato = false;
+
+    /**
+     * The slide, and which way it goes on the page.
+     *
+     * `slideDirection` is +1 for a line rising to the right, -1 for one
+     * falling, and 0 where there is nothing to draw. For the slides that name
+     * their own direction it comes straight off the kind; for the two that
+     * connect to the next note it is worked out from the frets, which is why
+     * this is a separate number rather than something the painter derives.
+     */
+    SlideType slide = SlideType::None;
+    int slideDirection = 0;
 };
 
 /** Which mark a run over the staff is: they share a row, so they are one list. */

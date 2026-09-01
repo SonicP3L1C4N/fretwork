@@ -542,6 +542,8 @@ QList<Timeline::NoteEvent> Timeline::notesFor(const Score &score, int trackIndex
                     event.vibrato = note->vibrato;
                     event.tremolo = beat->tremolo;
                     event.slide = note->slide;
+                    event.bended = note->bended;
+                    event.harmonic = note->harmonic;
                     event.channel = channelFor(track, *note);
                     event.bend = bendCurve(*note, sounding);
                     if (event.bend.isEmpty() && note->vibrato) {

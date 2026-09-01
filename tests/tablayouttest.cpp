@@ -149,7 +149,98 @@ private:
         return out;
     }
 
+    /**
+     * One bar of one string, each beat a fret, with a slide on the first.
+     */
+    static Score sliding(SlideType slide, const QList<int> &frets)
+    {
+        Score out;
+        Track guitar;
+        guitar.name = QStringLiteral("Guitar");
+        guitar.instrumentType = QStringLiteral("electricGuitar");
+        for (int string = 0; string < 6; ++string) {
+            guitar.tuning.append(40 + string * 5);
+        }
+        out.tracks.append(guitar);
+        out.rhythms.insert(0, Rational(1));
+
+        MasterBar master;
+        master.bars = {0};
+        out.masterBars.append(master);
+
+        QList<int> beats;
+        int id = 0;
+        for (int index = 0; index < frets.size(); ++index) {
+            Note written;
+            written.string = 2;
+            written.fret = frets.at(index);
+            written.midi = 50 + frets.at(index);
+            if (index == 0) {
+                written.slide = slide;
+            }
+            out.notes.insert(id, written);
+            out.beats.insert(id, Beat{0, {id}, Dynamic::F, false, false});
+            beats.append(id);
+            ++id;
+        }
+        out.voices.insert(0, Voice{beats});
+        out.bars.insert(0, Bar{{0, -1, -1, -1}});
+        return out;
+    }
+
+    static Tab::LaidNote firstNoteOf(const Tab::Layout &layout)
+    {
+        return layout.pages.constFirst().systems.constFirst().bars.constFirst()
+            .beats.constFirst().notes.constFirst();
+    }
+
 private Q_SLOTS:
+
+    /**
+     * A connecting slide is drawn rising or falling depending on where the
+     * hand actually ends up, which is a fact about two notes rather than one.
+     *
+     * The kind alone cannot answer it -- legato says that the hand moves and
+     * never which way -- so this is the one part of the drawing that has to
+     * wait until the whole bar is laid out.
+     */
+    void aConnectingSlidePointsAtTheNoteItReaches()
+    {
+        QCOMPARE(firstNoteOf(Tab::layOut(sliding(SlideType::Legato, {3, 7}), 0))
+                     .slideDirection, 1);
+        QCOMPARE(firstNoteOf(Tab::layOut(sliding(SlideType::Shift, {7, 3}), 0))
+                     .slideDirection, -1);
+
+        // The next note on the string is the one that counts, not the next
+        // note anywhere: a slide to the same fret is not a slide at all.
+        QCOMPARE(firstNoteOf(Tab::layOut(sliding(SlideType::Legato, {5, 5}), 0))
+                     .slideDirection, 0);
+
+        // And with nothing after it, there is nothing to point at. The note
+        // keeps its accent colour and loses its angle.
+        const Tab::LaidNote alone =
+            firstNoteOf(Tab::layOut(sliding(SlideType::Legato, {5}), 0));
+        QCOMPARE(alone.slide, SlideType::Legato);
+        QCOMPARE(alone.slideDirection, 0);
+    }
+
+    /**
+     * The other six say which way they go without being asked, because their
+     * names are directions.
+     */
+    void aSlideThatNamesItsDirectionKeepsIt()
+    {
+        const auto directionOf = [this](SlideType slide) {
+            return firstNoteOf(Tab::layOut(sliding(slide, {5}), 0)).slideDirection;
+        };
+        QCOMPARE(directionOf(SlideType::OutUp), 1);
+        QCOMPARE(directionOf(SlideType::OutDown), -1);
+        QCOMPARE(directionOf(SlideType::InFromBelow), 1);
+        QCOMPARE(directionOf(SlideType::InFromAbove), -1);
+        QCOMPARE(directionOf(SlideType::PickScrapeUp), 1);
+        QCOMPARE(directionOf(SlideType::PickScrapeDown), -1);
+        QCOMPARE(directionOf(SlideType::None), 0);
+    }
 
     void laysBarsLeftToRightWithoutOverlapping()
     {

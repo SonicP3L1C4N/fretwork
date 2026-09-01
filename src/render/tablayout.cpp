@@ -183,6 +183,75 @@ void beamColumns(Tab::LaidBar &bar, const QList<Rational> &offsets,
 }
 
 /**
+ * Which way a slide is drawn, where its kind already says.
+ *
+ * Four of the eight name a direction: out of the note downwards or upwards,
+ * into it from below or above, and the two pick scrapes. The remaining two --
+ * legato and shift -- go wherever the next note is, which is a question about
+ * two notes and is answered in [resolveConnectingSlides] once both are laid.
+ */
+int drawnDirectionOf(SlideType slide)
+{
+    switch (slide) {
+    case SlideType::OutUp:
+    case SlideType::PickScrapeUp:
+        return 1;
+    case SlideType::OutDown:
+    case SlideType::PickScrapeDown:
+        return -1;
+    case SlideType::InFromBelow:
+        return 1;    //< comes up from underneath, so the line rises into it
+    case SlideType::InFromAbove:
+        return -1;
+    case SlideType::None:
+    case SlideType::Legato:
+    case SlideType::Shift:
+        return 0;
+    }
+    return 0;
+}
+
+/**
+ * Point every connecting slide at the note it connects to.
+ *
+ * A legato or shift slide is drawn rising or falling depending on where the
+ * hand ends up, and where it ends up is the next note on that string. That is
+ * known here and nowhere earlier: the columns have to exist first.
+ *
+ * Only within the bar. A slide across a bar line keeps its accent colour and
+ * loses its angle, which is the smaller of the two mistakes available -- the
+ * alternative is threading the next bar's notes into a function whose whole
+ * job is to measure this one, and a slide that crosses a bar line is rare
+ * enough not to be worth that.
+ */
+void resolveConnectingSlides(Tab::LaidBar &bar)
+{
+    for (int index = 0; index < bar.beats.size(); ++index) {
+        for (Tab::LaidNote &note : bar.beats[index].notes) {
+            if (note.slide != SlideType::Legato && note.slide != SlideType::Shift) {
+                continue;
+            }
+            for (int later = index + 1; later < bar.beats.size(); ++later) {
+                bool found = false;
+                for (const Tab::LaidNote &next : bar.beats.at(later).notes) {
+                    if (next.string != note.string) {
+                        continue;
+                    }
+                    if (next.fret != note.fret) {
+                        note.slideDirection = next.fret > note.fret ? 1 : -1;
+                    }
+                    found = true;
+                    break;
+                }
+                if (found) {
+                    break;
+                }
+            }
+        }
+    }
+}
+
+/**
  * One bar of one track, measured but not yet placed.
  *
  * Voices are laid out together: every voice starts at the bar line, so two
@@ -282,11 +351,13 @@ Tab::LaidBar measure(const Score &score, int trackIndex, int barIndex,
                 Tab::LaidNote laidNote;
                 laidNote.x = x;
                 laidNote.string = note->string;
+                laidNote.fret = note->fret;
                 laidNote.text = textFor(*note);
                 laidNote.bend = note->bended;
                 laidNote.palmMuted = note->palmMuted;
                 laidNote.hammer = note->hammerOrigin || note->hammerDestination;
-                laidNote.slide = note->slide != SlideType::None;
+                laidNote.slide = note->slide;
+                laidNote.slideDirection = drawnDirectionOf(note->slide);
                 laidNote.vibrato = note->vibrato;
                 laidNote.letRing = note->letRing;
                 laid.notes.append(laidNote);
@@ -304,6 +375,7 @@ Tab::LaidBar measure(const Score &score, int trackIndex, int barIndex,
         x += widthFor(shortest, style);
     }
 
+    resolveConnectingSlides(bar);
     beamColumns(bar, offsets, durations, beamGroup(master));
 
     bar.width = std::max(style.minimumBarWidth, x + style.barPadding);
