@@ -574,6 +574,13 @@ and it is the one most likely to be made by not looking.** Vibrato was counted
 (eighty). Tremolo was counted (eight). Slides were *asserted* to be zero, and a
 census would have taken the same two minutes it eventually took.
 
+The same day, and in the same document, it happened again: P8.4 was written down
+as a few days of work to add PDF export to a program that has had `--pdf` since
+P2. Two absence claims in one morning, both wrong, both cheap to check — and
+the second one was contradicted by a sentence in architecture.md that the same
+session had edited an hour earlier, which listed PDF among the things export
+already does. **Reading past the answer is the failure mode, not missing it.**
+
 Harmonics were genuinely absent, and are absent no longer: seven natural
 harmonics in the ZZ Top file and five marked `semi` in the Amon Amarth one.
 That was enough to settle the question this paragraph used to pose. **A harmonic
@@ -646,7 +653,7 @@ and a materially better one.
 | **P8.1** | Slides, vibrato, harmonics, tremolo | — | weeks |
 | **P8.2** | Notation data export | P6.1 | a week |
 | **P8.3** | MusicXML export | P8.2 | a week |
-| **P8.4** | PDF export | the paged layout (done) | days |
+| **P8.4** | PDF export | — | **done**, and was already done when this row was written |
 | **P8.5** | GP6 `.gpx` import | a BCFS/BCFZ decompressor, in Rust | open |
 | — | Real-time MIDI recording | P7.2, a quantisation policy | open |
 | — | feedpak import | a decision, not code | open |
@@ -697,9 +704,12 @@ Kept apart, they read honestly:
   therefore the honest answer to "can I have this file in something else" — a
   question this program otherwise refuses to answer, because it will not write
   `.gp`. Export only; reading it is a separate decision.
-- **P8.4, PDF.** Nearly free now. The score view already lays out real pages
-  with margins and a fixed A4 width, so this is a `QPrinter` and a paint pass
-  that mostly exists.
+- **P8.4, PDF.** **Already done, and had been for months when this row was
+  written on 2026-09-01.** `--pdf` lays a track out and draws it, and has since
+  P2. The row was written on the assumption that the paged score view was the
+  new thing and printing was the missing half; nobody ran `--pdf --help` before
+  writing it down. See the note below, because this is the second time in one
+  day.
 - **P8.5, GP6.** Unchanged and correctly last. `.gpx` wraps the same document
   in a bit-level compression of its own, so there is a decompressor to write
   before there is any XML to read, and that belongs in Rust with the other

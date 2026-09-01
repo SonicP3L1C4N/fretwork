@@ -223,8 +223,9 @@ first real score is on screen and scrolling is measured, not before).
 ### 6. Export
 
 MIDI, per-track WAV stems, a mixed WAV, PDF, and eventually MusicXML. Stems come
-free from the engine rule above; everything else is a separate afternoon. The
-last two are scheduled in [roadmap.md](roadmap.md) as P8.3 and P8.4.
+free from the engine rule above; everything else is a separate afternoon. All of
+these exist except MusicXML, which is scheduled in [roadmap.md](roadmap.md) as
+P8.3.
 
 ## Phases
 
