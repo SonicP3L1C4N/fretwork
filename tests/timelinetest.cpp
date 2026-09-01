@@ -187,6 +187,137 @@ private Q_SLOTS:
     }
 
     /**
+     * A slide that connects two notes arrives at the second one's pitch.
+     *
+     * This is the only slide gpif gives a destination for: the hand ends up on
+     * the next note on that string, so the glide has somewhere real to go and
+     * nothing has to be invented. Two frets down is two hundred cents down,
+     * and the curve has to *end* there rather than pass through it.
+     */
+    void aConnectingSlideGlidesToTheNextNote()
+    {
+        Score score = blank(1);
+        score.tempos.append({0, 0, 120});
+        Note first = fretted(2, 5);
+        first.slide = SlideType::Shift;
+        fill(score, 0, {first, fretted(2, 3)});
+
+        const QList<int> order = Timeline::playedOrder(score);
+        const QList<Timeline::NoteEvent> notes = Timeline::notesFor(score, 0, order);
+        QCOMPARE(notes.size(), 2);
+
+        const QList<Timeline::BendPoint> curve = notes.first().bend;
+        QVERIFY2(!curve.isEmpty(), "a slide with a destination does not move at all");
+        QCOMPARE(curve.first().cents, 0);
+        QCOMPARE(curve.last().cents, -200);
+
+        // The hand moves at the end of the note, not across the whole of it:
+        // the pitch is still where it was written for most of the duration.
+        const Rational duration = notes.first().end - notes.first().start;
+        QVERIFY2(duration * Rational(1, 2) < curve.first().at,
+                 "the glide starts before the note is half over");
+        QCOMPARE(curve.last().at, duration);
+    }
+
+    /** Upwards, to prove the direction is read off the notes and not assumed. */
+    void aConnectingSlideGoesUpWhenTheNextNoteIsHigher()
+    {
+        Score score = blank(1);
+        score.tempos.append({0, 0, 120});
+        Note first = fretted(2, 3);
+        first.slide = SlideType::Legato;
+        fill(score, 0, {first, fretted(2, 8)});
+
+        const QList<int> order = Timeline::playedOrder(score);
+        const QList<Timeline::NoteEvent> notes = Timeline::notesFor(score, 0, order);
+        QCOMPARE(notes.first().bend.last().cents, 500);
+    }
+
+    /**
+     * A slide out of a note travels a fixed distance, because the file never
+     * says how far. A slide into one starts away and arrives.
+     *
+     * The numbers are invented -- that is stated where they are defined -- so
+     * what is worth testing is the shape rather than the size: which end of
+     * the note moves, and which way.
+     */
+    void anUnwrittenSlideSweepsOffTheNoteOrOntoIt()
+    {
+        const auto curveFor = [](SlideType slide) {
+            Score score = blank(1);
+            score.tempos.append({0, 0, 120});
+            Note note = fretted(2, 7);
+            note.slide = slide;
+            fill(score, 0, {note});
+            const QList<int> order = Timeline::playedOrder(score);
+            return Timeline::notesFor(score, 0, order).first().bend;
+        };
+
+        // Out: holds the written pitch, then leaves it.
+        const QList<Timeline::BendPoint> down = curveFor(SlideType::OutDown);
+        QCOMPARE(down.first().cents, 0);
+        QVERIFY(down.last().cents < 0);
+        QVERIFY(Rational(0) < down.first().at);
+
+        QVERIFY(curveFor(SlideType::OutUp).last().cents > 0);
+
+        // In: starts away from the written pitch and arrives on it.
+        const QList<Timeline::BendPoint> below = curveFor(SlideType::InFromBelow);
+        QCOMPARE(below.first().at, Rational(0));
+        QVERIFY(below.first().cents < 0);
+        QCOMPARE(below.last().cents, 0);
+
+        QVERIFY(curveFor(SlideType::InFromAbove).first().cents > 0);
+
+        // A pick scrape is a pitch sweep along the string, so it behaves like
+        // a slide out -- which is also where gpif keeps it.
+        QVERIFY(curveFor(SlideType::PickScrapeDown).last().cents < 0);
+    }
+
+    /**
+     * A slide with nothing to slide to is left alone.
+     *
+     * gpif would more usually have called that a slide out. Inventing a
+     * direction for it here would be answering a question the file did not
+     * ask, and a note that quietly wanders off pitch at the end of a phrase is
+     * hard to trace back to a line of code.
+     */
+    void aSlideWithNoNextNoteOnTheStringDoesNotMove()
+    {
+        Score score = blank(1);
+        score.tempos.append({0, 0, 120});
+        Note only = fretted(2, 5);
+        only.slide = SlideType::Legato;
+        // The next note is on a different string, so the hand did not slide.
+        fill(score, 0, {only, fretted(4, 3)});
+
+        const QList<int> order = Timeline::playedOrder(score);
+        const QList<Timeline::NoteEvent> notes = Timeline::notesFor(score, 0, order);
+        QVERIFY(notes.first().bend.isEmpty());
+    }
+
+    /**
+     * A written bend beats a slide, the same way it beats a vibrato: they are
+     * one curve on one channel, and two gestures at once is a third shape
+     * nobody has designed.
+     */
+    void aWrittenBendBeatsASlide()
+    {
+        Score score = blank(1);
+        score.tempos.append({0, 0, 120});
+        Note first = fretted(2, 5);
+        first.slide = SlideType::Shift;
+        first.bended = true;
+        first.bendDestinationValue = 200;
+        fill(score, 0, {first, fretted(2, 3)});
+
+        const QList<int> order = Timeline::playedOrder(score);
+        const QList<Timeline::NoteEvent> notes = Timeline::notesFor(score, 0, order);
+        // Up a whole tone, which is the bend. The slide would have gone down.
+        QCOMPARE(notes.first().bend.last().cents, 200);
+    }
+
+    /**
      * A note too short to hold a cycle gets none.
      *
      * One lurch of pitch on a semiquaver is not vibrato, and playing it as one

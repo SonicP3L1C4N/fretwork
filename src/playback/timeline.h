@@ -95,6 +95,14 @@ struct NoteEvent {
 
     /** Whether this strike is one of a tremolo-picked run. */
     bool tremolo = false;
+
+    /**
+     * The slide as written, carried for the same reason palm muting is: what
+     * a pack or an exporter needs is the gesture, not the bend curve it was
+     * turned into. A reader given only the curve would see a note that ends
+     * three semitones flat and have no word for why.
+     */
+    SlideType slide = SlideType::None;
 };
 
 struct TempoEvent {

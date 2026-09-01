@@ -56,6 +56,34 @@ constexpr int VibratoCents = 30;
 /** A whole cycle is four points: nought, up, nought, down. */
 constexpr int VibratoPointsPerCycle = 4;
 
+/**
+ * How far a slide with no written destination travels, in cents.
+ *
+ * A slide *into* a note from nowhere, or *out* of one into nothing, is the one
+ * gesture in this file with no number behind it: gpif says that it happens and
+ * never says how far. So this is invented, and saying which numbers are
+ * invented is more useful than choosing a round one and hoping.
+ *
+ * Three semitones is far enough to be heard as a slide rather than as a tuning
+ * problem, and near enough not to arrive somewhere that sounds like a note
+ * somebody meant to play. A guitarist sliding off the end of a phrase does not
+ * measure it either.
+ */
+constexpr int SweepCents = 300;
+
+/**
+ * How long a slide takes, at most, in seconds -- and at most a third of the
+ * note, whichever is shorter.
+ *
+ * In seconds because a slide is a hand moving along a neck, and a hand does
+ * not move faster because the piece is quick; capped as a fraction as well so
+ * that a semiquaver is not entirely slide. The same argument as the vibrato
+ * rate above, and the same reason it is not written in beats.
+ */
+constexpr double SlideSeconds = 0.12;
+constexpr int SlideDivisions = 120;   //< the fraction is worked out in these
+constexpr int SlideLongestShare = SlideDivisions / 3;
+
 int bendValueFor(int cents)
 {
     const double range = BendRangeSemitones * 100.0;
@@ -120,6 +148,43 @@ QList<Timeline::BendPoint> vibratoCurve(const Rational &duration, double seconds
     return curve;
 }
 
+/**
+ * Which way an unwritten slide goes, in cents, or 0 where it is not one of
+ * these. Positive is upward.
+ */
+int sweepFor(SlideType slide)
+{
+    switch (slide) {
+    case SlideType::OutDown:
+    case SlideType::PickScrapeDown:
+        return -SweepCents;
+    case SlideType::OutUp:
+    case SlideType::PickScrapeUp:
+        return SweepCents;
+    case SlideType::InFromBelow:
+        return -SweepCents;   //< starts below and arrives at the note
+    case SlideType::InFromAbove:
+        return SweepCents;
+    case SlideType::None:
+    case SlideType::Legato:
+    case SlideType::Shift:
+        return 0;
+    }
+    return 0;
+}
+
+/** Whether the gesture happens on the way in rather than on the way out. */
+bool slidesIn(SlideType slide)
+{
+    return slide == SlideType::InFromBelow || slide == SlideType::InFromAbove;
+}
+
+/** Whether the slide has somewhere written to arrive. */
+bool slidesToTheNextNote(SlideType slide)
+{
+    return slide == SlideType::Legato || slide == SlideType::Shift;
+}
+
 QList<Timeline::BendPoint> bendCurve(const Note &note, const Rational &duration)
 {
     if (!note.bended) {
@@ -153,6 +218,83 @@ QList<Timeline::BendPoint> bendCurve(const Note &note, const Rational &duration)
  * decay rather than damped -- and why it can only be resolved once the whole
  * track is laid out, since the note that stops it may be bars away.
  */
+/**
+ * The slides, once every note is in time order.
+ *
+ * A slide is the one technique that cannot be worked out from the note it is
+ * written on. A legato or shift slide arrives at the *next* note on the same
+ * string, so it needs to know what that note is, and nothing knows that until
+ * the whole track exists and is sorted. Hence a pass rather than a line in the
+ * loop that builds events.
+ *
+ * It runs before let ring, deliberately. A slide happens when the hand moves,
+ * which is at the end of the written note; if a ringing note is later extended
+ * to run into the next bar, the glide stays where the hand was and the note
+ * goes on sounding at the pitch it arrived at. Doing it the other way round
+ * would slide a note that had already been held for two bars, which is a
+ * portamento and not a guitar.
+ *
+ * A written bend wins over a slide, on the same grounds vibrato loses to one:
+ * they are one curve on one channel, and two gestures laid over each other is
+ * a third shape that would need designing rather than guessing.
+ */
+void applySlides(QList<Timeline::NoteEvent> &events, const Timeline::Clock &clock)
+{
+    for (int index = 0; index < events.size(); ++index) {
+        Timeline::NoteEvent &event = events[index];
+        if (event.slide == SlideType::None || !event.bend.isEmpty()) {
+            continue;
+        }
+
+        int cents = 0;
+        if (slidesToTheNextNote(event.slide)) {
+            // The next note on this string, which is where the hand ends up.
+            for (int later = index + 1; later < events.size(); ++later) {
+                if (events.at(later).string == event.string) {
+                    cents = (events.at(later).pitch - event.pitch) * 100;
+                    break;
+                }
+            }
+            // A slide into a note that never comes, or onto the same fret it
+            // started from, is not a pitch move. gpif would more usually have
+            // called that a slide out, and inventing a direction for it here
+            // would be answering a question the file did not ask.
+            if (cents == 0) {
+                continue;
+            }
+            cents = std::clamp(cents, -BendRangeSemitones * 100, BendRangeSemitones * 100);
+        } else {
+            cents = sweepFor(event.slide);
+            if (cents == 0) {
+                continue;
+            }
+        }
+
+        const Rational duration = event.end - event.start;
+        if (duration.numerator <= 0) {
+            continue;
+        }
+        const double seconds =
+            clock.secondsAt(event.end) - clock.secondsAt(event.start);
+        int share = SlideLongestShare;
+        if (seconds > 0.0) {
+            const double wanted = SlideSeconds / seconds * SlideDivisions;
+            share = std::clamp(int(wanted), 1, SlideLongestShare);
+        }
+
+        if (slidesIn(event.slide)) {
+            // Starts away from the note and arrives on it.
+            event.bend.append({Rational(0), cents});
+            event.bend.append({duration * Rational(share, SlideDivisions), 0});
+        } else {
+            // Holds the note, then leaves it.
+            event.bend.append(
+                {duration * Rational(SlideDivisions - share, SlideDivisions), 0});
+            event.bend.append({duration, cents});
+        }
+    }
+}
+
 void applyLetRing(QList<Timeline::NoteEvent> &events, const QList<bool> &ringing,
                   const Rational &finish)
 {
@@ -399,6 +541,7 @@ QList<Timeline::NoteEvent> Timeline::notesFor(const Score &score, int trackIndex
                     event.accent = note->accent;
                     event.vibrato = note->vibrato;
                     event.tremolo = beat->tremolo;
+                    event.slide = note->slide;
                     event.channel = channelFor(track, *note);
                     event.bend = bendCurve(*note, sounding);
                     if (event.bend.isEmpty() && note->vibrato) {
@@ -496,6 +639,7 @@ QList<Timeline::NoteEvent> Timeline::notesFor(const Score &score, int trackIndex
         sortedRinging.append(ringing.at(index));
     }
 
+    applySlides(sorted, clock);
     applyLetRing(sorted, sortedRinging, position);
     return sorted;
 }
