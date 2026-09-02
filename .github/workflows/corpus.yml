@@ -12,7 +12,16 @@
 # Setting it up, once:
 #   Settings -> Actions -> Runners -> New self-hosted runner
 #   Label it `corpus`. Then, on that machine:
-#     echo "FRETWORK_CORPUS=/path/to/your/gp/files" >> ~/actions-runner/.env
+#     echo "FRETWORK_CORPUS=/path/to/your/gp/files" >> <runner dir>/.env
+#
+# Run it as a user with nothing: no sudo, no gh login, no cloud mounts, and
+# a read-only copy of the corpus. A fork's pull request runs the workflow
+# file from the fork, so whatever the runner's user can reach, a stranger
+# can. Under systemd, keep ProtectHome, PrivateTmp and ProtectSystem, and
+# use KillMode=control-group so a restart really restarts; do not add any
+# option that installs a seccomp filter (RestrictSUIDSGID and the like) --
+# on a kernel newer than the filter's tables, tar fails with "Function not
+# implemented" and every job dies setting up.
 #
 # Until that runner exists this workflow will simply not run, which is a
 # truthful state to be in. It is better than a claim with nothing behind it.
