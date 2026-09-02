@@ -202,6 +202,13 @@ class Session : public QObject
     Q_PROPERTY(QVariantList availableEffects READ availableEffects NOTIFY effectsChanged)
 
     /**
+     * The same plugins grouped by where they go, in the order the signal
+     * goes: a list of {name, effects}, each `effects` an entry of
+     * `availableEffects`. Stages nothing is installed for are left out.
+     */
+    Q_PROPERTY(QVariantList effectSections READ effectSections NOTIFY effectsChanged)
+
+    /**
      * The amplifier voicings guitarix ships, for a menu on each plugin.
      *
      * Constant because banks are files on the machine and this window does not
@@ -404,6 +411,7 @@ public:
      */
     Q_INVOKABLE void applyKnobs(const QStringList &knobs, const QStringList &voicings);
     QVariantList availableEffects() const;
+    QVariantList effectSections() const;
 
     QVariantList voicings() const;
 

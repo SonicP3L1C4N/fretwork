@@ -36,12 +36,49 @@
  */
 namespace Lv2
 {
+/**
+ * Where in a signal path a plugin belongs, in the order the signal goes.
+ *
+ * A pedalboard read left to right: what shapes the dynamics of the pickup
+ * comes first, then what colours it, then the amplifier and the cabinet it
+ * drives, and then the room -- modulation, delay and reverb -- which sound
+ * wrong in front of a distortion and right behind one. Utilities are last
+ * because they belong anywhere, and meters last of all because they change
+ * nothing. A menu in this order is a menu somebody can build a rig from top
+ * to bottom; one in alphabetical order puts a reverb between a preamp and a
+ * ring modulator.
+ */
+enum class Section {
+    Dynamics,       //< compressors, gates, expanders, limiters
+    Filter,         //< wahs, envelope filters, tone controls before the drive
+    Drive,          //< overdrive, distortion, fuzz, waveshapers
+    Amplifier,      //< preamps and amplifier simulations
+    Cabinet,        //< speaker simulations
+    Eq,             //< graphic and parametric equalisers
+    Modulation,     //< chorus, flanger, phaser, tremolo, vibrato, pitch
+    Delay,
+    Reverb,
+    Utility,        //< gain, routing, delay lines, and anything unclassified
+    Meter,          //< analysers: audio in, the same audio out, a reading
+};
+
 /** One plugin as the world describes it, before anything is instantiated. */
 struct Description {
     QString uri;
     QString name;
     int audioInputs = 0;
     int audioOutputs = 0;
+
+    /**
+     * The plugin's class and its parent, as LV2 URIs.
+     *
+     * `http://lv2plug.in/ns/lv2core#DistortionPlugin` and the like. The
+     * parent is kept because the useful classes are often one level up: a
+     * chorus is a modulator, a parametric EQ is an EQ, and a stage is decided
+     * at the level that says what the thing does to a signal.
+     */
+    QString classUri;
+    QString parentClassUri;
 
     /** Whether this chain can use it: one in and one out, or two and two. */
     bool usable() const
@@ -62,6 +99,23 @@ QList<Description> installed();
 
 /** One plugin found by its URI, or a description with an empty uri. */
 Description describe(const QString &uri);
+
+/**
+ * Where a plugin sits in a signal path, from what it says it is.
+ *
+ * The LV2 class decides it, at whichever level names what the plugin does:
+ * a `ChorusPlugin` is modulation because its parent is, a `ParaEQPlugin` is
+ * EQ for the same reason, and an `AmplifierPlugin` -- which the spec files
+ * under dynamics because it is a gain -- is an amplifier, because every
+ * plugin that claims the class is a preamp. LV2 has no class for a speaker
+ * cabinet, so a simulator or anything else with "cabinet" in its name is one.
+ * Anything with no class this recognises is a utility, which is honest: it
+ * goes anywhere because nothing is known about where it goes.
+ */
+Section sectionOf(const Description &plugin);
+
+/** The section as a heading for a menu. */
+QString sectionName(Section section);
 
 /** One knob on one plugin: what it is called, what it may be, and what it is. */
 struct Control {

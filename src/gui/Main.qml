@@ -3325,25 +3325,48 @@ Kirigami.ApplicationWindow {
                         enabled: session.availableEffects.length > 0
                         onClicked: deckMenu.popup()
 
+                        /**
+                         * A submenu per section, in the order the signal goes:
+                         * dynamics at the top, reverb near the bottom, and
+                         * meters last. A rig is built by reading down the
+                         * list, and a hundred plugins in alphabetical order
+                         * is a list nobody can build anything from.
+                         *
+                         * An Instantiator rather than a Repeater, because a
+                         * submenu is a popup and a Repeater can only make
+                         * items.
+                         */
                         QQC2.Menu {
                             id: deckMenu
-                            Repeater {
-                                model: session.availableEffects
-                                delegate: QQC2.MenuItem {
+                            Instantiator {
+                                model: session.effectSections
+                                delegate: QQC2.Menu {
+                                    id: sectionMenu
                                     required property var modelData
-                                    text: modelData.stereo
-                                        ? modelData.name
-                                        : i18n("%1 (mono)", modelData.name)
-                                    // Onto the end of the chain and onto the
-                                    // bench. Somebody who has just put a
-                                    // pedal on wants its knobs, and the one
-                                    // thing they cannot want is the knobs of
-                                    // whatever they were looking at before.
-                                    onTriggered: {
-                                        session.addEffect(modelData.uri)
-                                        root.pickedStage = session.chainHere.length - 1
+                                    title: modelData.name
+                                    Repeater {
+                                        model: sectionMenu.modelData.effects
+                                        delegate: QQC2.MenuItem {
+                                            required property var modelData
+                                            text: modelData.stereo
+                                                ? modelData.name
+                                                : i18n("%1 (mono)", modelData.name)
+                                            // Onto the end of the chain and
+                                            // onto the bench. Somebody who has
+                                            // just put a pedal on wants its
+                                            // knobs, and the one thing they
+                                            // cannot want is the knobs of
+                                            // whatever they were looking at
+                                            // before.
+                                            onTriggered: {
+                                                session.addEffect(modelData.uri)
+                                                root.pickedStage = session.chainHere.length - 1
+                                            }
+                                        }
                                     }
                                 }
+                                onObjectAdded: (index, object) => deckMenu.insertMenu(index, object)
+                                onObjectRemoved: (index, object) => deckMenu.removeMenu(object)
                             }
                         }
                     }

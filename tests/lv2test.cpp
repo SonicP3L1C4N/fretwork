@@ -72,6 +72,69 @@ private Q_SLOTS:
         QVERIFY(!chain.isValid());
     }
 
+    /**
+     * Where a plugin goes is read off its class, at whichever level of the
+     * class tree says what it does, with the two exceptions the spec forces:
+     * an amplifier is not a fader, and a cabinet is not a class at all.
+     */
+    void aPluginKnowsWhereItGoesInTheSignalPath()
+    {
+        const auto described = [](const char *klass, const char *parent, const QString &name) {
+            Lv2::Description plugin;
+            plugin.name = name;
+            plugin.classUri = QStringLiteral("http://lv2plug.in/ns/lv2core#") + QLatin1String(klass);
+            if (parent) {
+                plugin.parentClassUri =
+                    QStringLiteral("http://lv2plug.in/ns/lv2core#") + QLatin1String(parent);
+            }
+            return plugin;
+        };
+        using Lv2::Section;
+        QCOMPARE(Lv2::sectionOf(described("DistortionPlugin", "Plugin", QStringLiteral("GxRat"))), Section::Drive);
+        QCOMPARE(Lv2::sectionOf(described("CompressorPlugin", "DynamicsPlugin", QStringLiteral("GxCompressor"))), Section::Dynamics);
+        // By the parent, where the class itself says nothing this knows.
+        QCOMPARE(Lv2::sectionOf(described("ChorusPlugin", "ModulatorPlugin", QStringLiteral("GxChorus"))), Section::Modulation);
+        // An EQ is a filter to the spec and a different stage to a guitarist.
+        QCOMPARE(Lv2::sectionOf(described("ParaEQPlugin", "EQPlugin", QStringLiteral("x42-eq"))), Section::Eq);
+        QCOMPARE(Lv2::sectionOf(described("EQPlugin", "FilterPlugin", QStringLiteral("GxGraphicEQ"))), Section::Eq);
+        QCOMPARE(Lv2::sectionOf(described("FilterPlugin", "Plugin", QStringLiteral("GxWah"))), Section::Filter);
+        // An amplifier is filed under dynamics by the spec and is a preamp in
+        // every plugin that claims it.
+        QCOMPARE(Lv2::sectionOf(described("AmplifierPlugin", "DynamicsPlugin", QStringLiteral("Gxjcm800pre"))), Section::Amplifier);
+        QCOMPARE(Lv2::sectionOf(described("SimulatorPlugin", "Plugin", QStringLiteral("GxAmplifier-X"))), Section::Amplifier);
+        // A cabinet is a simulator with no class of its own.
+        QCOMPARE(Lv2::sectionOf(described("SimulatorPlugin", "Plugin", QStringLiteral("GxCabinet"))), Section::Cabinet);
+        QCOMPARE(Lv2::sectionOf(described("ReverbPlugin", "Plugin", QStringLiteral("Cab IR loader"))), Section::Cabinet);
+        QCOMPARE(Lv2::sectionOf(described("ReverbPlugin", "Plugin", QStringLiteral("x42 - IR Convolver"))), Section::Reverb);
+        QCOMPARE(Lv2::sectionOf(described("PitchPlugin", "SpectralPlugin", QStringLiteral("Gxdetune"))), Section::Modulation);
+        QCOMPARE(Lv2::sectionOf(described("DelayPlugin", "Plugin", QStringLiteral("GxDelay"))), Section::Delay);
+        QCOMPARE(Lv2::sectionOf(described("AnalyserPlugin", "UtilityPlugin", QStringLiteral("BBC Meter"))), Section::Meter);
+        QCOMPARE(Lv2::sectionOf(described("UtilityPlugin", "Plugin", QStringLiteral("GxBooster"))), Section::Utility);
+        // Nothing known about it is nothing known about where it goes.
+        QCOMPARE(Lv2::sectionOf(Lv2::Description{}), Section::Utility);
+
+        for (const Lv2::Section section : {Section::Dynamics, Section::Filter, Section::Drive, Section::Amplifier,
+                                       Section::Cabinet, Section::Eq, Section::Modulation, Section::Delay,
+                                       Section::Reverb, Section::Utility, Section::Meter}) {
+            QVERIFY(!Lv2::sectionName(section).isEmpty());
+        }
+    }
+
+    /** The list is in the order a rig is built, and by name within a section. */
+    void offersPluginsInTheOrderTheSignalGoes()
+    {
+        const QList<Lv2::Description> found = Lv2::installed();
+        for (int index = 1; index < found.size(); ++index) {
+            const Lv2::Section before = Lv2::sectionOf(found.at(index - 1));
+            const Lv2::Section here = Lv2::sectionOf(found.at(index));
+            QVERIFY2(before <= here, qPrintable(found.at(index).name));
+            if (before == here) {
+                QVERIFY2(found.at(index - 1).name.localeAwareCompare(found.at(index).name) <= 0,
+                         qPrintable(found.at(index).name));
+            }
+        }
+    }
+
     void onlyOffersWhatCanSitInAChain()
     {
         // A synth with no audio in and an analyser with no audio out are both

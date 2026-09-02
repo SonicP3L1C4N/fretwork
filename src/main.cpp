@@ -1043,7 +1043,17 @@ int main(int argc, char *argv[])
     // Asked what it can do rather than what a file holds: no score needed.
     if (parser.isSet(listEffects)) {
         const QList<Lv2::Description> found = Lv2::installed();
+        // Under headings, in the order the signal goes: the list is the one
+        // a rig is built from, and it reads the way a rig is built.
+        Lv2::Section section = Lv2::Section::Dynamics;
+        bool first = true;
         for (const Lv2::Description &plugin : found) {
+            const Lv2::Section at = Lv2::sectionOf(plugin);
+            if (first || at != section) {
+                out << Lv2::sectionName(at) << QLatin1Char('\n');
+                section = at;
+                first = false;
+            }
             out << QStringLiteral("  %1  %2 in %3 out  %4\n")
                        .arg(plugin.name, -34)
                        .arg(plugin.audioInputs)

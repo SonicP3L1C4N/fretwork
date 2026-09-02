@@ -1022,15 +1022,49 @@ void Session::applyVoicing(int stage, const QString &name)
     Q_EMIT effectsChanged();
 }
 
+namespace
+{
+QVariantMap effectEntry(const Lv2::Description &plugin)
+{
+    return QVariantMap{{QStringLiteral("name"), plugin.name},
+                       {QStringLiteral("uri"), plugin.uri},
+                       {QStringLiteral("stereo"), plugin.audioInputs == 2},
+                       {QStringLiteral("section"), Lv2::sectionName(Lv2::sectionOf(plugin))}};
+}
+}
+
 QVariantList Session::availableEffects() const
 {
     QVariantList found;
     for (const Lv2::Description &plugin : m_plugins) {
-        found.append(QVariantMap{{QStringLiteral("name"), plugin.name},
-                                 {QStringLiteral("uri"), plugin.uri},
-                                 {QStringLiteral("stereo"), plugin.audioInputs == 2}});
+        found.append(effectEntry(plugin));
     }
     return found;
+}
+
+QVariantList Session::effectSections() const
+{
+    // m_plugins is already in section order, so a section is a run of the list.
+    QVariantList sections;
+    QVariantList effects;
+    Lv2::Section section = Lv2::Section::Dynamics;
+    const auto flush = [&sections, &effects, &section] {
+        if (!effects.isEmpty()) {
+            sections.append(QVariantMap{{QStringLiteral("name"), Lv2::sectionName(section)},
+                                      {QStringLiteral("effects"), effects}});
+            effects.clear();
+        }
+    };
+    for (const Lv2::Description &plugin : m_plugins) {
+        const Lv2::Section at = Lv2::sectionOf(plugin);
+        if (at != section) {
+            flush();
+            section = at;
+        }
+        effects.append(effectEntry(plugin));
+    }
+    flush();
+    return sections;
 }
 
 void Session::addEffect(const QString &uri)

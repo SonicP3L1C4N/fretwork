@@ -8,6 +8,17 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## Unreleased
 
+- **The effects menu is in the order the signal goes.** A submenu per
+  stage — dynamics, filters and wah, drive, amplifiers, cabinets, EQ,
+  modulation and pitch, delay, reverb, utility, meters — so a rig is built
+  by reading down the list, where a hundred and twenty plugins in
+  alphabetical order put a reverb between a preamp and a ring modulator.
+  The stage is read off the plugin's LV2 class, with two corrections the
+  spec makes necessary: an `AmplifierPlugin` is filed under dynamics because
+  it is a gain and is a preamp in every plugin that claims it, and there is
+  no class for a speaker cabinet at all, so one is known by its name.
+  `--effects` prints under the same headings.
+
 - **Notes can be recorded from a MIDI keyboard against the transport.** Arm
   Record beside the click, press Play, and what is played on the keyboard
   port is written into the current part as it lands, a bar at a time, one

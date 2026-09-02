@@ -8,6 +8,7 @@
 #include <QHash>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QRegularExpression>
 
 #ifdef FRETWORK_HAVE_LILV
 #include <lilv/lilv.h>
@@ -435,6 +436,12 @@ Lv2::Description describeOne(const LilvPlugin *plugin)
         described.name = QString::fromUtf8(lilv_node_as_string(name));
         lilv_node_free(name);
     }
+    if (const LilvPluginClass *klass = lilv_plugin_get_class(plugin)) {
+        described.classUri = QString::fromUtf8(lilv_node_as_uri(lilv_plugin_class_get_uri(klass)));
+        if (const LilvNode *parent = lilv_plugin_class_get_parent_uri(klass)) {
+            described.parentClassUri = QString::fromUtf8(lilv_node_as_uri(parent));
+        }
+    }
 
     LilvNode *audio = lilv_new_uri(world(), LV2_CORE__AudioPort);
     LilvNode *input = lilv_new_uri(world(), LV2_CORE__InputPort);
@@ -462,7 +469,14 @@ QList<Lv2::Description> Lv2::installed()
             found.append(described);
         }
     }
+    // In the order the signal goes, and by name within a section: a list
+    // somebody builds a rig from, top to bottom.
     std::sort(found.begin(), found.end(), [](const Description &a, const Description &b) {
+        const Section sectionA = sectionOf(a);
+        const Section sectionB = sectionOf(b);
+        if (sectionA != sectionB) {
+            return sectionA < sectionB;
+        }
         return a.name.localeAwareCompare(b.name) < 0;
     });
     return found;
@@ -853,3 +867,92 @@ void Lv2::Chain::process(float *, float *, int)
 }
 
 #endif
+
+// ---- the signal path, which needs no lilv to reason about ----
+
+Lv2::Section Lv2::sectionOf(const Description &plugin)
+{
+    // The class URIs all end in a fragment, and the fragment is the name.
+    const auto fragment = [](const QString &uri) {
+        const int hash = uri.lastIndexOf(QLatin1Char('#'));
+        return hash < 0 ? uri : uri.mid(hash + 1);
+    };
+    const QString klass = fragment(plugin.classUri);
+    const QString parent = fragment(plugin.parentClassUri);
+    const auto is = [&klass, &parent](const char *name) {
+        return klass == QLatin1String(name) || parent == QLatin1String(name);
+    };
+
+    // Cabinets first, because nothing else says what one is: guitarix's is
+    // a simulator like its amplifiers, and an impulse-response loader is a
+    // reverb until it is loaded with a speaker.
+    static const QRegularExpression cabinet(QStringLiteral("cabinet|\\bcab\\b"),
+                                            QRegularExpression::CaseInsensitiveOption);
+    if (cabinet.match(plugin.name).hasMatch()) {
+        return Section::Cabinet;
+    }
+    if (is("AnalyserPlugin")) {
+        return Section::Meter;
+    }
+    // Before dynamics, because the spec files an amplifier under them and
+    // every plugin claiming the class is a preamp rather than a fader.
+    if (is("AmplifierPlugin") || is("SimulatorPlugin")) {
+        return Section::Amplifier;
+    }
+    if (is("CompressorPlugin") || is("ExpanderPlugin") || is("GatePlugin") || is("LimiterPlugin")
+        || klass == QLatin1String("DynamicsPlugin")) {
+        return Section::Dynamics;
+    }
+    // Before filters, because an EQ is a filter to the spec and a different
+    // stage to a guitarist.
+    if (is("EQPlugin") || is("ParaEQPlugin") || is("MultiEQPlugin")) {
+        return Section::Eq;
+    }
+    if (is("FilterPlugin") || is("HighpassPlugin") || is("LowpassPlugin")
+        || is("BandpassPlugin") || is("CombPlugin") || is("AllpassPlugin")) {
+        return Section::Filter;
+    }
+    if (is("DistortionPlugin") || is("WaveshaperPlugin")) {
+        return Section::Drive;
+    }
+    if (is("ModulatorPlugin") || is("ChorusPlugin") || is("FlangerPlugin") || is("PhaserPlugin")
+        || is("PitchPlugin") || is("SpectralPlugin")) {
+        return Section::Modulation;
+    }
+    if (is("DelayPlugin")) {
+        return Section::Delay;
+    }
+    if (is("ReverbPlugin")) {
+        return Section::Reverb;
+    }
+    return Section::Utility;
+}
+
+QString Lv2::sectionName(Section section)
+{
+    switch (section) {
+    case Section::Dynamics:
+        return i18nc("a stage of a guitar signal path", "Dynamics");
+    case Section::Filter:
+        return i18nc("a stage of a guitar signal path", "Filters and wah");
+    case Section::Drive:
+        return i18nc("a stage of a guitar signal path", "Drive");
+    case Section::Amplifier:
+        return i18nc("a stage of a guitar signal path", "Amplifiers");
+    case Section::Cabinet:
+        return i18nc("a stage of a guitar signal path", "Cabinets");
+    case Section::Eq:
+        return i18nc("a stage of a guitar signal path", "EQ");
+    case Section::Modulation:
+        return i18nc("a stage of a guitar signal path", "Modulation and pitch");
+    case Section::Delay:
+        return i18nc("a stage of a guitar signal path", "Delay");
+    case Section::Reverb:
+        return i18nc("a stage of a guitar signal path", "Reverb");
+    case Section::Utility:
+        return i18nc("a stage of a guitar signal path", "Utility");
+    case Section::Meter:
+        return i18nc("a stage of a guitar signal path", "Meters");
+    }
+    return QString();
+}
