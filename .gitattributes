@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
+
+# What a release tarball leaves out. The repository keeps the working notes
+# -- the reviews, the wiring notes, the release retrospectives and the agent
+# definitions -- because the reasoning in them is the useful part and the
+# roadmap links to them. A release is the program, its documentation and its
+# assets, and nothing that was only ever for the people building it.
+.claude/            export-ignore
+.github/            export-ignore
+.gitattributes      export-ignore
+docs/marketing.md   export-ignore
+docs/rc-assessment.md export-ignore
+docs/release-0.1.0.md export-ignore
+docs/review.md      export-ignore
+docs/wiring-notes.md export-ignore

@@ -10,6 +10,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
@@ -362,6 +363,62 @@ private Q_SLOTS:
         // The decoder is reached through the archive, so check the whole path
         // by writing a proper one with the extra key inside.
         QCOMPARE(describe(Fw::read(file)), describe(original));
+    }
+
+    /**
+     * The same defence for this program's own format, which anybody can
+     * write by hand: a rhythm of one over four billion, a bar of half a
+     * billion beats, and a tempo that is not a number.
+     */
+    void aHostileDocumentIsClampedRatherThanBelieved()
+    {
+        const Score original = awkward();
+        const QString file = path(QStringLiteral("hostile-source.fw"));
+        QVERIFY(Fw::write(original, file));
+
+        QByteArray json = Zip::readEntry(file, QStringLiteral("score.json"));
+        QJsonObject root = QJsonDocument::fromJson(json).object();
+
+        QJsonObject rhythms = root.value(QStringLiteral("rhythms")).toObject();
+        for (const QString &key : rhythms.keys()) {
+            rhythms.insert(key, QJsonArray{1, qint64(4294967296LL)});
+        }
+        root.insert(QStringLiteral("rhythms"), rhythms);
+
+        QJsonArray bars = root.value(QStringLiteral("masterBars")).toArray();
+        QJsonObject first = bars.at(0).toObject();
+        first.insert(QStringLiteral("time"), QJsonArray{536870912, 4});
+        bars.replace(0, first);
+        root.insert(QStringLiteral("masterBars"), bars);
+
+        QJsonArray tempos;
+        tempos.append(QJsonObject{{QStringLiteral("bar"), 0},
+                                  {QStringLiteral("position"), 0},
+                                  {QStringLiteral("bpm"), 1e308}});
+        tempos.append(QJsonObject{{QStringLiteral("bar"), 0},
+                                  {QStringLiteral("position"), 0},
+                                  {QStringLiteral("bpm"), 100}});
+        root.insert(QStringLiteral("tempos"), tempos);
+
+        const QString hostile = path(QStringLiteral("hostile.fw"));
+        {
+            KZip archive(hostile);
+            QVERIFY(archive.open(QIODevice::WriteOnly));
+            const QByteArray manifest = Zip::readEntry(file, QStringLiteral("manifest.json"));
+            archive.writeFile(QStringLiteral("manifest.json"), manifest);
+            archive.writeFile(QStringLiteral("score.json"), QJsonDocument(root).toJson());
+            QVERIFY(archive.close());
+        }
+
+        QString why;
+        const Score read = Fw::read(hostile, &why);
+        QVERIFY2(!read.isEmpty(), qPrintable(why));
+        for (auto rhythm = read.rhythms.constBegin(); rhythm != read.rhythms.constEnd(); ++rhythm) {
+            QCOMPARE(rhythm.value(), Rational(1));
+        }
+        QCOMPARE(read.masterBars.first().numerator, 4);
+        QCOMPARE(read.tempos.size(), 1);
+        QCOMPARE(read.tempos.first().quarterBpm, 100.0);
     }
 
     // ---- what it does when asked for the impossible ----

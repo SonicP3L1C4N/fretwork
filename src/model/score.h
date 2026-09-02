@@ -215,6 +215,24 @@ struct Track {
     }
 };
 
+/**
+ * Whether two numbers are a time signature a file may carry.
+ *
+ * Wider than the editor allows to be typed -- a file may hold what a person
+ * would not write -- and narrow enough to keep a bar's length inside the
+ * arithmetic: a numerator of half a billion is not a signature, it is a
+ * file built to overflow one.
+ */
+inline bool isTimeSignature(int numerator, int denominator)
+{
+    return numerator >= 1 && numerator <= 64 && denominator >= 1 && denominator <= 64
+        && (denominator & (denominator - 1)) == 0;
+}
+
+/** The tempos a file may carry, in crotchets a minute. Outside is a lie, not a piece. */
+constexpr double SlowestBpm = 10;
+constexpr double FastestBpm = 999;
+
 struct TempoChange {
     int bar = 0;                //< index into Score::masterBars, as notated
     double position = 0;        //< quarters into that bar

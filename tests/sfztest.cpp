@@ -28,6 +28,32 @@ private:
     }
 
 private Q_SLOTS:
+    /**
+     * A library is a folder somebody downloaded, and its samples are inside
+     * it or they are not its samples: an absolute path, or a default_path
+     * that climbs out, is refused rather than read.
+     */
+    void aSampleOutsideTheLibraryIsNotRead()
+    {
+        const Sfz::Instrument outside = of(QStringLiteral(
+            "<region> sample=/etc/hostname\n"
+            "<region> sample=../../secret.wav\n"
+            "<control> default_path=../../\n"
+            "<region> sample=x.wav\n"));
+        QCOMPARE(outside.regions.size(), 3);
+        for (const Sfz::Region &region : outside.regions) {
+            QVERIFY2(region.sample.isEmpty(), qPrintable(region.sample));
+        }
+
+        const Sfz::Instrument inside = of(QStringLiteral(
+            "<control> default_path=Clean/\n"
+            "<region> sample=E2.wav\n"
+            "<region> sample=../Dirty/E2.wav\n"));
+        QCOMPARE(inside.regions.size(), 2);
+        QCOMPARE(inside.regions.at(0).sample, QStringLiteral("/samples/Clean/E2.wav"));
+        QCOMPARE(inside.regions.at(1).sample, QStringLiteral("/samples/Dirty/E2.wav"));
+    }
+
     void readsARegionAndWhereItsSampleIs()
     {
         const Sfz::Instrument instrument = of(QStringLiteral(

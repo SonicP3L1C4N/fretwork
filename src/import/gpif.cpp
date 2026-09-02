@@ -12,6 +12,9 @@
 #include <QFileInfo>
 #include <QXmlStreamReader>
 
+#include <algorithm>
+#include <cmath>
+
 namespace
 {
 /**
@@ -247,7 +250,10 @@ MasterBar readMasterBar(const QDomElement &element)
         bar.numerator = signature.at(0).toInt();
         bar.denominator = signature.at(1).toInt();
     }
-    if (bar.numerator <= 0 || bar.denominator <= 0) {
+    // The same limits the editor enforces when a signature is typed: outside
+    // them is a crafted file, not a time signature, and a numerator large
+    // enough to overflow the bar's length is the difference.
+    if (!isTimeSignature(bar.numerator, bar.denominator)) {
         bar.numerator = 4;
         bar.denominator = 4;
     }
@@ -385,7 +391,12 @@ Rational readRhythm(const QDomElement &element)
     const QDomElement dot = element.firstChildElement(QStringLiteral("AugmentationDot"));
     if (!dot.isNull()) {
         // One dot is a half again, two is three quarters again: 2 - 1/2^count.
-        const int count = dot.attribute(QStringLiteral("count"), QStringLiteral("1")).toInt();
+        // Nobody writes more than two, three is the most the page can draw,
+        // and a count of thirty-two is a file built to overflow the
+        // arithmetic: the denominators of two such rhythms multiplied land
+        // on exactly zero.
+        const int count = std::clamp(
+            dot.attribute(QStringLiteral("count"), QStringLiteral("1")).toInt(), 0, 3);
         value = value * Rational((qint64(1) << count) * 2 - 1, qint64(1) << count);
     }
 
@@ -430,6 +441,14 @@ QList<TempoChange> readTempos(const QDomElement &master)
             childText(automation, QStringLiteral("Position"), QStringLiteral("0")).toDouble();
         const int counts = value.size() > 1 ? value.at(1).toInt() : 2;
         change.quarterBpm = value.at(0).toDouble() * beat.value(counts, Rational(1)).toDouble();
+        // A tempo is a number: "nan" parses as one and is not, and a
+        // position off the bar's end or a speed no metronome has are a file
+        // that is lying rather than a piece that is fast.
+        if (!std::isfinite(change.quarterBpm) || !std::isfinite(change.position)
+            || change.quarterBpm < SlowestBpm || change.quarterBpm > FastestBpm
+            || change.position < 0 || change.bar < 0) {
+            continue;
+        }
         tempos.append(change);
     }
 

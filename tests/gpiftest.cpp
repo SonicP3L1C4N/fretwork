@@ -248,6 +248,44 @@ private Q_SLOTS:
         QVERIFY2(why.contains(QStringLiteral("Guitar Pro 5")), qPrintable(why));
     }
 
+    /**
+     * A rhythm with thirty-two dots is not a rhythm, it is a file built so
+     * that two of them add to a duration with a denominator of exactly
+     * nought. The count is clamped to what a page can draw, and a time
+     * signature or a tempo outside anything music has is refused the same
+     * way.
+     */
+    void aFileBuiltToOverflowTheArithmeticIsClamped()
+    {
+        QByteArray xml = notesDocument({QString(), QString()});
+        xml.replace("<Rhythm id=\"0\"><NoteValue>Quarter</NoteValue></Rhythm>",
+                    "<Rhythm id=\"0\"><NoteValue>Quarter</NoteValue>"
+                    "<AugmentationDot count=\"32\"/></Rhythm>");
+        xml.replace("<Time>4/4</Time>", "<Time>536870912/4</Time>");
+        xml.replace("<MasterTrack><Tracks>0</Tracks></MasterTrack>",
+                    "<MasterTrack><Tracks>0</Tracks><Automations>"
+                    "<Automation><Type>Tempo</Type><Bar>0</Bar><Position>0</Position>"
+                    "<Value>nan 2</Value></Automation>"
+                    "<Automation><Type>Tempo</Type><Bar>0</Bar><Position>0</Position>"
+                    "<Value>120 2</Value></Automation>"
+                    "</Automations></MasterTrack>");
+        QString why;
+        const Score score = Gpif::parse(xml, &why);
+        QVERIFY2(!score.isEmpty(), qPrintable(why));
+
+        const Rational duration = score.rhythms.value(0);
+        QCOMPARE(duration, Rational(15, 8));         // three dots, not thirty-two
+        const Rational twice = duration + duration;
+        QVERIFY(twice.denominator > 0);
+        QCOMPARE(twice, Rational(15, 4));
+
+        QCOMPARE(score.masterBars.first().numerator, 4);
+        QVERIFY(Rational(0) < score.masterBars.first().length());
+
+        QCOMPARE(score.tempos.size(), 1);
+        QCOMPARE(score.tempos.first().quarterBpm, 120.0);
+    }
+
     void refusesWhatIsNotAZipAtAll()
     {
         const QString path = m_directory.path() + QStringLiteral("/plain.gp");

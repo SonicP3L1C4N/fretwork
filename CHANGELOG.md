@@ -8,6 +8,42 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 ## Unreleased
 
+- **A crafted file cannot crash the program with a divide by zero.** A
+  rhythm with thirty-two augmentation dots, or a `.fw` rhythm of one over
+  four billion, used to multiply two denominators to exactly 2^64, which is
+  nought in sixty-four bits, and the layout then divided by it. Dot counts,
+  time signatures, rhythm denominators and tempos are now clamped to what
+  music has when a file is read, and `Rational` itself refuses a zero
+  denominator and falls back to a fine grid rather than wrapping when a
+  product would not fit. Found by a security review before the release
+  candidate; each case is a test.
+
+- **The LV2 chain stops its worker threads before freeing the plugins they
+  were working for.** It freed the instances first, so a cabinet still
+  building its convolver on the worker thread -- hundreds of milliseconds,
+  and a chain is rebuilt on every note edit -- was calling into freed
+  memory. This is a second explanation for the four crashes of 27 August
+  that were never reproduced, alongside the planner one that was.
+
+- **What a downloaded file can reach is now stated, and small.** A rig file
+  beside a score is applied only where it names a sample library beside the
+  score or under this program's own instrument folders, and plugins that
+  are installed; anything else is read past and said in the status bar. An
+  SFZ's samples must be inside the library's folder. The WAV reader refuses
+  anything that is not a plain file, or is larger than any recording, so a
+  `sample=/dev/zero` no longer reads until memory runs out; and a float WAV
+  claiming 16-bit samples no longer reads past its buffer. Knob values from
+  the command line, rig files and the mixer are clamped to the range the
+  plugin declared, which matters for the selectors guitarix reads as table
+  indices. Scores and rigs are written through a save file, so a crash
+  halfway through a save leaves the old file rather than half of a new one.
+
+- **Every GitHub Action is pinned to a commit**, and the repository now
+  requires approval before any outside contributor's pull request runs, and
+  refuses force-pushes to `main`. A fork's pull request runs the workflow
+  file from the fork, and a job could have named the self-hosted corpus
+  runner.
+
 - **The effects menu is in the order the signal goes.** A submenu per
   stage — dynamics, filters and wah, drive, amplifiers, cabinets, EQ,
   modulation and pitch, delay, reverb, utility, meters — so a rig is built

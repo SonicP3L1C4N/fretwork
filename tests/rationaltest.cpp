@@ -13,6 +13,42 @@ class RationalTest : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    /**
+     * A file can ask for arithmetic the type cannot do exactly, and the
+     * answer has to be a number rather than a fault: two dotted rhythms
+     * with thirty-two dots each multiply their denominators to exactly 2^64,
+     * which is nought in sixty-four bits, and a nought denominator is a
+     * hardware divide-by-zero the next time anybody asks how long a bar is.
+     */
+    void survivesWhatAHostileFileAsksOf()
+    {
+        const Rational zero(1, 0);
+        QCOMPARE(zero, Rational(0));
+        QVERIFY(zero.denominator > 0);
+
+        const Rational huge(1, qint64(1) << 32);
+        const Rational sum = huge + huge;
+        QVERIFY(sum.denominator > 0);
+        QCOMPARE(sum, Rational(1, qint64(1) << 31));
+
+        // Where the exact product would not fit, the answer is the nearest
+        // point on a fine grid rather than a wrapped integer.
+        const Rational wide(1, (qint64(1) << 62) + 1);
+        const Rational other(1, (qint64(1) << 62) - 1);
+        const Rational tiny = wide + other;
+        QVERIFY(tiny.denominator > 0);
+        QVERIFY(!(tiny < Rational(0)));
+        QVERIFY(tiny < Rational(1, 1000));
+
+        const Rational big(qint64(1) << 40);
+        const Rational product = big * big;
+        QVERIFY(product.denominator > 0);
+        QVERIFY(Rational(1) < product);
+
+        QCOMPARE(Rational(1) / Rational(0), Rational(0));
+        QVERIFY(wide < other);
+    }
+
     void reducesWhatItIsGiven()
     {
         QCOMPARE(Rational(2, 4), Rational(1, 2));

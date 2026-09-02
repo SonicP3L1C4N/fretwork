@@ -3,6 +3,7 @@
 
 #include "wav.h"
 
+#include <QFileInfo>
 #include <QtEndian>
 
 #include <cstring>
@@ -153,6 +154,20 @@ quint16 readU16(const char *at)
 
 WavReader::WavReader(const QString &path)
 {
+    // A file, and one of a size a recording has. An SFZ can name any path
+    // it likes as a sample, and `/dev/zero` is a path: read whole, it is
+    // read until memory runs out. The cap is a quarter of an hour of stereo
+    // 32-bit float at 96 kHz, which is longer than any note.
+    constexpr qint64 LargestWav = qint64(700) * 1024 * 1024;
+    const QFileInfo info(path);
+    if (!info.isFile()) {
+        m_error = QStringLiteral("%1: not a file").arg(path);
+        return;
+    }
+    if (info.size() > LargestWav) {
+        m_error = QStringLiteral("%1: larger than any recording this reads").arg(path);
+        return;
+    }
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
         m_error = QStringLiteral("%1: %2").arg(path, file.errorString());
@@ -222,6 +237,12 @@ WavReader::WavReader(const QString &path)
     const int bytesPer = bits / 8;
     if (bytesPer < 2 || bytesPer > 4) {
         m_error = QStringLiteral("%1: %2-bit samples are not read here").arg(path).arg(bits);
+        return;
+    }
+    // A float is four bytes; a header claiming float samples of two would
+    // have the loop below read four bytes of every two, and past the end.
+    if (isFloat && bytesPer != 4) {
+        m_error = QStringLiteral("%1: %2-bit float samples are not a thing").arg(path).arg(bits);
         return;
     }
 

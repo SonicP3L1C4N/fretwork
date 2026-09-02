@@ -129,6 +129,14 @@ Sfz::Region regionFrom(const Level &settings, const QString &directory,
             ? directory
             : QDir(directory).filePath(defaultPath);
         region.sample = QFileInfo(sample).isAbsolute() ? sample : QDir(base).filePath(sample);
+        // Inside the library, or not at all. A library is a folder somebody
+        // downloaded, and `default_path=../../` or an absolute `sample=` is
+        // that folder reaching for files that are not its own. A region
+        // whose sample is refused is a region with no sample, which the
+        // sampler already knows how to ignore.
+        const QString root = QDir::cleanPath(QDir(directory).absolutePath()) + QLatin1Char('/');
+        const QString resolved = QDir::cleanPath(QFileInfo(region.sample).absoluteFilePath());
+        region.sample = resolved.startsWith(root) ? resolved : QString();
     }
     return region;
 }

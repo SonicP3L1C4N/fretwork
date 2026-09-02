@@ -797,6 +797,29 @@ void Session::restoreRig()
         return;
     }
 
+    // A rig beside a score arrived with the score, and a score is something
+    // people download. What it may name is what a rig written here could
+    // have named -- a library under this program's own instrument folders
+    // or beside the score itself, and plugins that are installed -- and
+    // anything else is read past and said. A rig that pointed the sampler
+    // at an arbitrary file, or at a plugin by a URI nobody has, was the one
+    // way a downloaded file reached outside the score.
+    QStringList roots{QFileInfo(m_filePath).absolutePath()};
+    for (const QString &root : QStandardPaths::standardLocations(QStandardPaths::AppDataLocation)) {
+        roots.append(root + QStringLiteral("/instruments"));
+    }
+    const auto within = [&roots](const QString &path) {
+        const QString clean = QDir::cleanPath(QFileInfo(path).absoluteFilePath());
+        for (const QString &root : std::as_const(roots)) {
+            const QString base = QDir::cleanPath(root) + QLatin1Char('/');
+            if (clean.startsWith(base)) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    QStringList refused;
     const int trackCount = int(m_editor.score().tracks.size());
     for (const Rig::Track &track : rig.tracks) {
         // A rig written against a score that has since lost a part names a
@@ -805,12 +828,29 @@ void Session::restoreRig()
             continue;
         }
         if (!track.sampler.isEmpty()) {
-            m_samplers.insert(track.track, track.sampler);
+            if (within(track.sampler)) {
+                m_samplers.insert(track.track, track.sampler);
+            } else {
+                refused.append(track.sampler);
+            }
         }
         if (track.chain.isEmpty()) {
             continue;
         }
-        m_rig.insert(track.track, stagesFrom(track));
+        bool installed = true;
+        for (const QString &uri : track.chain) {
+            if (Lv2::describe(uri).uri.isEmpty()) {
+                refused.append(uri);
+                installed = false;
+            }
+        }
+        if (installed) {
+            m_rig.insert(track.track, stagesFrom(track));
+        }
+    }
+    if (!refused.isEmpty()) {
+        setStatus(i18n("The rig beside this score was not applied in full; it names what is not here: %1",
+                       refused.join(QStringLiteral(", "))));
     }
 }
 

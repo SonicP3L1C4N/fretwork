@@ -9,9 +9,13 @@
 
 #include <KZip>
 
+#include <cmath>
+
 #include <QFileInfo>
 #include <QJsonArray>
+#include <QBuffer>
 #include <QJsonDocument>
+#include <QSaveFile>
 #include <QJsonObject>
 
 namespace
@@ -407,6 +411,10 @@ Score decode(const QByteArray &json, QString *error)
             bar.numerator = time.at(0).toInt(4);
             bar.denominator = time.at(1).toInt(4);
         }
+        if (!isTimeSignature(bar.numerator, bar.denominator)) {
+            bar.numerator = 4;
+            bar.denominator = 4;
+        }
         bar.section = object.value(QStringLiteral("section")).toString();
         bar.tripletFeel =
             Swing::fromToken(object.value(QStringLiteral("tripletFeel")).toString());
@@ -459,12 +467,24 @@ Score decode(const QByteArray &json, QString *error)
                                 });
     score.rhythms = toTable<Rational>(root.value(QStringLiteral("rhythms")).toObject(),
                                       [](const QJsonValue &value) {
+                                          // A duration a page could hold: the
+                                          // longest is a few semibreves and
+                                          // the finest grid a tuplet makes is
+                                          // in the hundreds. A denominator of
+                                          // four billion is a file built so
+                                          // that two of them multiply to
+                                          // exactly nothing.
                                           const QJsonArray pair = value.toArray();
-                                          if (pair.size() != 2 || pair.at(1).toInteger() == 0) {
+                                          if (pair.size() != 2) {
                                               return Rational(1);
                                           }
-                                          return Rational(pair.at(0).toInteger(),
-                                                          pair.at(1).toInteger());
+                                          const qint64 top = pair.at(0).toInteger();
+                                          const qint64 bottom = pair.at(1).toInteger();
+                                          if (bottom < 1 || bottom > (qint64(1) << 16)
+                                              || top < 0 || top > (qint64(1) << 20)) {
+                                              return Rational(1);
+                                          }
+                                          return Rational(top, bottom);
                                       });
 
     const QJsonArray tempos = root.value(QStringLiteral("tempos")).toArray();
@@ -474,6 +494,11 @@ Score decode(const QByteArray &json, QString *error)
         tempo.bar = object.value(QStringLiteral("bar")).toInt();
         tempo.position = object.value(QStringLiteral("position")).toDouble();
         tempo.quarterBpm = object.value(QStringLiteral("bpm")).toDouble(120);
+        if (!std::isfinite(tempo.quarterBpm) || !std::isfinite(tempo.position)
+            || tempo.quarterBpm < SlowestBpm || tempo.quarterBpm > FastestBpm || tempo.bar < 0
+            || tempo.position < 0) {
+            continue;
+        }
         score.tempos.append(tempo);
     }
 
@@ -506,16 +531,40 @@ bool Fw::write(const Score &score, const QString &path, QString *error)
     // Written by KArchive and read by our own reader, which the tests already
     // check against archives KArchive wrote. Writing a ZIP is the part nobody
     // disagrees about; it was reading one that needed doing ourselves.
-    KZip archive(path);
+    //
+    // Built in memory and then put on disk through a QSaveFile, so that the
+    // file there is the old one until the new one is complete: a crash or a
+    // full disk halfway through a save used to leave a truncated archive
+    // where the score had been, and a symlink at the path is replaced rather
+    // than written through. In memory rather than KZip straight onto the
+    // QSaveFile, because KZip closes the device it was given and a QSaveFile
+    // closed by anyone but commit() is a fatal error by design.
+    QBuffer buffer;
+    KZip archive(&buffer);
     if (!archive.open(QIODevice::WriteOnly)) {
         if (error) {
-            *error = QStringLiteral("cannot write to %1").arg(path);
+            *error = QStringLiteral("could not build %1").arg(path);
         }
         return false;
     }
     const bool ok = archive.writeFile(ManifestEntry, manifest())
         && archive.writeFile(ScoreEntry, encode(score));
     if (!archive.close() || !ok) {
+        if (error) {
+            *error = QStringLiteral("could not build %1").arg(path);
+        }
+        return false;
+    }
+
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        if (error) {
+            *error = QStringLiteral("cannot write to %1").arg(path);
+        }
+        return false;
+    }
+    const QByteArray &bytes = buffer.data();
+    if (file.write(bytes) != bytes.size() || !file.commit()) {
         if (error) {
             *error = QStringLiteral("could not finish writing %1").arg(path);
         }

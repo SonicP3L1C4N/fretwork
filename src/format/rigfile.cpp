@@ -8,6 +8,7 @@
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QSaveFile>
 #include <QJsonObject>
 #include <QJsonParseError>
 
@@ -115,8 +116,11 @@ bool Rig::write(const Document &rig, const QString &path, QString *error)
     root.insert(versionKey(), FormatVersion);
     root.insert(QStringLiteral("tracks"), tracks);
 
-    QFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    // A QSaveFile, so the rig on disk is the old one until the new one is
+    // whole: this is written on a timer while knobs are being turned, which
+    // is exactly when a crash would otherwise leave half a file.
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
         if (error) {
             *error = i18nc("a file, and what is wrong with it", "%1: %2", path,
                            file.errorString());
@@ -126,17 +130,14 @@ bool Rig::write(const Document &rig, const QString &path, QString *error)
     // Indented, because the point of a readable format is that somebody reads
     // it.
     const QByteArray text = QJsonDocument(root).toJson(QJsonDocument::Indented);
-    if (file.write(text) != text.size()) {
+    if (file.write(text) != text.size() || !file.commit()) {
         if (error) {
             *error = i18nc("a file, and what is wrong with it", "%1: %2", path,
                            file.errorString());
         }
         return false;
     }
-    // Closed here rather than left to the destructor, so a full disk is an
-    // error somebody is told about rather than one discovered on the next open.
-    file.close();
-    return file.error() == QFile::NoError;
+    return true;
 }
 
 Rig::Document Rig::read(const QString &path, QString *error)

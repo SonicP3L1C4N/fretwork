@@ -171,15 +171,7 @@ The suite runs without any Guitar Pro files: every structural case is built in
 code. Point `FRETWORK_CORPUS` at a directory of `.gp` files to check real ones
 too — transcriptions are not ours to commit.
 
-## Running the spike
-
-Needs `python3` and, for anything audible, `fluidsynth` with a SoundFont. No
-dependencies beyond the standard library, on purpose: a spike that needs a
-virtualenv is a spike nobody runs twice.
-
-```
-python3 spike/gp2midi.py FILE.gp --play          # or --stems out/, --no-repeats
-```
+>>>
 
 ## The look
 

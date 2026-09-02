@@ -525,6 +525,11 @@ struct Hosted {
     QList<Lv2::Control> described;
 };
 
+namespace
+{
+void release(Hosted &stage, bool activated);
+}
+
 struct Lv2::Chain::Private {
     Options options;
     QString error;
@@ -681,6 +686,12 @@ Lv2::Chain::Chain(const QStringList &uris, const Options &options)
     lilv_node_free(input);
 
     if (!d->error.isEmpty()) {
+        // Whatever did start is let go of properly: an instance dropped on
+        // the floor here kept its worker thread and its memory for the life
+        // of the program.
+        for (Hosted &stage : d->stages) {
+            release(stage, false);
+        }
         d->stages.clear();
         return;
     }
@@ -692,17 +703,41 @@ Lv2::Chain::Chain(const QStringList &uris, const Options &options)
     }
 }
 
+namespace
+{
+/**
+ * Lets go of a stage's instances, in the only order that is safe.
+ *
+ * The workers first, and joined: a worker thread is inside the plugin's
+ * `work()` for as long as the errand takes -- guitarix building a cabinet's
+ * convolver is hundreds of milliseconds -- and a chain is torn down every
+ * time a note is edited. Freeing the instance while that thread is still
+ * calling into it is a use-after-free, and the first version of this did
+ * exactly that. Deactivated only where it was activated, because a plugin
+ * that never started is not owed a stop.
+ */
+void release(Hosted &stage, bool activated)
+{
+    stage.leftWorker.reset();
+    stage.rightWorker.reset();
+    for (LilvInstance *instance : {stage.left, stage.right}) {
+        if (!instance) {
+            continue;
+        }
+        if (activated) {
+            lilv_instance_deactivate(instance);
+        }
+        lilv_instance_free(instance);
+    }
+    stage.left = nullptr;
+    stage.right = nullptr;
+}
+}
+
 Lv2::Chain::~Chain()
 {
     for (Hosted &stage : d->stages) {
-        if (stage.left) {
-            lilv_instance_deactivate(stage.left);
-            lilv_instance_free(stage.left);
-        }
-        if (stage.right) {
-            lilv_instance_deactivate(stage.right);
-            lilv_instance_free(stage.right);
-        }
+        release(stage, true);
     }
 }
 
@@ -752,6 +787,16 @@ void Lv2::Chain::setControl(int stage, uint32_t index, float value)
     Hosted &hosted = d->stages[size_t(stage)];
     if (index >= hosted.controls.size()) {
         return;
+    }
+    // Kept inside the range the plugin declared, which LV2 says a host must
+    // do and which matters more than it sounds: guitarix reads its model
+    // selectors as table indices, and a value past the end of the table is
+    // a read past the end of the table.
+    for (const Control &control : std::as_const(hosted.described)) {
+        if (control.index == index) {
+            value = std::clamp(value, control.minimum, control.maximum);
+            break;
+        }
     }
     // Straight into the float the plugin reads. Both instances of a mono
     // plugin are connected to the same one, so a stereo pair cannot drift

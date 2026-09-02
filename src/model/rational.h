@@ -30,11 +30,27 @@ struct Rational {
 
     constexpr Rational() = default;
 
+    /**
+     * A zero denominator is nought, and defined to be, rather than asserted
+     * against. It used to be an assertion, which is right for a programming
+     * error and useless against a file: a crafted score with two rhythms of
+     * thirty-two dots multiplied their denominators to exactly 2^64, which
+     * is zero in sixty-four bits, and the assertion was not compiled into
+     * the build that opened it, so the next thing to ask how long a bar was
+     * divided by zero in hardware. The readers now clamp what a file may
+     * say and the arithmetic below no longer wraps, so nothing reaches this
+     * -- and if something does, a duration of nought is a wrong note where
+     * a fault was a lost session.
+     */
     Rational(qint64 n, qint64 d = 1)
         : numerator(n)
         , denominator(d)
     {
-        Q_ASSERT(d != 0);
+        if (denominator == 0) {
+            numerator = 0;
+            denominator = 1;
+            return;
+        }
         if (denominator < 0) {
             numerator = -numerator;
             denominator = -denominator;
@@ -46,27 +62,77 @@ struct Rational {
         }
     }
 
+    /**
+     * The nearest fraction on a fine grid, for when exact arithmetic has
+     * run out of bits.
+     *
+     * Only a hostile file gets here: real music has a few dozen distinct
+     * durations and their denominators never leave the hundreds. When an
+     * exact product would overflow, the result is taken in floating point
+     * and put back on a grid of 2^16 to the quarter -- finer than anything a
+     * page can draw, and finite, so it cannot wrap to zero.
+     */
+    static Rational nearest(double value)
+    {
+        constexpr qint64 Grid = qint64(1) << 16;
+        constexpr double Largest = 9.0e18 / double(Grid);
+        if (value != value) {   // NaN, without <cmath>
+            return {};
+        }
+        value = value > Largest ? Largest : (value < -Largest ? -Largest : value);
+        const double scaled = value * double(Grid);
+        return Rational(qint64(scaled + (scaled < 0 ? -0.5 : 0.5)), Grid);
+    }
+
     Rational operator+(const Rational &other) const
     {
-        return {numerator * other.denominator + other.numerator * denominator,
-                denominator * other.denominator};
+        // Over the least common denominator rather than the product, which
+        // is what a person does and keeps the numbers small; and where even
+        // that overflows, on the grid.
+        const qint64 common = std::gcd(denominator, other.denominator);
+        const qint64 mine = other.denominator / common;
+        const qint64 theirs = denominator / common;
+        qint64 left = 0;
+        qint64 right = 0;
+        qint64 top = 0;
+        qint64 bottom = 0;
+        if (__builtin_mul_overflow(numerator, mine, &left)
+            || __builtin_mul_overflow(other.numerator, theirs, &right)
+            || __builtin_add_overflow(left, right, &top)
+            || __builtin_mul_overflow(denominator, mine, &bottom)) {
+            return nearest(toDouble() + other.toDouble());
+        }
+        return {top, bottom};
     }
 
     Rational operator-(const Rational &other) const
     {
-        return {numerator * other.denominator - other.numerator * denominator,
-                denominator * other.denominator};
+        return *this + Rational(-other.numerator, other.denominator);
     }
 
     Rational operator*(const Rational &other) const
     {
-        return {numerator * other.numerator, denominator * other.denominator};
+        qint64 top = 0;
+        qint64 bottom = 0;
+        if (__builtin_mul_overflow(numerator, other.numerator, &top)
+            || __builtin_mul_overflow(denominator, other.denominator, &bottom)) {
+            return nearest(toDouble() * other.toDouble());
+        }
+        return {top, bottom};
     }
 
     Rational operator/(const Rational &other) const
     {
-        Q_ASSERT(other.numerator != 0);
-        return {numerator * other.denominator, denominator * other.numerator};
+        if (other.numerator == 0) {
+            return {};
+        }
+        qint64 top = 0;
+        qint64 bottom = 0;
+        if (__builtin_mul_overflow(numerator, other.denominator, &top)
+            || __builtin_mul_overflow(denominator, other.numerator, &bottom)) {
+            return nearest(toDouble() / other.toDouble());
+        }
+        return {top, bottom};
     }
 
     /** How many whole `other`s fit, which for a positive value is the floor. */
@@ -88,7 +154,13 @@ struct Rational {
 
     bool operator<(const Rational &other) const
     {
-        return numerator * other.denominator < other.numerator * denominator;
+        qint64 left = 0;
+        qint64 right = 0;
+        if (__builtin_mul_overflow(numerator, other.denominator, &left)
+            || __builtin_mul_overflow(other.numerator, denominator, &right)) {
+            return toDouble() < other.toDouble();
+        }
+        return left < right;
     }
 
     bool isZero() const
