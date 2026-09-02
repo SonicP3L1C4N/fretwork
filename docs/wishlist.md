@@ -239,9 +239,12 @@ edits it cannot yet make.
 - **Translations.** KF6 i18n is already linked, so the strings are already
   extractable; what is missing is the plumbing and somewhere to send them.
 
-- **A flatpak — carefully.** LV2 plugins live outside the sandbox, and an
+- **A flatpak — carefully.** ~~LV2 plugins live outside the sandbox, and an
   application whose point is per-track LV2 chains is the worst possible
-  candidate for one. Worth testing before wanting.
+  candidate for one.~~ Tested before wanting, on 2026-09-02: the sandbox has
+  a standard extension point for exactly this, and the answer, with the rest
+  of where the program is to be had, is in
+  [distribution.md](distribution.md).
 
 - **KDE Invent, and eventually kdereview.** The project already follows KDE's
   conventions, licence and frameworks, so this is a question of when, not of

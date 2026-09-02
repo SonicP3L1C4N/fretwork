@@ -124,6 +124,9 @@ interface at all, which is the only honest definition of a foundation.
   vendor specification for any of this.
 - **[docs/wishlist.md](docs/wishlist.md)** — everything thought of and not
   promised, with the price of each, and the things refused on principle.
+- **[docs/distribution.md](docs/distribution.md)** — where the program is to
+  be had, ranked by what each channel buys against what it costs, and the
+  order they are done in.
 - **[docs/release-0.1.0.md](docs/release-0.1.0.md)**,
   **[docs/rc-assessment.md](docs/rc-assessment.md)** and
   **[docs/wiring-notes.md](docs/wiring-notes.md)** — how the first release was
