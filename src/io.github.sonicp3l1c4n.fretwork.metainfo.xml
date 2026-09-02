@@ -117,6 +117,25 @@ SPDX-License-Identifier: CC0-1.0
          mismatch between them. No type attribute, which means stable: 0.1.0 is
          tagged and released, and a software centre showing a released version
          as a development one tells people not to install it. -->
+    <release version="0.4.0" date="2026-09-02">
+      <description>
+        <p>
+          Notes can be recorded from a MIDI keyboard against the transport,
+          a bar at a time and one undo per bar, with the rule for where a
+          note lands written down and tested.
+        </p>
+        <p>
+          The effects menu is in the order the signal goes, from dynamics to
+          reverb, so a rig is built by reading down it.
+        </p>
+        <p>
+          A security review before this release closed a crash on crafted
+          files, a fault in the plugin host, and a hole in the build
+          pipeline; what a downloaded file can reach is now stated and small.
+        </p>
+      </description>
+      <url type="details">https://github.com/SonicP3L1C4N/fretwork/blob/main/CHANGELOG.md</url>
+    </release>
     <release version="0.3.0" date="2026-09-01">
       <description>
         <p>

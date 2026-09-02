@@ -6,7 +6,22 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 # Changelog
 
-## Unreleased
+## 0.4.0 — 2026-09-02
+
+Playing a part in, and the first release candidate.
+
+The first half is recording: a MIDI keyboard played against the transport is
+written into the score as it lands, with the quantisation policy stated in
+one place and tested sentence by sentence, and the effects menu reordered so
+a rig is built by reading down it.
+
+The second half is what a release candidate needed. A security review of the
+whole tree before this tag found a way for a crafted file to crash the
+program, a use-after-free in the plugin host, and a way for a fork's pull
+request to reach the machine that runs the corpus — all closed below, each
+with a test where a test was possible — and the repository was cut down to
+the program, its documentation and its assets. Where the program is to be
+had, and in what order, is now written down in docs/distribution.md.
 
 - **A crafted file cannot crash the program with a divide by zero.** A
   rhythm with thirty-two augmentation dots, or a `.fw` rhythm of one over
