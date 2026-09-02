@@ -195,8 +195,9 @@ anything else.
 ### How it should look
 
 This is the easy part, because the look already exists and is unusually
-distinct. `src/gui/Ink.qml` and `docs/design_handoff_ink_chrome_ui/README.md`
-have the whole system: ink `#201e1d`, paper `#f3f2f2`, one magenta `#d6006c`
+distinct. `src/gui/Ink.qml` has the whole system (the design handoff it was
+built from lived in the tree until 2026-09-02 and is in the history): ink
+`#201e1d`, paper `#f3f2f2`, one magenta `#d6006c`
 taken from the fret marker on the icon, with `#aa0b56` for magenta text on
 paper and `#ff90b1` for magenta on ink.
 
