@@ -6,6 +6,37 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 # Changelog
 
+## Unreleased
+
+- **Notes can be recorded from a MIDI keyboard against the transport.** Arm
+  Record beside the click, press Play, and what is played on the keyboard
+  port is written into the current part as it lands, a bar at a time, one
+  undo per bar. Step entry — a chord at the caret, the caret moving when the
+  hand comes off — is still there for writing without a clock; this is for
+  playing a part in.
+
+  The part that needed deciding was what to do with a note that is forty
+  milliseconds early, and the answer is written down in one place and tested
+  rather than left to be discovered: a note rounds to the nearest line of a
+  grid somebody chose (a semiquaver unless told otherwise), and the bar it
+  belongs to is worked out from the rounded position, so a note early for a
+  downbeat is on the downbeat. A note lasts to its release, the next key or
+  the bar line, whichever is first; a release at least a cell before the
+  next key leaves a rest, and a shorter gap does not. The bar always adds up.
+  A bar played into becomes what was played; a bar left alone is left alone.
+
+  Two things underneath had to change to make it accurate. A MIDI message
+  now carries the moment it arrived, stamped in the graph's own callback,
+  because the poll that drains messages was too coarse to place a fast
+  passage. And the player notes the clock beside its position each block, so
+  "where was the transport when that key went down" is answered to a
+  millisecond. Neither is a recording: the stamp is used to find a bar and
+  then dropped, and nothing is kept beyond the bar being played into.
+
+  Stated limits: swung bars are placed on the straight grid, a note held
+  across a bar line stops at it, and what was recorded is heard on the next
+  play rather than the one it was played against.
+
 ## 0.3.0 — 2026-09-01
 
 Everything a score can say, and two more ways out of the program.

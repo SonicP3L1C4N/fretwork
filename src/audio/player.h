@@ -179,6 +179,27 @@ public:
     double positionSeconds() const;
     double lengthSeconds() const;
 
+    /**
+     * Where the transport was at a moment on the monotonic clock, in seconds.
+     *
+     * `positionSeconds` is where the audio thread last left the playhead,
+     * which is up to a period ago; this is where it was when a MIDI message
+     * arrived, which is what placing that message in the score needs. The
+     * callback stamps the clock beside the position each time it fills a
+     * block, and this reads the pair and runs the position forward by the
+     * time since. Stopped, it is the position, because nothing is moving.
+     */
+    double positionSecondsAt(qint64 monotonicNanoseconds) const;
+
+    /**
+     * How long one block of audio lasts, in seconds.
+     *
+     * The latency a listener plays against: a block is written this long
+     * before it is heard, so a note played in time with the click arrives
+     * this much after the position it was meant for.
+     */
+    double periodSeconds() const;
+
     // ---- the mixer ----
 
     int trackCount() const;
@@ -235,6 +256,9 @@ private:
     /** Where the transport is now, and where it will be after `frames`. */
     qint64 advance(int frames);
 
+    /** Notes the clock beside the position, from the audio thread only. */
+    void stamp(qint64 frames);
+
     struct Channel {
         std::unique_ptr<Synth> synth;
         std::unique_ptr<Lv2::Chain> chain;
@@ -264,6 +288,19 @@ private:
     std::atomic<qint64> m_seekTo{-1};
     std::atomic<int> m_soloCount{0};
     std::atomic<bool> m_graphTransport{false};
+
+    /**
+     * The position and the clock, read together.
+     *
+     * Two atomics read one after the other could straddle a callback and pair
+     * a new position with an old time; a sequence number round the pair --
+     * odd while the audio thread is writing, even when it is done -- lets a
+     * reader notice and try again. The writer never waits, which is the only
+     * rule the audio thread has.
+     */
+    std::atomic<unsigned> m_stampSequence{0};
+    qint64 m_stampFrames = 0;
+    qint64 m_stampNanoseconds = 0;
 
     qint64 m_length = 0;
 };

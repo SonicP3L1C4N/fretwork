@@ -74,6 +74,19 @@ private Q_SLOTS:
         }
     }
 
+    void aStoppedTransportIsWhereItIsAtAnyMoment()
+    {
+        const Score score = threeTracks();
+        Player player(score, Timeline::playedOrder(score), options());
+        // Nothing is moving, so a moment on the clock -- any moment, even one
+        // that is plainly wrong -- reads as the position and not past it.
+        QCOMPARE(player.positionSecondsAt(0), player.positionSeconds());
+        QCOMPARE(player.positionSecondsAt(1), player.positionSeconds());
+        QCOMPARE(player.positionSecondsAt(1LL << 60), player.positionSeconds());
+        // A block of 512 frames at 48 kHz.
+        QVERIFY(std::abs(player.periodSeconds() - 512.0 / 48000.0) < 1e-9);
+    }
+
     void knowsHowManyTracksItHas()
     {
         const Score score = threeTracks();

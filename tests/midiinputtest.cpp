@@ -122,10 +122,16 @@ private Q_SLOTS:
         }
 
         QVERIFY2(!heard.isEmpty(), "nothing arrived on that port in eight seconds");
+        qint64 previous = 0;
         for (const MidiInput::Event &event : std::as_const(heard)) {
             QVERIFY(event.channel >= 0 && event.channel < 16);
             QVERIFY(event.data1 >= 0 && event.data1 < 128);
             QVERIFY(event.data2 >= 0 && event.data2 < 128);
+            // Stamped, and in the order they arrived: a message with no time
+            // on it is one recording cannot place.
+            QVERIFY(event.at > 0);
+            QVERIFY(event.at >= previous);
+            previous = event.at;
         }
         QCOMPARE(input.messagesSeen(), qint64(heard.size()));
     }

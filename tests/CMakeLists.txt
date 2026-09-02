@@ -33,6 +33,11 @@ ecm_add_test(notevaluetest.cpp
     LINK_LIBRARIES Qt6::Test fretworkcore KF6::I18n
 )
 
+ecm_add_test(recordertest.cpp
+    TEST_NAME recordertest
+    LINK_LIBRARIES Qt6::Test fretworkcore
+)
+
 ecm_add_test(fretboardtest.cpp
     TEST_NAME fretboardtest
     LINK_LIBRARIES Qt6::Test fretworkcore

@@ -836,6 +836,22 @@ double Timeline::Clock::secondsAt(const Rational &quarters) const
         + std::max(0.0, into) * 60.0 / std::max(m_tempos.at(section).quarterBpm, 1.0);
 }
 
+double Timeline::Clock::quartersAt(double seconds) const
+{
+    seconds = std::max(0.0, seconds);
+    if (m_tempos.isEmpty()) {
+        return seconds * 120.0 / 60.0;
+    }
+
+    int section = 0;
+    while (section + 1 < m_tempos.size() && m_secondsAtTempo.at(section + 1) <= seconds) {
+        ++section;
+    }
+    const double into = seconds - m_secondsAtTempo.at(section);
+    return m_tempos.at(section).at.toDouble()
+        + into * std::max(m_tempos.at(section).quarterBpm, 1.0) / 60.0;
+}
+
 double Timeline::Clock::totalSeconds() const
 {
     return secondsAt(m_length);
@@ -1041,6 +1057,22 @@ QList<Timeline::Message> Timeline::messagesFor(const Score &score, int trackInde
     return messages;
 }
 
+
+int Timeline::passAt(const Score &score, const QList<int> &order, const Rational &quarters)
+{
+    if (order.isEmpty() || quarters < Rational(0)) {
+        return -1;
+    }
+    Rational position;
+    for (int index = 0; index < order.size(); ++index) {
+        const Rational next = position + score.masterBars.at(order.at(index)).length();
+        if (quarters < next) {
+            return index;
+        }
+        position = next;
+    }
+    return -1;
+}
 
 Rational Timeline::quartersAtPass(const Score &score, const QList<int> &order, int pass)
 {

@@ -144,12 +144,14 @@ cheaper.
   it were would produce transcriptions nobody asked for. Whichever one it does,
   it should say which.
 
-- **Step entry before real-time entry.** Play a note, it lands under the caret,
-  the caret advances. That works with all three inputs above and needs no
-  timing analysis whatsoever, which makes it the version worth building first.
-  Real-time entry against the click needs quantisation, and quantisation needs
-  a stated policy about a note that lands between two subdivisions — the same
-  argument as incomplete bars, and it should get the same answer.
+- **Step entry before real-time entry.** ~~Play a note, it lands under the
+  caret, the caret advances.~~ **Both done**: step entry on 2026-08-31 and
+  recording against the transport on 2026-09-02, the second with its policy
+  stated in `recorder.h` and tested sentence by sentence. A note between two
+  lines of the grid lands on the nearer one; the bar it lands in is worked out
+  *after* rounding, so a note early for a downbeat is on it. What is still
+  open: a swung bar is quantised on the straight grid, and a note held across
+  a bar line is cut at it rather than tied.
 
 - **Choosing the device, and remembering it.** Which PipeWire source, which
   MIDI port, what latency, and does it survive the interface being unplugged.

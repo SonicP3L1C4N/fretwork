@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <ctime>
 
 namespace
 {
@@ -526,6 +527,9 @@ qint64 Player::followed(const PortedOutput::Transport &transport, int frames)
         }
     }
     m_position.store(now, std::memory_order_release);
+    if (transport.rolling) {
+        stamp(now);
+    }
 
     // The graph decides when it is over, not the length of the score: a DAW
     // rolling past the end of a piece is a DAW recording silence on purpose.
@@ -553,6 +557,9 @@ void Player::spread(int frames, const PortedOutput::Transport &transport,
     m_graphTransport.store(transport.known, std::memory_order_relaxed);
 
     const qint64 at = following ? followed(transport, frames) : advance(0);
+    if (at >= 0 && !following) {
+        stamp(at);
+    }
     if (at < 0) {
         // Not playing: the ports still have to be given silence, or they hold
         // whatever the graph left in them and buzz.
@@ -612,6 +619,53 @@ void Player::spread(int frames, const PortedOutput::Transport &transport,
  * and two copies of that rule would eventually disagree about where a piece
  * stops. Returns -1 where nothing should be played at all.
  */
+void Player::stamp(qint64 frames)
+{
+    // A vDSO call, not a system call: the clock is read from a page the
+    // kernel keeps up to date, which is why it is allowed here.
+    timespec now{};
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    const unsigned sequence = m_stampSequence.load(std::memory_order_relaxed);
+    m_stampSequence.store(sequence + 1, std::memory_order_release);
+    m_stampFrames = frames;
+    m_stampNanoseconds = qint64(now.tv_sec) * 1000000000LL + now.tv_nsec;
+    m_stampSequence.store(sequence + 2, std::memory_order_release);
+}
+
+double Player::positionSecondsAt(qint64 monotonicNanoseconds) const
+{
+    if (!m_playing.load(std::memory_order_acquire) || monotonicNanoseconds <= 0) {
+        return positionSeconds();
+    }
+    qint64 frames = 0;
+    qint64 nanoseconds = 0;
+    for (int attempt = 0; attempt < 8; ++attempt) {
+        const unsigned before = m_stampSequence.load(std::memory_order_acquire);
+        if (before & 1u) {
+            continue;
+        }
+        frames = m_stampFrames;
+        nanoseconds = m_stampNanoseconds;
+        std::atomic_thread_fence(std::memory_order_acquire);
+        if (m_stampSequence.load(std::memory_order_relaxed) == before) {
+            break;
+        }
+    }
+    if (nanoseconds == 0) {
+        return positionSeconds();
+    }
+    // Forward from the stamp by the time since, but never by more than a
+    // moment: a stamp a second old is a transport that stopped or stalled,
+    // and running it forward would place a note in a bar nobody was playing.
+    const double since = std::clamp(double(monotonicNanoseconds - nanoseconds) / 1e9, -0.5, 0.5);
+    return std::max(0.0, double(frames) / m_options.sampleRate + since);
+}
+
+double Player::periodSeconds() const
+{
+    return double(std::max(1, m_options.periodFrames)) / std::max(1, m_options.sampleRate);
+}
+
 qint64 Player::advance(int frames)
 {
     if (frames == 0) {
@@ -673,6 +727,7 @@ void Player::mix(int frames, float *left, float *right)
     }
 
     qint64 at = m_position.load(std::memory_order_relaxed);
+    stamp(at);
     const bool soloing = m_soloCount.load(std::memory_order_relaxed) > 0;
 
     for (int done = 0; done < frames; done += MaximumBlock) {

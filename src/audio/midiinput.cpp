@@ -19,6 +19,7 @@
 #include <QPair>
 
 #include <cstring>
+#include <ctime>
 
 #include <atomic>
 #include <array>
@@ -117,10 +118,19 @@ void initialisePipeWire()
     Q_UNUSED(once);
 }
 
+/** The monotonic clock, which is the one PipeWire reports its cycles on. */
+qint64 monotonicNow()
+{
+    timespec now{};
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    return qint64(now.tv_sec) * 1000000000LL + now.tv_nsec;
+}
+
 /** One MIDI 1.0 message, as the rest of the program wants it. */
-MidiInput::Event fromBytes(const uint8_t *bytes, int size)
+MidiInput::Event fromBytes(const uint8_t *bytes, int size, qint64 at)
 {
     MidiInput::Event event;
+    event.at = at;
     if (size < 2) {
         return event;
     }
@@ -297,12 +307,32 @@ void onProcess(void *data)
     }
     spa_data &block = buffer->buffer->datas[0];
     if (block.data) {
+        // When this cycle began, and how long a frame is, so that a message's
+        // offset into the cycle can be turned into a moment. Asked of the
+        // stream rather than the wall clock because the graph's report is the
+        // one the audio side of the program is measured against; the wall
+        // clock is the fallback where a server does not report one.
+        qint64 cycleStart = 0;
+        double nanosecondsPerFrame = 0;
+#if PW_CHECK_VERSION(0, 3, 50)
+        pw_time time{};
+        if (pw_stream_get_time_n(d->stream, &time, sizeof time) == 0 && time.now > 0
+            && time.rate.denom > 0) {
+            cycleStart = time.now;
+            nanosecondsPerFrame = 1e9 * double(time.rate.num) / double(time.rate.denom);
+        }
+#endif
+        if (cycleStart == 0) {
+            cycleStart = monotonicNow();
+        }
+
         auto *sequence = static_cast<spa_pod_sequence *>(block.data);
         spa_pod_control *control = nullptr;
         SPA_POD_SEQUENCE_FOREACH(sequence, control)
         {
             const void *body = SPA_POD_BODY(&control->value);
             const uint32_t size = SPA_POD_BODY_SIZE(&control->value);
+            const qint64 at = cycleStart + qint64(control->offset * nanosecondsPerFrame);
 #ifdef FRETWORK_HAVE_UMP
             if (control->type == SPA_CONTROL_UMP) {
                 // Universal MIDI packets, which is what PipeWire carries now.
@@ -317,14 +347,14 @@ void onProcess(void *data)
                 while (left >= 4
                        && (written = spa_ump_to_midi(&ump, &left, bytes, sizeof(bytes), &state))
                            > 0) {
-                    d->push(fromBytes(bytes, written));
+                    d->push(fromBytes(bytes, written, at));
                 }
             } else
 #endif
                 if (control->type == SPA_CONTROL_Midi) {
                 // What older servers send. Deprecated upstream and cheap to
                 // keep: it is the same parser with nothing in front of it.
-                d->push(fromBytes(static_cast<const uint8_t *>(body), int(size)));
+                d->push(fromBytes(static_cast<const uint8_t *>(body), int(size), at));
             }
         }
     }

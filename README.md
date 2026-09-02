@@ -105,7 +105,7 @@ why, including the things that were got wrong and fixed.
 | **P4** | Per-track LV2 chains, guitarix, SFZ sampling with round-robins | **begun** — a chain per part, reorderable, saved under a name and reusable |
 | ~~P5~~ | Standard notation, MusicXML, GP6 | retired — folded into **P8.2** to **P8.5** in [docs/roadmap.md](docs/roadmap.md); MusicXML and PDF are done |
 | **P6** | Harmony: the fretboard solver, key spelling, analysis, the scale overlay, chords | **done** |
-| **P7** | MIDI in: a control surface, and notes typed from a keyboard | **done** |
+| **P7** | MIDI in: a control surface, notes typed from a keyboard, and notes recorded from one against the transport | **done** |
 | P8 | fee[dB]ack practice packs | **begun** — packs are written; the techniques they cannot yet carry are named in [docs/roadmap.md](docs/roadmap.md) |
 
 P1 is the one that matters: at the end of it the program is useful with no user

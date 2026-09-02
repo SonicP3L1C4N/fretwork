@@ -86,6 +86,11 @@ Session::Session(QObject *parent)
         if (playing != m_wasPlaying) {
             m_wasPlaying = playing;
             Q_EMIT playingChanged();
+            if (!playing && m_recording) {
+                // The transport stopped, so the bar being played into is as
+                // finished as it is going to be.
+                finishRecording();
+            }
         }
     });
 }
@@ -162,6 +167,7 @@ bool Session::open(const QString &path)
     m_editor.setScore(score);
     m_order = Timeline::playedOrder(m_editor.score());
     m_clock = std::make_unique<Timeline::Clock>(m_editor.score(), m_order);
+    m_recorder.reset();
     m_fileName = QFileInfo(local).fileName();
     m_filePath = local;
     m_currentTrack = 0;
@@ -1711,6 +1717,7 @@ void Session::newScore()
     m_editor.setScore(Editor::blankScore());
     m_order = Timeline::playedOrder(m_editor.score());
     m_clock = std::make_unique<Timeline::Clock>(m_editor.score(), m_order);
+    m_recorder.reset();
     // No file behind it yet, so the first save asks where to put one.
     m_fileName = QString();
     m_filePath = QString();
@@ -2070,6 +2077,7 @@ void Session::listenForKeys(const QString &port)
 
 void Session::stopListeningForKeys()
 {
+    setRecording(false);
     m_keysPoll.stop();
     m_keys.reset();
     m_keysPort.clear();
@@ -2083,6 +2091,13 @@ void Session::readKeys()
         return;
     }
     for (const MidiInput::Event &event : m_keys->take()) {
+        if (m_recording) {
+            // Armed: a key is a place in a bar rather than a note at the
+            // caret, and one played while the transport is stopped is
+            // nothing at all -- which is what "armed" means.
+            record(event);
+            continue;
+        }
         if (event.kind == MidiInput::Event::Kind::NoteOn) {
             if (!m_held.contains(event.data1)) {
                 m_held.append(event.data1);
@@ -2551,4 +2566,158 @@ QString Session::filePath() const
 bool Session::savesInPlace() const
 {
     return !m_filePath.isEmpty() && Fw::looksLikeOurs(m_filePath);
+}
+
+// ---- recording ----
+
+bool Session::isRecording() const
+{
+    return m_recording;
+}
+
+void Session::setRecording(bool recording)
+{
+    if (recording == m_recording) {
+        return;
+    }
+    if (recording) {
+        if (!m_keys) {
+            setProblem(i18n("Choose a keyboard to type from before recording"));
+            return;
+        }
+        if (!hasScore() || m_currentTrack < 0 || m_currentTrack >= m_editor.score().tracks.size()) {
+            return;
+        }
+        const Track &part = m_editor.score().tracks.at(m_currentTrack);
+        if (part.tuning.isEmpty()) {
+            setProblem(i18n("A drum kit has no strings to record onto"));
+            return;
+        }
+        m_recording = true;
+        m_held.clear();
+        m_recordedFirst = -1;
+        m_recordedLast = -1;
+        setStatus(m_player && m_player->isPlaying()
+                      ? i18n("Recording onto %1 on a %2 grid", part.name, recordGridName())
+                      : i18n("Armed: press Play, and what you play is written into %1 on a %2 grid",
+                             part.name, recordGridName()));
+    } else {
+        finishRecording();
+        m_recording = false;
+        m_recorder.reset();
+    }
+    Q_EMIT recordingChanged();
+}
+
+int Session::recordGrid() const
+{
+    return m_recordGrid;
+}
+
+void Session::setRecordGrid(int denominator)
+{
+    if (denominator == m_recordGrid
+        || (denominator != 4 && denominator != 8 && denominator != 16 && denominator != 32)) {
+        return;
+    }
+    m_recordGrid = denominator;
+    // The bar being played into, if there is one, starts again on the new
+    // grid: onsets already placed on the old one cannot be moved honestly.
+    finishRecording();
+    m_recorder.reset();
+    Q_EMIT recordingChanged();
+}
+
+QString Session::recordGridName() const
+{
+    return i18nc("a note value, as a fraction of a semibreve", "1/%1", m_recordGrid);
+}
+
+void Session::record(const MidiInput::Event &event)
+{
+    const bool on = event.kind == MidiInput::Event::Kind::NoteOn;
+    if (!on && event.kind != MidiInput::Event::Kind::NoteOff) {
+        return;
+    }
+    if (!m_player || !m_player->isPlaying() || !m_clock || !hasScore() || m_currentTrack < 0
+        || m_currentTrack >= m_editor.score().tracks.size()) {
+        return;
+    }
+    if (m_recorder && m_recorderTrack != m_currentTrack) {
+        // The part changed under it, and a part is an instrument: the
+        // strings a pitch lands on are a different question now.
+        finishRecording();
+        m_recorder.reset();
+    }
+    if (!m_recorder) {
+        const Track &part = m_editor.score().tracks.at(m_currentTrack);
+        if (part.tuning.isEmpty()) {
+            return;
+        }
+        Recorder::Options options;
+        options.grid = NoteValue::valueOf(m_recordGrid);
+        options.instrument = instrumentOf(part);
+        m_recorder = std::make_unique<Recorder>(m_editor.score(), m_order, options);
+        m_recorderTrack = m_currentTrack;
+        m_recordPass = -1;
+    }
+
+    // Where the transport was when the key went down, less the block that
+    // was being heard at the time: the click it was played against had been
+    // written one period before it reached the ear, so a key that landed
+    // exactly on it arrives one period late.
+    const double seconds = m_player->positionSecondsAt(event.at) - m_player->periodSeconds();
+    const double quarters = m_clock->quartersAt(seconds);
+    const Recorder::Take take = on ? m_recorder->noteOn(event.data1, quarters)
+                                   : m_recorder->noteOff(event.data1, quarters);
+
+    for (const int pitch : m_recorder->unplayable()) {
+        setStatus(i18n("%1 cannot be played on this instrument",
+                       Key::withOctave(Key::spell(pitch, workingKey()))));
+    }
+    if (!take.isValid()) {
+        return;
+    }
+
+    // The first key into a bar is a new act; every key after it, until the
+    // transport moves on, builds the same one. A bar heard again round a
+    // repeat is a new act too, because the pass is new.
+    const bool building = take.pass == m_recordPass;
+    m_recordPass = take.pass;
+    if (m_editor.recordBar(m_currentTrack, take.bar, take.beats, building) != Editor::Edit::Done) {
+        return;
+    }
+    m_recordedFirst = m_recordedFirst < 0 ? take.bar : std::min(m_recordedFirst, take.bar);
+    m_recordedLast = std::max(m_recordedLast, take.bar);
+
+    // The caret follows the bar being written, so that the page does.
+    Cursor at = m_editor.cursor();
+    if (at.track != m_currentTrack || at.bar != take.bar) {
+        at.track = m_currentTrack;
+        at.bar = take.bar;
+        at.voice = 0;
+        at.beat = 0;
+        m_editor.setCursor(at);
+    }
+}
+
+void Session::finishRecording()
+{
+    if (m_recorder) {
+        m_recorder->leave();
+    }
+    m_recordPass = -1;
+    if (m_recordedFirst < 0) {
+        return;
+    }
+    const QString part = m_currentTrack >= 0 && m_currentTrack < m_editor.score().tracks.size()
+        ? m_editor.score().tracks.at(m_currentTrack).name
+        : QString();
+    setStatus(m_recordedFirst == m_recordedLast
+                  ? i18n("Recorded bar %1 onto %2. It is heard on the next play.",
+                         m_recordedFirst + 1, part)
+                  : i18n("Recorded bars %1 to %2 onto %3. They are heard on the next play.",
+                         m_recordedFirst + 1, m_recordedLast + 1, part));
+    m_recordedFirst = -1;
+    m_recordedLast = -1;
 }

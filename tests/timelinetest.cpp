@@ -592,6 +592,38 @@ private Q_SLOTS:
         QCOMPARE(Timeline::length(score, Timeline::playedOrder(score)), Rational(10));
     }
 
+    void theClockRunsBothWays()
+    {
+        Score score = blank(4);
+        score.tempos.append({0, 0, 120});
+        score.tempos.append({2, 0, 60});
+        const QList<int> order = Timeline::playedOrder(score);
+        const Timeline::Clock clock(score, order);
+
+        // Either side of the change, on it, and past it: what the clock says
+        // a quarter is in seconds, it reads back as the same quarter.
+        for (const Rational &quarters : {Rational(0), Rational(3, 2), Rational(8), Rational(9),
+                                         Rational(13, 2), Rational(15)}) {
+            QVERIFY2(std::abs(clock.quartersAt(clock.secondsAt(quarters)) - quarters.toDouble()) < 1e-9,
+                     qPrintable(QString::number(quarters.toDouble())));
+        }
+        // Two bars at 120 is four seconds; a quarter more at 60 is a second.
+        QCOMPARE(clock.quartersAt(5.0), 9.0);
+        QCOMPARE(clock.quartersAt(-1.0), 0.0);
+    }
+
+    void aPassIsFoundFromQuartersAsWellAsSeconds()
+    {
+        Score score = blank(3);
+        score.masterBars[1].numerator = 3;
+        const QList<int> order = Timeline::playedOrder(score);
+        QCOMPARE(Timeline::passAt(score, order, Rational(0)), 0);
+        QCOMPARE(Timeline::passAt(score, order, Rational(4)), 1);
+        QCOMPARE(Timeline::passAt(score, order, Rational(7)), 2);
+        QCOMPARE(Timeline::passAt(score, order, Rational(11)), -1);
+        QCOMPARE(Timeline::passAt(score, order, Rational(-1)), -1);
+    }
+
     void aTempoInsideARepeatTakesEffectTheFirstTimeThrough()
     {
         Score score = blank(3);

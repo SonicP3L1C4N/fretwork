@@ -409,15 +409,53 @@ Two modes, and they are different features:
   would be three too many. The merge has a trap in it worth knowing about: it
   has to adopt the notes the *newer* command wrote, or undoing leaves a chord
   behind.
-- **Real-time recording.** Play along and have it transcribed. This needs
-  quantisation, which needs a policy for what to do with a note that is 40ms
-  early, and that policy is where every notation program has its worst
-  arguments. It also breaks the one-note-at-a-time assumption the tuner's YIN
-  detector holds — though not the same code path, since this is MIDI and not
-  audio.
+- **Real-time recording.** **Done**, written **2026-09-02**, in
+  `src/edit/recorder.{h,cpp}` behind a Record toggle on the transport. Play
+  along and have it transcribed. This needed quantisation, which needed a
+  policy for what to do with a note that is 40ms early, and that policy is
+  where every notation program has its worst arguments — so it is written
+  down once, in the Recorder's header, and every sentence of it is a test:
 
-Recommend step entry, and treat real-time recording as a separate decision
-taken after the solver has been used in anger.
+  - The grid is a note value somebody chose, a semiquaver by default.
+  - An onset rounds to the nearest line, in quarters from the start of the
+    performance, and the *bar* is worked out from the rounded position. So a
+    note 40ms early for a downbeat is on the downbeat, in the bar the player
+    meant, rather than a demisemiquaver from the end of the one before.
+  - Keys that round to the same line are one beat.
+  - A note lasts to its release rounded to the grid, or to the next onset, or
+    to the bar line, whichever is first, and never less than a cell. A release
+    a cell or more before the next key leaves a rest; a shorter gap is the
+    hand moving.
+  - The bar always adds up: what was not played is a rest. A length no single
+    value can write — five semiquavers — is a crotchet tied to a semiquaver.
+  - The bar line cuts. A note held across it ends at it.
+  - A bar heard twice round a repeat is rewritten by whichever pass was last.
+  - Strings are the solver's choice, the hand carried from beat to beat, as
+    step entry already does.
+
+  A bar somebody plays into becomes what they played, whole, in one undo; a
+  bar they stay silent through is never touched. That was a decision rather
+  than an accident — "refuse bars with notes in them" was the alternative —
+  and it is the one that makes a punch-in work.
+
+  Two things had to move under it. `MidiInput::Event` now carries the moment
+  it arrived, stamped in the graph's own callback from the cycle time and the
+  frame offset, because the 30 ms poll that drains the ring is most of half a
+  semiquaver at 120 and would have misplaced fast passages. And `Player`
+  stamps the clock beside its position each block, so that "where was the
+  transport when this key went down" has an answer to a millisecond rather
+  than to a period. One period is subtracted from every arrival, because the
+  click a key was played against was written that long before it was heard.
+
+  What it does not do, stated: swung bars are placed on the straight grid;
+  nothing ties across a bar line; the recorded notes are heard on the *next*
+  play, because an edit marks the player stale and the transport is not
+  rebuilt under a performance.
+
+Step entry came first, as recommended, and recording was the separate
+decision taken after the solver had been used in anger. The solver needed
+nothing new; the recorder is 250 lines and the command that writes a bar is
+the same shape as the one that writes a chord.
 
 ### The line not to cross
 
@@ -426,6 +464,18 @@ The boundary that keeps it honest: **MIDI enters as an edit or as a control,
 and never as a recording.** There is no MIDI track, no captured performance
 sitting beside the score, and no timeline that is not the score's own. If a
 feature request needs one of those, it is a different program.
+
+Real-time recording was built on that side of the line, and it is worth
+saying how, because "recording" is the word in its name. A key becomes a
+score edit the moment it is quantised; the only state kept is the onsets of
+the bar being played into, and those go the moment the transport leaves it —
+the same shape as the list of keys held down that step entry keeps. The
+timestamp on a MIDI message is *when it arrived* and is used to find a place
+in a bar and then dropped; it is not a position in anything, and it has no
+home once the ring is drained. There is nothing to play back, nothing to
+overdub against, and no clock that is not the score's tempo map. The header
+of `midiinput.h` used to say it carried no time at all for fear of this
+feature; it now says what the time is for, which is the more useful promise.
 
 ---
 
@@ -735,7 +785,7 @@ and a materially better one.
 | **P8.3** | MusicXML export | P8.2 | **done**, 2026-09-01 |
 | **P8.4** | PDF export | — | **done**, and was already done when this row was written |
 | **P8.5** | GP3–GP5 and GP6 import | a BCFS/BCFZ decompressor, in Rust | **not planned** — boundary built, decoding out of scope |
-| — | Real-time MIDI recording | P7.2, a quantisation policy | open |
+| — | Real-time MIDI recording | P7.2, a quantisation policy | **done**, 2026-09-02 |
 | — | feedpak import | a decision, not code | open |
 
 Three observations about that order:
@@ -877,11 +927,18 @@ at once.
 
 ## Open questions
 
-- Is fee[dB]ack yours? It changes goal 1 from an exporter into a shared format.
+- ~~Is fee[dB]ack yours? It changes goal 1 from an exporter into a shared format.~~
+  **Answered 2026-09-02: no, it is a third-party program.** The exporter stays
+  an exporter, written against the format as observed and kept behind one
+  module, and a shared schema is not on the table.
 - Does the theory work end at analysis and overlay, or is chord insertion
   actually wanted? Layers 1–3 are safe and useful; layer 4 is where a program
   starts making musical decisions on someone's behalf.
 - MIDI through PipeWire or ALSA sequencer directly — worth measuring before
   choosing, since it is a decision that will not be revisited.
 - Should the scale overlay be a band like the tuner, or drawn on the score?
-- Is real-time MIDI recording wanted at all, or is step entry the whole of it?
+- ~~Is real-time MIDI recording wanted at all, or is step entry the whole of it?~~
+  **Answered 2026-09-02: wanted, and built** — see 2b. What remains open
+  under it is smaller: whether a swung bar should be quantised on its swung
+  grid, and whether a note held across a bar line should be tied rather than
+  cut.

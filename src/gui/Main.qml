@@ -153,6 +153,8 @@ Kirigami.ApplicationWindow {
         property string port: ""
         /** The keyboard, which is a different socket from the surface. */
         property string keysPort: ""
+        /** The grid recording lands on, as a note value. */
+        property int recordGrid: 16
     }
 
     Session {
@@ -165,6 +167,7 @@ Kirigami.ApplicationWindow {
             if (surfaceState.keysPort.length > 0) {
                 listenForKeys(surfaceState.keysPort)
             }
+            recordGrid = surfaceState.recordGrid
         }
 
         effectsShown: panels.effects
@@ -1182,6 +1185,34 @@ Kirigami.ApplicationWindow {
             }
 
             /**
+             * Writing what is played into the score as the transport rolls.
+             *
+             * With the transport because it is armed here and started by
+             * Play, and because it is the transport's clock the notes are
+             * placed against. Needs a keyboard chosen beside the part first:
+             * a Record button that listens to nothing is a Record button that
+             * appears to be broken.
+             */
+            ChromeToggle {
+                id: recordToggle
+                text: i18n("Record")
+                enabled: session.hasScore && session.typingFromKeys
+                checked: session.recording
+                onToggled: {
+                    session.recording = checked
+                    // Refused is possible -- no keyboard, a drum kit -- and
+                    // the button has to say what the session says.
+                    checked = Qt.binding(() => session.recording)
+                }
+                QQC2.ToolTip.text: session.typingFromKeys
+                    ? i18n("Press Play, and what is played on %1 is written into the current part on a %2 grid, a bar at a time",
+                           session.keysPort.split(":").pop(), session.recordGridName)
+                    : i18n("Choose a keyboard beside the part first")
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+            }
+
+            /**
              * How fast, and the one place to change it.
              *
              * Beside the transport because that is what it governs, and a
@@ -1714,6 +1745,42 @@ Kirigami.ApplicationWindow {
                                 }
                                 onObjectAdded: (index, object) => keysMenu.insertItem(index + 1, object)
                                 onObjectRemoved: (index, object) => keysMenu.removeItem(object)
+                            }
+                        }
+                    }
+
+                    /**
+                     * The finest note recording will write.
+                     *
+                     * Beside the keyboard because it is a property of playing
+                     * in, not of the transport: a semiquaver grid for a riff,
+                     * a quaver one for a part played loosely, and a crotchet
+                     * one for chords that only need to land on the beat.
+                     */
+                    PanelButton {
+                        Layout.fillWidth: true
+                        visible: session.stringsHere > 0 && session.typingFromKeys
+                        text: i18n("Grid: %1", session.recordGridName)
+                        QQC2.ToolTip.text: i18n("The shortest note recording writes; anything played between two lines of the grid lands on the nearer one")
+                        onClicked: gridMenu.popup()
+
+                        QQC2.Menu {
+                            id: gridMenu
+
+                            Instantiator {
+                                model: [4, 8, 16, 32]
+                                delegate: QQC2.MenuItem {
+                                    required property int modelData
+                                    text: i18nc("a note value, as a fraction of a semibreve", "1/%1", modelData)
+                                    checkable: true
+                                    checked: session.recordGrid === modelData
+                                    onTriggered: {
+                                        session.recordGrid = modelData
+                                        surfaceState.recordGrid = modelData
+                                    }
+                                }
+                                onObjectAdded: (index, object) => gridMenu.insertItem(index, object)
+                                onObjectRemoved: (index, object) => gridMenu.removeItem(object)
                             }
                         }
                     }

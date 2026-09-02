@@ -27,11 +27,17 @@
  * than one thing to demultiplex. And it adds no dependency, since PipeWire is
  * already an optional one and this is optional in exactly the same way.
  *
- * **What comes in is an edit or a control, and never a recording.** There is
- * no timestamp here beyond the order things arrived in, and that is
- * deliberate: the moment this carries time, somebody will ask it to carry a
- * performance, and a captured performance sitting beside the score is a
- * different program.
+ * **What comes in is an edit or a control, and never a recording.** Each
+ * message carries the moment it arrived, and nothing else about time: no
+ * position in a piece, no relation to any other message, and no home once it
+ * has been read. Whoever drains the ring uses the stamp to decide *where in
+ * the score* a note belongs and then drops it, which is what typing a fret
+ * does with the moment the key went down. There is no track, no buffer of a
+ * take, and no timeline that is not the score's own -- and a captured
+ * performance sitting beside the score is a different program. The first
+ * version of this carried no time at all, for fear of exactly that; what
+ * changed is that placing a note on a grid needs to know when it was played,
+ * and the 30 ms poll that drains this was too coarse to say.
  */
 class MidiInput
 {
@@ -73,6 +79,17 @@ public:
         int channel = 0;    //< 0 to 15
         int data1 = 0;      //< note number, or controller number, or bend low bits
         int data2 = 0;      //< velocity, or controller value, or bend high bits
+
+        /**
+         * When it arrived, in nanoseconds on the monotonic clock.
+         *
+         * The graph's own cycle time plus the message's offset into the
+         * cycle, so it is accurate to a frame where the server reports one,
+         * and to a cycle where it does not. Comparable with what `Player`
+         * stamps its position with, and with nothing else. Zero where nothing
+         * could be read.
+         */
+        qint64 at = 0;
 
         /** A pitch bend as one number, 0 to 16383, centred at 8192. */
         int bend() const

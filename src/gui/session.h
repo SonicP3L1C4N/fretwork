@@ -153,6 +153,13 @@ class Session : public QObject
     Q_PROPERTY(QString keysPort READ keysPort NOTIFY surfaceChanged)
     Q_PROPERTY(bool typingFromKeys READ isTypingFromKeys NOTIFY surfaceChanged)
 
+    /** Whether keys played while the transport rolls are written into the score. */
+    Q_PROPERTY(bool recording READ isRecording WRITE setRecording NOTIFY recordingChanged)
+
+    /** The finest note value recording lands on: 4, 8, 16 or 32. */
+    Q_PROPERTY(int recordGrid READ recordGrid WRITE setRecordGrid NOTIFY recordingChanged)
+    Q_PROPERTY(QString recordGridName READ recordGridName NOTIFY recordingChanged)
+
     /** How many strings the current track has; none for a drum kit. */
     Q_PROPERTY(int stringsHere READ stringsHere NOTIFY cursorMoved)
 
@@ -686,6 +693,32 @@ public:
     bool isTypingFromKeys() const;
 
     /**
+     * Notes played against the transport, written into the score as they
+     * land.
+     *
+     * Armed here and started by pressing Play: while the transport rolls,
+     * every key from the keyboard port is placed on a grid and the bar it
+     * lands in is rewritten around it, one undo per bar. Bars nothing is
+     * played into are left alone. The policy for where a note lands -- what
+     * to do with one that is forty milliseconds early, how long it lasts,
+     * what a gap is -- is `Recorder`'s, stated once there and tested.
+     *
+     * Not a recording in the sense the roadmap ruled out. Nothing is kept
+     * beyond the bar being played into, and that only until the transport
+     * leaves it: the score is the only place a note goes, and the only
+     * timeline there is.
+     *
+     * Refused without a keyboard port, a score, or a fretted part to write
+     * onto, and it says which.
+     */
+    bool isRecording() const;
+    void setRecording(bool recording);
+
+    int recordGrid() const;
+    void setRecordGrid(int denominator);
+    QString recordGridName() const;
+
+    /**
      * The frets the hand is over, as the caret's bar has it.
      *
      * The score already knows where a hand is and it is not one note: it is
@@ -832,6 +865,7 @@ Q_SIGNALS:
     void layoutChanged();
     void workingKeyChanged();
     void surfaceChanged();
+    void recordingChanged();
     void mixerChanged();
     void historyChanged();
     void cursorMoved();
@@ -944,6 +978,17 @@ private:
     QList<int> m_held;
     void readKeys();
     void writeHeld();
+
+    /** Recording: armed or not, the grid, and the bar being played into. */
+    bool m_recording = false;
+    int m_recordGrid = 16;
+    std::unique_ptr<Recorder> m_recorder;
+    int m_recorderTrack = -1;
+    int m_recordPass = -1;
+    int m_recordedFirst = -1;
+    int m_recordedLast = -1;
+    void record(const MidiInput::Event &event);
+    void finishRecording();
 
     QTimer m_ticker;
     QTimer m_rigWriter;

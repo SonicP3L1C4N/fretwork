@@ -38,6 +38,7 @@ add_library(fretworkcore STATIC
     format/rigfile.cpp
     edit/cursor.cpp
     edit/editor.cpp
+    edit/recorder.cpp
     render/tablayout.cpp
     render/tabpainter.cpp
     playback/swing.cpp

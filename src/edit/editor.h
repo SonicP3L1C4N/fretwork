@@ -7,6 +7,7 @@
 #include "cursor.h"
 #include "fretboard.h"
 #include "notevalue.h"
+#include "recorder.h"
 #include "score.h"
 
 #include <QElapsedTimer>
@@ -211,6 +212,26 @@ public:
      */
     Edit insertChord(const QList<Fretboard::Position> &shape, const QString &name,
                      bool building = false);
+
+    /**
+     * Writes a bar as it was just played, in place of what the bar had.
+     *
+     * The first voice of `bar` in `track` becomes `beats`, whole: what was
+     * there goes, because a bar somebody played into is what they played, and
+     * a bar they stayed silent through is never handed to this at all. Ties
+     * are set between the fragments of one note that would not fit a single
+     * written value.
+     *
+     * One undo takes the whole bar back, however many keys built it. While a
+     * bar is still `building`, each key merges into the command before it,
+     * the way a chord being held does; the first write into a bar is not
+     * building, so that a bar played twice round a repeat is two acts.
+     *
+     * Refused where the shape names a string the part has not got, or the
+     * bar is not there. Beats shared with another part are let go of rather
+     * than removed, because the other part is still reading them.
+     */
+    Edit recordBar(int track, int bar, const QList<Recorder::Beat> &beats, bool building);
 
     /** Puts an empty bar on the end of the score, and the caret in it. */
     void appendBar();

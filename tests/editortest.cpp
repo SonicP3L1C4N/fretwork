@@ -330,6 +330,118 @@ private Q_SLOTS:
         QCOMPARE(fingerprint(editor.score()), withThree);
     }
 
+    // ---- recording ----
+
+    void recordingABarReplacesItAndOneUndoPutsItBack()
+    {
+        Editor editor;
+        Score score = twoBars();
+        const QString before = fingerprint(score);
+        editor.setScore(score);
+
+        QList<Recorder::Beat> beats;
+        beats.append(Recorder::Beat{Rational(1), {Fretboard::Position{5, 3}}, false});
+        beats.append(Recorder::Beat{Rational(3), {}, false});
+        QCOMPARE(editor.recordBar(0, 1, beats, false), Editor::Edit::Done);
+
+        const Score &after = editor.score();
+        const int voiceId = after.bars.value(after.masterBars.at(1).bars.at(0)).voices.at(0);
+        QCOMPARE(after.voices.value(voiceId).beats.size(), 2);
+        const int first = after.voices.value(voiceId).beats.at(0);
+        QCOMPARE(after.beats.value(first).notes.size(), 1);
+        const Note note = after.notes.value(after.beats.value(first).notes.first());
+        QCOMPARE(note.string, 5);
+        QCOMPARE(note.fret, 3);
+        QCOMPARE(note.midi, 67);
+        QCOMPARE(after.rhythms.value(after.beats.value(first).rhythm), Rational(1));
+        const int second = after.voices.value(voiceId).beats.at(1);
+        QVERIFY(after.beats.value(second).notes.isEmpty());
+        QCOMPARE(after.rhythms.value(after.beats.value(second).rhythm), Rational(3));
+
+        editor.undo();
+        QCOMPARE(fingerprint(editor.score()), before);
+    }
+
+    void aBarStillBeingRecordedIsOneUndo()
+    {
+        Editor editor;
+        Score score = twoBars();
+        const QString before = fingerprint(score);
+        editor.setScore(score);
+
+        QList<Recorder::Beat> first;
+        first.append(Recorder::Beat{Rational(4), {Fretboard::Position{5, 0}}, false});
+        editor.recordBar(0, 0, first, false);
+        QList<Recorder::Beat> second;
+        second.append(Recorder::Beat{Rational(2), {Fretboard::Position{5, 0}}, false});
+        second.append(Recorder::Beat{Rational(2), {Fretboard::Position{5, 3}}, false});
+        editor.recordBar(0, 0, second, true);
+        const QString built = fingerprint(editor.score());
+
+        QCOMPARE(editor.undoStack()->count(), 1);
+        editor.undo();
+        QCOMPARE(fingerprint(editor.score()), before);
+        editor.redo();
+        QCOMPARE(fingerprint(editor.score()), built);
+    }
+
+    void aSecondBarIsASecondUndo()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+
+        QList<Recorder::Beat> beats;
+        beats.append(Recorder::Beat{Rational(4), {Fretboard::Position{5, 0}}, false});
+        editor.recordBar(0, 0, beats, false);
+        const QString firstBar = fingerprint(editor.score());
+        // Still "building" as far as the keys are concerned, but a different
+        // bar: the merge is per bar, not per take.
+        editor.recordBar(0, 1, beats, true);
+        QCOMPARE(editor.undoStack()->count(), 2);
+
+        editor.undo();
+        QCOMPARE(fingerprint(editor.score()), firstBar);
+    }
+
+    void fragmentsOfOneNoteAreTied()
+    {
+        Editor editor;
+        editor.setScore(twoBars());
+
+        QList<Recorder::Beat> beats;
+        beats.append(Recorder::Beat{Rational(1), {Fretboard::Position{5, 3}}, true});
+        beats.append(Recorder::Beat{Rational(1, 4), {Fretboard::Position{5, 3}}, false});
+        beats.append(Recorder::Beat{Rational(3, 4), {}, false});
+        beats.append(Recorder::Beat{Rational(2), {}, false});
+        QCOMPARE(editor.recordBar(0, 0, beats, false), Editor::Edit::Done);
+
+        const Score &after = editor.score();
+        const int voiceId = after.bars.value(after.masterBars.at(0).bars.at(0)).voices.at(0);
+        const QList<int> ids = after.voices.value(voiceId).beats;
+        QCOMPARE(ids.size(), 4);
+        const Note head = after.notes.value(after.beats.value(ids.at(0)).notes.first());
+        const Note tail = after.notes.value(after.beats.value(ids.at(1)).notes.first());
+        QVERIFY(head.tieOrigin);
+        QVERIFY(!head.tieDestination);
+        QVERIFY(tail.tieDestination);
+        QVERIFY(!tail.tieOrigin);
+    }
+
+    void recordingRefusesAStringThePartHasNot()
+    {
+        Editor editor;
+        Score score = twoBars();
+        const QString before = fingerprint(score);
+        editor.setScore(score);
+
+        QList<Recorder::Beat> beats;
+        beats.append(Recorder::Beat{Rational(4), {Fretboard::Position{7, 0}}, false});
+        QCOMPARE(editor.recordBar(0, 0, beats, false), Editor::Edit::Refused);
+        QCOMPARE(fingerprint(editor.score()), before);
+        QVERIFY(!editor.canUndo());
+        QCOMPARE(editor.recordBar(0, 5, beats, false), Editor::Edit::Refused);
+    }
+
     void deletingANoteAndUndoingItRestoresItWhereItWas()
     {
         Editor editor;

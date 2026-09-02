@@ -158,6 +158,17 @@ public:
     Clock(const Score &score, const QList<int> &order);
 
     double secondsAt(const Rational &quarters) const;
+
+    /**
+     * The other direction: which quarter is sounding at `seconds`.
+     *
+     * A double rather than a Rational, because a moment read off a clock is
+     * not exact and pretending otherwise would be a lie in the denominator.
+     * Whatever asks this rounds the answer to a grid of its own choosing --
+     * which is what recording does, and the only thing that asks.
+     */
+    double quartersAt(double seconds) const;
+
     double totalSeconds() const;
 
 private:
@@ -270,6 +281,14 @@ double seconds(const Score &score, const QList<int> &order);
  * on. Returns -1 before the beginning and after the end.
  */
 int barAt(const Score &score, const QList<int> &order, const Clock &clock, double seconds);
+
+/**
+ * Which pass is sounding at `quarters` into the performance, or -1 outside it.
+ *
+ * `barAt` for a position already in quarters: the same walk, without the
+ * clock in the way.
+ */
+int passAt(const Score &score, const QList<int> &order, const Rational &quarters);
 
 /**
  * When a pass through the played order begins, in quarters.

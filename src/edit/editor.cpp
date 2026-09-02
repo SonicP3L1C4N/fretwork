@@ -38,6 +38,15 @@ constexpr int SetFretId = 1;
 constexpr int InsertChordId = 2;
 
 /**
+ * A bar written from what was played into it, key by key.
+ *
+ * Merged for the same reason a chord is, over a bar rather than a beat: the
+ * bar is rewritten as each key lands, and a bar of semiquavers taken back one
+ * key at a time would be sixteen presses of undo for one bar.
+ */
+constexpr int RecordBarId = 3;
+
+/**
  * The part as the fretboard solver wants to be told about it.
  *
  * The neck is HighestFret rather than a real instrument's, because the editor
@@ -884,6 +893,177 @@ private:
     bool m_madeVoice = false;
     bool m_building = false;
     int m_beatId = -1;
+};
+
+/**
+ * Replacing a bar's first voice with what was just played into it.
+ *
+ * Everything the voice had is remembered by id and by value and put back the
+ * same way, as DeleteRangeCommand does: a bar recorded over and undone has to
+ * be the bar it was, not a bar that sounds the same. What it had is only
+ * removed from the tables where nothing else was reading it -- a file that
+ * deduplicated its beats may have another part pointing at them, and that
+ * part has not been recorded over.
+ */
+class RecordBarCommand : public QUndoCommand
+{
+public:
+    RecordBarCommand(Editor *editor, int track, int bar, const QList<Recorder::Beat> &beats,
+                     bool building)
+        : m_editor(editor)
+        , m_beats(beats)
+        , m_building(building)
+    {
+        m_cursor.track = track;
+        m_cursor.bar = bar;
+        const Score &score = editor->score();
+        const int voiceId = Editing::voiceIdAt(score, m_cursor);
+        if (voiceId >= 0) {
+            m_hadBeats = score.voices.value(voiceId).beats;
+            for (const int beatId : std::as_const(m_hadBeats)) {
+                const Beat beat = score.beats.value(beatId);
+                m_wereBeats.insert(beatId, beat);
+                for (const int noteId : beat.notes) {
+                    m_wereNotes.insert(noteId, score.notes.value(noteId));
+                }
+                if (isShared(score, voiceId, beatId)) {
+                    m_shared.insert(beatId);
+                }
+            }
+        }
+        setText(i18n("Record bar %1", bar + 1));
+    }
+
+    int id() const override
+    {
+        return RecordBarId;
+    }
+
+    bool mergeWith(const QUndoCommand *other) override
+    {
+        const auto *next = static_cast<const RecordBarCommand *>(other);
+        if (!next->m_building || next->m_cursor.track != m_cursor.track
+            || next->m_cursor.bar != m_cursor.bar) {
+            return false;
+        }
+        // What is in the document now is what the newer command wrote, so
+        // that is what undo has to take out; what it puts back is what this
+        // one found, before any key was pressed.
+        m_beats = next->m_beats;
+        m_wroteBeats = next->m_wroteBeats;
+        m_wroteNotes = next->m_wroteNotes;
+        return true;
+    }
+
+    void redo() override
+    {
+        Score &score = m_editor->mutableScore();
+        bool made = false;
+        const int voiceId = Editor::voiceForEditing(score, m_cursor, &made);
+        if (voiceId < 0) {
+            return;
+        }
+        m_madeVoice = made;
+
+        for (const int beatId : std::as_const(m_hadBeats)) {
+            if (m_shared.contains(beatId)) {
+                continue;
+            }
+            for (const int noteId : score.beats.value(beatId).notes) {
+                score.notes.remove(noteId);
+            }
+            score.beats.remove(beatId);
+        }
+
+        const bool first = m_wroteBeats.isEmpty();
+        QList<int> beatIds;
+        for (int index = 0; index < m_beats.size(); ++index) {
+            const Recorder::Beat &recorded = m_beats.at(index);
+            const bool tiedFromPrevious = index > 0 && m_beats.at(index - 1).tiedToNext;
+            const int beatId = first ? Editor::freshBeatId(score) : m_wroteBeats.at(index);
+            if (first) {
+                m_wroteBeats.append(beatId);
+                m_wroteNotes.append(QList<int>());
+            }
+            Beat beat;
+            beat.rhythm = Editor::rhythmIdFor(score, recorded.duration);
+            // The beat goes into the table before its notes are numbered, so
+            // that the next fresh id is fresh.
+            score.beats.insert(beatId, beat);
+            for (int which = 0; which < recorded.shape.size(); ++which) {
+                const Fretboard::Position &at = recorded.shape.at(which);
+                const int noteId = first ? Editor::freshNoteId(score) : m_wroteNotes.at(index).at(which);
+                if (first) {
+                    m_wroteNotes[index].append(noteId);
+                }
+                Cursor on = m_cursor;
+                on.string = at.string;
+                Note note;
+                note.string = at.string;
+                note.fret = at.fret;
+                note.midi = Editor::midiFor(score, on, at.fret);
+                note.tieOrigin = recorded.tiedToNext;
+                note.tieDestination = tiedFromPrevious;
+                score.notes.insert(noteId, note);
+                score.beats[beatId].notes.append(noteId);
+            }
+            beatIds.append(beatId);
+        }
+        score.voices[voiceId].beats = beatIds;
+        m_editor->noteEdited(m_cursor.bar);
+    }
+
+    void undo() override
+    {
+        Score &score = m_editor->mutableScore();
+        const int voiceId = Editing::voiceIdAt(score, m_cursor);
+        if (voiceId < 0) {
+            return;
+        }
+        for (int index = 0; index < m_wroteBeats.size(); ++index) {
+            for (const int noteId : m_wroteNotes.at(index)) {
+                score.notes.remove(noteId);
+            }
+            score.beats.remove(m_wroteBeats.at(index));
+        }
+        for (const int beatId : std::as_const(m_hadBeats)) {
+            score.beats.insert(beatId, m_wereBeats.value(beatId));
+            for (const int noteId : m_wereBeats.value(beatId).notes) {
+                score.notes.insert(noteId, m_wereNotes.value(noteId));
+            }
+        }
+        score.voices[voiceId].beats = m_hadBeats;
+        if (m_madeVoice) {
+            Editor::dropVoice(score, m_cursor);
+        }
+        m_editor->noteEdited(m_cursor.bar);
+    }
+
+private:
+    /** Whether a voice other than `voiceId` is reading this beat. */
+    static bool isShared(const Score &score, int voiceId, int beatId)
+    {
+        for (auto voice = score.voices.constBegin(); voice != score.voices.constEnd(); ++voice) {
+            if (voice.key() != voiceId && voice.value().beats.contains(beatId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    Editor *m_editor;
+    Cursor m_cursor;
+    QList<Recorder::Beat> m_beats;
+    bool m_building = false;
+    bool m_madeVoice = false;
+
+    QList<int> m_hadBeats;
+    QHash<int, Beat> m_wereBeats;
+    QHash<int, Note> m_wereNotes;
+    QSet<int> m_shared;
+
+    QList<int> m_wroteBeats;
+    QList<QList<int>> m_wroteNotes;
 };
 
 class MoveNoteAcrossCommand : public QUndoCommand
@@ -2575,6 +2755,36 @@ Editor::Edit Editor::insertChord(const QList<Fretboard::Position> &shape, const 
     // holding three keys is one act rather than three.
     command->building(building);
     m_undo->push(command);
+    return Edit::Done;
+}
+
+Editor::Edit Editor::recordBar(int track, int bar, const QList<Recorder::Beat> &beats,
+                               bool building)
+{
+    endDigitEntry();
+    if (beats.isEmpty() || track < 0 || track >= m_score.tracks.size()) {
+        return Edit::Nothing;
+    }
+    Cursor where;
+    where.track = track;
+    where.bar = bar;
+    if (!hasBarAt(m_score, where)) {
+        return Edit::Refused;
+    }
+    const Track &part = m_score.tracks.at(track);
+    for (const Recorder::Beat &beat : beats) {
+        if (!(Rational(0) < beat.duration)) {
+            return Edit::Refused;
+        }
+        for (const Fretboard::Position &at : beat.shape) {
+            if (at.string < 0 || at.string >= part.tuning.size() || at.fret < 0
+                || at.fret > HighestFret) {
+                return Edit::Refused;
+            }
+        }
+    }
+    clearSelection();
+    m_undo->push(new RecordBarCommand(this, track, bar, beats, building));
     return Edit::Done;
 }
 
