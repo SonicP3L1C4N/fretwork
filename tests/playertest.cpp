@@ -87,6 +87,32 @@ private Q_SLOTS:
         QVERIFY(std::abs(player.periodSeconds() - 512.0 / 48000.0) < 1e-9);
     }
 
+    void armedItRollsToTheEndOfTheBarsRatherThanTheLastNote()
+    {
+        // One note in the first of four bars: eight seconds of bars, and a
+        // last note that ends a tail after it starts.
+        Score score = threeTracks();
+        for (int index = 1; index < 4; ++index) {
+            MasterBar bar;
+            bar.bars = {10 + index, 20 + index, 30 + index};
+            score.masterBars.append(bar);
+            for (const int id : bar.bars) {
+                score.bars.insert(id, Bar{{-1, -1, -1, -1}});
+            }
+        }
+        Player player(score, Timeline::playedOrder(score), options());
+        QVERIFY(!player.isRollingToEnd());
+        const double toTheNote = player.lengthSeconds();
+        QVERIFY(toTheNote < 8.0);
+
+        player.setRollingToEnd(true);
+        QVERIFY(player.isRollingToEnd());
+        QVERIFY(std::abs(player.lengthSeconds() - 8.0) < 1e-6);
+
+        player.setRollingToEnd(false);
+        QCOMPARE(player.lengthSeconds(), toTheNote);
+    }
+
     void knowsHowManyTracksItHas()
     {
         const Score score = threeTracks();

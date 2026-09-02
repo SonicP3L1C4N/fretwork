@@ -159,6 +159,7 @@ Player::Player(const Score &score, const QList<int> &order, const Options &optio
     }
 
     m_length = lastEvent + qint64(TailSeconds * m_options.sampleRate);
+    m_barsLength = qint64(Timeline::seconds(score, order) * m_options.sampleRate);
 
     // The click is a track like any other as far as the engine is concerned:
     // a part, a list of messages, and a synth. Nothing here had to learn a new
@@ -314,7 +315,7 @@ bool Player::hasFinished() const
 void Player::seekSeconds(double seconds)
 {
     const qint64 sample =
-        std::clamp<qint64>(qint64(seconds * m_options.sampleRate), 0, m_length);
+        std::clamp<qint64>(qint64(seconds * m_options.sampleRate), 0, length());
     // The graph's playhead, where there is one to move: everything following
     // it goes to the same place, which is the point of following it.
     if (m_transport) {
@@ -334,7 +335,17 @@ double Player::positionSeconds() const
 
 double Player::lengthSeconds() const
 {
-    return double(m_length) / m_options.sampleRate;
+    return double(length()) / m_options.sampleRate;
+}
+
+void Player::setRollingToEnd(bool rolling)
+{
+    m_rollToEnd.store(rolling, std::memory_order_relaxed);
+}
+
+bool Player::isRollingToEnd() const
+{
+    return m_rollToEnd.load(std::memory_order_relaxed);
 }
 
 void Player::setMuted(int track, bool muted)
@@ -686,7 +697,7 @@ qint64 Player::advance(int frames)
 
     const qint64 at = m_position.load(std::memory_order_relaxed) + frames;
     m_position.store(at, std::memory_order_release);
-    if (at >= m_length) {
+    if (at >= length()) {
         m_playing.store(false, std::memory_order_release);
         m_finished.store(true, std::memory_order_release);
     }
@@ -775,7 +786,7 @@ void Player::mix(int frames, float *left, float *right)
     }
 
     m_position.store(at, std::memory_order_release);
-    if (at >= m_length) {
+    if (at >= length()) {
         m_playing.store(false, std::memory_order_release);
         m_finished.store(true, std::memory_order_release);
     }

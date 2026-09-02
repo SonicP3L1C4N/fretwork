@@ -180,6 +180,19 @@ public:
     double lengthSeconds() const;
 
     /**
+     * Whether the transport runs to the end of the last bar rather than
+     * stopping a moment after the last note.
+     *
+     * The last note is the right end for a rendered file: a bar of silence
+     * at the end of a piece is not a reason for the stems to be longer. It
+     * is the wrong end for playing a part *in*, where the bars past the last
+     * note are exactly the ones about to be filled, and the click has to keep
+     * going through them. Off unless something is recording.
+     */
+    void setRollingToEnd(bool rolling);
+    bool isRollingToEnd() const;
+
+    /**
      * Where the transport was at a moment on the monotonic clock, in seconds.
      *
      * `positionSeconds` is where the audio thread last left the playhead,
@@ -302,5 +315,14 @@ private:
     qint64 m_stampFrames = 0;
     qint64 m_stampNanoseconds = 0;
 
-    qint64 m_length = 0;
+    qint64 m_length = 0;            //< the last note plus a tail
+    qint64 m_barsLength = 0;        //< the end of the last bar
+    std::atomic<bool> m_rollToEnd{false};
+
+    /** Where the transport stops, which depends on what it is for. */
+    qint64 length() const
+    {
+        return m_rollToEnd.load(std::memory_order_relaxed) ? std::max(m_length, m_barsLength)
+                                                           : m_length;
+    }
 };

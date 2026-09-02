@@ -129,6 +129,23 @@ private Q_SLOTS:
         QCOMPARE(noteCounts(take), (QList<int>{1, 1}));
     }
 
+    void aPlayerWhoIsAlwaysEarlyIsNotGivenRestsForIt()
+    {
+        const Score score = bars(2);
+        const QList<int> order = {0, 1};
+        Recorder recorder(score, order, semiquavers());
+
+        // Both keys a twentieth of a quarter early, the first released a
+        // little under a cell before the second was struck. Measured against
+        // the line the second key rounded to, the gap would be over a cell
+        // and the first note would be followed by a rest it did not have.
+        recorder.noteOn(64, 0.95);
+        recorder.noteOff(64, 1.72);
+        const Recorder::Take take = recorder.noteOn(66, 1.95);
+        QCOMPARE(durations(take), (QList<Rational>{Rational(1), Rational(1), Rational(2)}));
+        QCOMPARE(noteCounts(take), (QList<int>{0, 1, 1}));
+    }
+
     void aNoteShorterThanTheGridIsACell()
     {
         const Score score = bars(2);

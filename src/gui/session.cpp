@@ -231,6 +231,17 @@ void Session::rebuildPlayer()
         return;
     }
 
+    // The order and the clock are the score's, and the score has been edited
+    // -- that is what a rebuild is for. A bar appended, a repeat sign added
+    // or a tempo changed all move where the bars fall in time, and a player
+    // built on the order the file arrived with would stop at the end of the
+    // piece as it was opened. The recorder goes with them: it holds the
+    // order it was built on, and a bar being played into is finished the
+    // moment the transport is rebuilt under it anyway.
+    m_order = Timeline::playedOrder(m_editor.score());
+    m_clock = std::make_unique<Timeline::Clock>(m_editor.score(), m_order);
+    m_recorder.reset();
+
     Player::Options options;
     options.soundFont = m_soundFont;
     options.samplers = m_samplers;
@@ -266,6 +277,9 @@ void Session::rebuildPlayer()
     // person did to the click should be undone by one.
     m_player->setClickEnabled(m_click);
     m_player->setClickGain(float(m_clickGain));
+    // Armed to record into the bars past the last note, which is where a
+    // blank score has all of them.
+    m_player->setRollingToEnd(m_recording);
     m_ticker.start();
 }
 
@@ -2597,6 +2611,9 @@ void Session::setRecording(bool recording)
         m_held.clear();
         m_recordedFirst = -1;
         m_recordedLast = -1;
+        if (m_player) {
+            m_player->setRollingToEnd(true);
+        }
         setStatus(m_player && m_player->isPlaying()
                       ? i18n("Recording onto %1 on a %2 grid", part.name, recordGridName())
                       : i18n("Armed: press Play, and what you play is written into %1 on a %2 grid",
@@ -2605,6 +2622,9 @@ void Session::setRecording(bool recording)
         finishRecording();
         m_recording = false;
         m_recorder.reset();
+        if (m_player) {
+            m_player->setRollingToEnd(false);
+        }
     }
     Q_EMIT recordingChanged();
 }

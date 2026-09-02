@@ -32,8 +32,10 @@
  * 3. *A chord* is whatever rounds to the same line.
  * 4. *A note lasts* until its release rounded to the grid, or until the next
  *    onset, or until the bar line, whichever is first -- and never less than
- *    one cell. A release at least a cell before the next onset leaves a rest
- *    behind it; a shorter gap is the hand moving, not a rest.
+ *    one cell. A release at least a cell before the next key *as played*
+ *    leaves a rest behind it; a shorter gap is the hand moving, not a rest.
+ *    As played rather than as rounded, so that a player who is always a
+ *    little early is not given a rest before every note for being early.
  * 5. *The bar adds up.* What was not played is a rest, before the first note
  *    and after the last, so the page never marks a bar being recorded as
  *    incomplete.
@@ -136,6 +138,7 @@ private:
     /** One key, as it was played into the current bar. */
     struct Played {
         Rational onset;         //< from the start of the bar, on the grid
+        double struck = 0;      //< the same moment as played, for measuring gaps against
         double off = -1;        //< from the start of the bar, as played; negative while held
         int pitch = 0;
     };

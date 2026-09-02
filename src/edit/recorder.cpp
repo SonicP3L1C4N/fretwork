@@ -49,6 +49,7 @@ Recorder::Take Recorder::noteOn(int pitch, double quarters)
     }
     Played played;
     played.onset = at - m_barStart;
+    played.struck = quarters - m_barStart.toDouble();
     played.pitch = pitch;
     m_played.append(played);
     return rebuild();
@@ -146,6 +147,7 @@ Recorder::Take Recorder::rebuild()
     // the strikes and the list is a bar's worth at the outside.
     struct Group {
         Rational onset;
+        double struck = 0;      //< the earliest key, as played
         QList<int> pitches;
         bool held = false;
         double off = 0;         //< the latest release, as played
@@ -157,9 +159,10 @@ Recorder::Take Recorder::rebuild()
     QList<Group> groups;
     for (const Played &key : played) {
         if (groups.isEmpty() || !(groups.last().onset == key.onset)) {
-            groups.append(Group{key.onset, {}, false, 0});
+            groups.append(Group{key.onset, key.struck, {}, false, 0});
         }
         Group &group = groups.last();
+        group.struck = std::min(group.struck, key.struck);
         if (!group.pitches.contains(key.pitch)) {
             group.pitches.append(key.pitch);
         }
@@ -190,9 +193,14 @@ Recorder::Take Recorder::rebuild()
         // How long it sounds: to the next onset, unless every key came up at
         // least a cell before it, in which case to the release -- rounded,
         // and never shorter than a cell, because a note shorter than the grid
-        // is a note the grid cannot say.
+        // is a note the grid cannot say. The gap is measured between the
+        // release and the next key *as played*, not the line the next key
+        // rounded to: a player who is consistently a little early would
+        // otherwise be given a rest before every note, for playing early.
+        const double nextStruck =
+            index + 1 < groups.size() ? groups.at(index + 1).struck : m_barLength.toDouble();
         Rational end = next;
-        const bool released = !group.held && next.toDouble() - group.off >= grid.toDouble() - 1e-9;
+        const bool released = !group.held && nextStruck - group.off >= grid.toDouble() - 1e-9;
         if (released) {
             end = snapped(group.off);
             if (end < group.onset + grid) {

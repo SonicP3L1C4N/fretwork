@@ -37,6 +37,23 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
   across a bar line stops at it, and what was recorded is heard on the next
   play rather than the one it was played against.
 
+  Proved by playing a scripted performance into it from a virtual port
+  rather than by inspection: four crotchets, eight quavers, a held triad, a
+  crotchet-rest-minim and a note forty milliseconds early for a downbeat all
+  came out as written, the onsets landing within a millisecond of each
+  other's spacing. That is also how the two entries below were found.
+
+- **The transport runs to the end of the bars while recording is armed.**
+  It stops a moment after the last note otherwise, which is right for a
+  rendered file and useless for playing into a blank score, where every bar
+  is past the last note: the first take stopped three seconds in.
+
+- **Play uses the score as it is now, not as it was opened.** The order the
+  bars are heard in and the clock that turns them into seconds were worked
+  out once, when a file was opened, and a player built after bars had been
+  appended or a repeat added stopped where the opened score had ended. Both
+  are worked out again whenever the player is rebuilt.
+
 ## 0.3.0 — 2026-09-01
 
 Everything a score can say, and two more ways out of the program.

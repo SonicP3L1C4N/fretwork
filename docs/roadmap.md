@@ -424,8 +424,10 @@ Two modes, and they are different features:
   - Keys that round to the same line are one beat.
   - A note lasts to its release rounded to the grid, or to the next onset, or
     to the bar line, whichever is first, and never less than a cell. A release
-    a cell or more before the next key leaves a rest; a shorter gap is the
-    hand moving.
+    a cell or more before the next key *as played* leaves a rest; a shorter
+    gap is the hand moving. As played rather than as rounded, which the first
+    version got wrong and a scripted performance showed up: a player who is
+    always a little early was being given a rest before every note.
   - The bar always adds up: what was not played is a rest. A length no single
     value can write — five semiquavers — is a crotchet tied to a semiquaver.
   - The bar line cuts. A note held across it ends at it.
@@ -446,6 +448,18 @@ Two modes, and they are different features:
   transport when this key went down" has an answer to a millisecond rather
   than to a period. One period is subtracted from every arrival, because the
   click a key was played against was written that long before it was heard.
+
+  Proved end to end rather than by inspection, by playing a `.mid` into the
+  graph's Midi Through port with `aplaymidi` while a headless `Session`
+  listened on it: four crotchets, eight quavers, a held triad, a
+  crotchet-rest-minim and a note forty milliseconds early for a downbeat all
+  came out as written, with the onsets a quarter apart to within a
+  millisecond. The exercise found two bugs under it, both fixed: the player
+  stopped a moment after the last note, which on a blank score is three
+  seconds in, so it now rolls to the end of the bars while armed; and the
+  played order and clock were computed only when a file was opened, so a
+  player built after bars were appended stopped where the opened score had
+  ended.
 
   What it does not do, stated: swung bars are placed on the straight grid;
   nothing ties across a bar line; the recorded notes are heard on the *next*
