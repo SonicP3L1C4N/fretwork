@@ -39,7 +39,7 @@ jobs:
             fluidsynth soundfont-fluid \
             lilv pipewire zlib
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # cargo is not a pkg-config dependency, it is a whole toolchain, so the
       # configuration without it is made by not installing it rather than by
@@ -133,7 +133,7 @@ jobs:
       image: invent-registry.kde.org/neon/docker-images/plasma:unstable
       options: --user 0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Extract the apt line from README.md
         id: deps
@@ -171,8 +171,8 @@ jobs:
     name: REUSE compliance
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: fsfe/reuse-action@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: fsfe/reuse-action@bb774aa972c2a89ff34781233d275075cbddf542 # v5
 
   metadata:
     name: Desktop and AppStream metadata
@@ -182,7 +182,7 @@ jobs:
       - name: Install validators
         run: pacman -Syu --noconfirm --needed appstream desktop-file-utils
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Validate the desktop entry
         run: desktop-file-validate src/io.github.sonicp3l1c4n.fretwork.desktop

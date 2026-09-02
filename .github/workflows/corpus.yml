@@ -33,7 +33,7 @@ jobs:
     if: github.repository == 'SonicP3L1C4N/fretwork'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Refuse to run without a corpus
         run: |
