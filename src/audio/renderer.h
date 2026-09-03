@@ -87,7 +87,15 @@ struct Options {
     bool dryStems = false;
 };
 
-/** A General MIDI SoundFont on this machine, or empty if there is none. */
+/**
+ * A General MIDI SoundFont on this machine, or empty if there is none.
+ *
+ * `FRETWORK_SOUNDFONT` wins if it names a file that exists. Otherwise the
+ * usual leaf paths are looked for through the data directories -- so a bank
+ * inside a relocatable bundle, or one somebody put in `~/.local/share`, is
+ * found as readily as the distribution's -- and the historical absolute paths
+ * are tried last, for machines that leave `XDG_DATA_DIRS` unset.
+ */
 QString findSoundFont();
 
 struct Written {

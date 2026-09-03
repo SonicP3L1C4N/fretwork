@@ -1,0 +1,26 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
+#
+# What the bundle has to say for itself before the program starts.
+#
+# Two things, and deliberately no more. Qt finds its own plugins and QML
+# through the qt.conf beside the binary, and the libraries are found through
+# the rpath linuxdeploy wrote into each one, so neither needs saying here --
+# and an LD_LIBRARY_PATH set on top of that is how a bundle ends up loading
+# half of itself and half of the host.
+
+HERE="$(dirname "$(readlink -f "$0")")"
+export APPDIR="${APPDIR:-$HERE}"
+
+# The soundfont this carries, offered as a data directory rather than named
+# outright, so that it is the last one looked at rather than the first. A
+# bank in ~/.local/share and the distribution's own both come before it,
+# which is the right order: somebody who installed a better one than this
+# meant to use it.
+export XDG_DATA_DIRS="${XDG_DATA_DIRS:-/usr/local/share:/usr/share}:$APPDIR/usr/share"
+
+# LV2 plugins are the host's. They are not bundled -- the amplifier
+# simulations this is worth using with are several hundred megabytes on their
+# own, and a guitarix installed by the user is a guitarix that gets updated.
+exec "$APPDIR/usr/bin/fretwork" "$@"

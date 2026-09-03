@@ -870,6 +870,22 @@ int main(int argc, char *argv[])
                                                        + QStringLiteral(".desktop"))
                                 .isEmpty();
 
+    // Somewhere to find an icon when nothing else has one.
+    //
+    // Every icon here is named the way Breeze names it. A Plasma session says
+    // its theme is Breeze and they all resolve; a GNOME session is read
+    // through Qt's GTK platform theme and resolves whatever that says. A
+    // relocatable bundle carries no platform theme at all, so Qt is left
+    // holding its default of "hicolor" -- which has almost none of these names
+    // in it, and an icon that is not found is drawn as nothing. That is a
+    // toolbar of blank buttons, every one of which still works.
+    //
+    // Set unconditionally, and as the *fallback* rather than the theme: a
+    // desktop that did say keeps what it said, and only the names it cannot
+    // answer arrive here. The guard this used to have -- only when the
+    // fallback was empty -- never fired, because Qt's default is not empty.
+    QIcon::setFallbackThemeName(QStringLiteral("breeze"));
+
     // The installed icon where there is one; the copy compiled in otherwise,
     // so running out of the build directory still looks like the application.
     QIcon icon = QIcon::fromTheme(desktopId);

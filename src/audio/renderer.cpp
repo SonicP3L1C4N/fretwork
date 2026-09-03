@@ -15,6 +15,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QRegularExpression>
+#include <QStandardPaths>
 
 #include <algorithm>
 #include <cmath>
@@ -33,8 +34,37 @@ QString safeName(const QString &name)
 
 QString Render::findSoundFont()
 {
-    // The usual places a distribution puts a General MIDI bank. Ordered by how
-    // good they sound rather than alphabetically.
+    // Named outright, which beats looking: a bundled build says where its own
+    // bank is, and somebody with a better one than the distribution's says so
+    // without editing anything.
+    const QString named = qEnvironmentVariable("FRETWORK_SOUNDFONT");
+    if (!named.isEmpty() && QFileInfo::exists(named)) {
+        return named;
+    }
+
+    // Where a bank sits under a data directory, in the order a General MIDI
+    // bank is worth having. Searched through XDG_DATA_DIRS rather than at
+    // absolute paths, which is what makes three cases work at once: a
+    // distribution's copy under /usr/share, a better one somebody dropped in
+    // ~/.local/share, and the copy inside a relocatable bundle -- an AppImage
+    // or a flatpak -- where /usr belongs to the host and not to us.
+    static const QStringList relative = {
+        QStringLiteral("sounds/sf2/FluidR3_GM.sf2"),
+        QStringLiteral("sounds/sf2/default-GM.sf2"),
+        QStringLiteral("soundfonts/FluidR3_GM.sf2"),
+        QStringLiteral("soundfonts/default.sf2"),
+    };
+    for (const QString &leaf : relative) {
+        const QString found =
+            QStandardPaths::locate(QStandardPaths::GenericDataLocation, leaf);
+        if (!found.isEmpty()) {
+            return found;
+        }
+    }
+
+    // The same four paths absolutely, because XDG_DATA_DIRS is not always set
+    // and Qt's fallback for it is not guaranteed to be the one this machine
+    // installs soundfonts into.
     static const QStringList candidates = {
         QStringLiteral("/usr/share/sounds/sf2/FluidR3_GM.sf2"),
         QStringLiteral("/usr/share/sounds/sf2/default-GM.sf2"),

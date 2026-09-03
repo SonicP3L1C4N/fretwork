@@ -720,9 +720,10 @@ private Q_SLOTS:
      * The search only ever offers a file that is there.
      *
      * The branch where it finds nothing -- the one a stranger with no
-     * fluid-soundfont-gm actually meets -- cannot be reached on a machine that
-     * has a SoundFont installed, because the candidates are fixed paths. This
-     * asserts the half that is reachable either way.
+     * fluid-soundfont-gm actually meets -- still cannot be reached on a machine
+     * that has one installed. This asserts the half that is reachable either
+     * way; the three below reach the rest by pointing the search somewhere it
+     * can be told about.
      */
     void findsOnlyASoundFontThatExists()
     {
@@ -731,6 +732,96 @@ private Q_SLOTS:
             QSKIP("no SoundFont on this machine: the search has nothing to offer");
         }
         QVERIFY2(QFileInfo::exists(found), qPrintable(found));
+    }
+
+    /**
+     * A named bank wins, which is what a bundle relies on.
+     *
+     * An AppImage or a flatpak carries its own soundfont and knows where it
+     * put it. Everything else here is a search, and a search is what you do
+     * when nobody has told you.
+     */
+    void aNamedSoundFontWins()
+    {
+        const QString named = path(QStringLiteral("named.sf2"));
+        QFile file(named);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.close();
+
+        const QByteArray was = qgetenv("FRETWORK_SOUNDFONT");
+        qputenv("FRETWORK_SOUNDFONT", named.toLocal8Bit());
+        const QString found = Render::findSoundFont();
+        if (was.isEmpty()) {
+            qunsetenv("FRETWORK_SOUNDFONT");
+        } else {
+            qputenv("FRETWORK_SOUNDFONT", was);
+        }
+
+        QCOMPARE(found, named);
+    }
+
+    /**
+     * And a named bank that is not there is passed over rather than returned.
+     *
+     * Returning it would be the worse failure of the two: the caller would
+     * hand a path that does not exist to FluidSynth and get its error rather
+     * than this program's, which is the difference between "install a
+     * soundfont" and a line about a file the user never typed.
+     */
+    void aNamedSoundFontThatIsNotThereIsPassedOver()
+    {
+        const QString missing = path(QStringLiteral("no-such-bank.sf2"));
+        QVERIFY(!QFileInfo::exists(missing));
+
+        const QByteArray was = qgetenv("FRETWORK_SOUNDFONT");
+        qputenv("FRETWORK_SOUNDFONT", missing.toLocal8Bit());
+        const QString found = Render::findSoundFont();
+        if (was.isEmpty()) {
+            qunsetenv("FRETWORK_SOUNDFONT");
+        } else {
+            qputenv("FRETWORK_SOUNDFONT", was);
+        }
+
+        QVERIFY(found != missing);
+    }
+
+    /**
+     * A bank under a data directory is found, which is the case that makes a
+     * relocatable build work at all.
+     *
+     * Inside an AppImage `/usr/share` is the host's, not ours, so the four
+     * absolute paths this used to search are four paths belonging to somebody
+     * else. Going through the data directories finds the bundled copy, a
+     * better one in `~/.local/share`, and the distribution's, without knowing
+     * which of the three it is looking at.
+     */
+    void aSoundFontUnderADataDirectoryIsFound()
+    {
+        const QString root = path(QStringLiteral("share"));
+        const QString folder = root + QStringLiteral("/sounds/sf2");
+        QVERIFY(QDir().mkpath(folder));
+        const QString bank = folder + QStringLiteral("/FluidR3_GM.sf2");
+        QFile file(bank);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.close();
+
+        const QByteArray wasNamed = qgetenv("FRETWORK_SOUNDFONT");
+        const QByteArray wasDirs = qgetenv("XDG_DATA_DIRS");
+        qunsetenv("FRETWORK_SOUNDFONT");
+        qputenv("XDG_DATA_DIRS", root.toLocal8Bit());
+        const QString found = Render::findSoundFont();
+        if (wasNamed.isEmpty()) {
+            qunsetenv("FRETWORK_SOUNDFONT");
+        } else {
+            qputenv("FRETWORK_SOUNDFONT", wasNamed);
+        }
+        if (wasDirs.isEmpty()) {
+            qunsetenv("XDG_DATA_DIRS");
+        } else {
+            qputenv("XDG_DATA_DIRS", wasDirs);
+        }
+
+        QCOMPARE(found, bank);
     }
 
     void refusesAnEmptyScore()

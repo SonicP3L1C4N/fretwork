@@ -2,7 +2,17 @@
 # SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
 build/
+build-appimage/
 rust/*/target/
+
+# What the AppImage build makes: a tree of somebody else's libraries, a
+# hundred and forty megabytes of soundfont, and the finished file. The script
+# that assembles them is in packaging/appimage and is the part worth keeping.
+AppDir/
+dist/
+.appimage-tools/
+.flatpak-builder/
+
 .cache/
 compile_commands.json
 .kdev4/
