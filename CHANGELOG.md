@@ -32,8 +32,17 @@ project assumed when it planned its distribution. The AppImage borrows the
 host's glibc and inherits the floor of whatever built it; a flatpak carries
 its runtime and runs wherever flatpak does.
 
-Known, and stated rather than left to be found: **MIDI recording does not
-work inside the flatpak.** Everything else does.
+**Correction, the same day.** This entry first said MIDI recording did not
+work inside the flatpak. It does. The Record button is disabled until a
+keyboard has been chosen, which is deliberate -- a Record button that
+listens to nothing is one that appears to be broken -- and the machine this
+was tested on had a keyboard remembered in `~/.config/kde.org/fretwork.conf`
+from earlier use, while the sandbox keeps its own settings and so started
+with none. Pointing the sandbox at the same port linked it straight through:
+`Midi-Bridge:Minilab3 MIDI (capture) |-> Fretwork keys:input_1`. A
+difference between two configurations was read as a difference between two
+builds, which is the same mistake as claiming something is absent without
+looking for it.
 
 ## 0.4.1 — 2026-09-03
 

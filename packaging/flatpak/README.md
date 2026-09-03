@@ -69,14 +69,28 @@ renders every stem with the soundfont it carries -- real signal, peaks from
 0.15 to 0.62, not silence -- and opens its window on a Wayland session with
 its icons and all seven parts of the score.
 
-**MIDI recording did not work in the sandbox.** The Record button stays
-disabled, where the same build outside the flatpak enables it: recording
-needs a keyboard to have been chosen, and none is found. `/dev/snd/seq` *is*
-visible inside the sandbox, so `--device=all` is doing its job and the gap is
-somewhere past it -- most likely in how the ports are enumerated rather than
-in the permissions. Unresolved, and stated here rather than left for somebody
-to discover: everything else in this program works inside the sandbox, and
-that does not.
+**MIDI works too**, and the first version of this file said it did not.
+Worth keeping as a note on how to test a sandbox rather than quietly
+deleting.
+
+The Record button was disabled in the flatpak and enabled outside it, and
+that looked like a permission gap. It was not. Record is disabled until a
+keyboard has been chosen, deliberately, and the choice is remembered in
+`kde.org/fretwork.conf` -- which a flatpak keeps under `~/.var/app` rather
+than `~/.config`. The machine this was tested on had a keyboard remembered
+from months of use outside the sandbox and, of course, nothing remembered
+inside it. **Two configurations, not two builds.**
+
+What the sandbox can actually do, measured rather than inferred:
+
+- `pw-link -o` inside it lists the same seven MIDI capture ports as the
+  host, byte for byte.
+- Given a port to listen to, it opens one and PipeWire links it:
+  `Midi-Bridge:Minilab3 MIDI (capture) |-> Fretwork keys:input_1`.
+- Record then enables, as it does anywhere else.
+
+The lesson is the cheap one to learn twice: **a difference between two
+environments is a difference in their state until proved otherwise.**
 
 ## What is not in it yet
 

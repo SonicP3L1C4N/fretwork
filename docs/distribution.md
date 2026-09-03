@@ -157,5 +157,20 @@ arrive through `org.freedesktop.LinuxAudio.Plugins`, so whatever the user
 installs appears in the Add effect menu without this manifest naming any of
 it.
 
+Built here and run: it reads a score from the host's home, renders every stem
+with the soundfont it carries -- real signal, not silence -- opens its window
+on Wayland with its icons, and takes MIDI from a keyboard, which PipeWire
+links straight through to it.
+
+That last one was reported as broken first, and was not. Record is disabled
+until a keyboard has been chosen, the choice is remembered per installation,
+and a flatpak keeps its settings under `~/.var/app` rather than `~/.config` --
+so the sandbox started with nothing chosen on a machine that had chosen one
+months ago. **A difference between two configurations was read as a
+difference between two builds.** It is the same error as declaring something
+absent without looking for it, which this project has now made three times,
+and the correction is the same each time: measure the thing rather than the
+circumstances around it.
+
 Submission to Flathub is a pull request against their repository, from the
 maintainer's account, and has not been made.
