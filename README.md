@@ -89,7 +89,7 @@ fretwork FILE.gp --tune                  # tune to this score
 
 ## Status
 
-**0.4.1 is released**, with an AppImage. Per-track LV2 chains and SFZ sampling are present and
+**0.4.2 is released**, with an AppImage and a flatpak manifest. Per-track LV2 chains and SFZ sampling are present and
 experimental, which is meant as it is written — they are the reason the program
 exists and the least settled thing in it.
 

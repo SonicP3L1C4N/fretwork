@@ -62,6 +62,22 @@ neither has happened. Before submitting:
   stem, are worth doing inside the sandbox rather than trusting that the
   permissions above are the right set.
 
+## What was tested, and the one thing that failed
+
+Built and installed here, then run: it reads a `.gp` from the host's home,
+renders every stem with the soundfont it carries -- real signal, peaks from
+0.15 to 0.62, not silence -- and opens its window on a Wayland session with
+its icons and all seven parts of the score.
+
+**MIDI recording did not work in the sandbox.** The Record button stays
+disabled, where the same build outside the flatpak enables it: recording
+needs a keyboard to have been chosen, and none is found. `/dev/snd/seq` *is*
+visible inside the sandbox, so `--device=all` is doing its job and the gap is
+somewhere past it -- most likely in how the ports are enumerated rather than
+in the permissions. Unresolved, and stated here rather than left for somebody
+to discover: everything else in this program works inside the sandbox, and
+that does not.
+
 ## What is not in it yet
 
 **The Rust reader.** `org.freedesktop.Sdk.Extension.rust-stable` would add it,

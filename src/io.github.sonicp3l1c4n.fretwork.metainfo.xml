@@ -117,6 +117,14 @@ SPDX-License-Identifier: CC0-1.0
          mismatch between them. No type attribute, which means stable: 0.1.0 is
          tagged and released, and a software centre showing a released version
          as a development one tells people not to install it. -->
+    <release version="0.4.2" date="2026-09-03">
+      <description>
+        <p>
+          A flatpak, which runs on distributions the AppImage cannot, and a
+          fix for a build failure against older versions of PipeWire.
+        </p>
+      </description>
+    </release>
     <release version="0.4.1" date="2026-09-03">
       <description>
         <p>

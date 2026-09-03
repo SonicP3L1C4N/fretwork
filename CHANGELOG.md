@@ -6,6 +6,35 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 # Changelog
 
+## 0.4.2 — 2026-09-03
+
+A flatpak, and the portability bug building one found.
+
+- **`spa_ump_to_midi` is checked by compiling the call, not by looking for
+  its header.** It has had two signatures -- an older one taking a buffer and
+  its length, and the current one taking pointers to both so it can walk a
+  packet at a time -- and both arrive with the same header. The check asked
+  whether the header existed, under a comment about checking rather than
+  assuming, and so said yes on a PipeWire that has the older form. The build
+  then failed. Anywhere the current signature is absent, the raw-MIDI path
+  that was already written for older servers is used instead, which is what
+  should have happened all along.
+
+- **A flatpak manifest**, in `packaging/flatpak`, against
+  `org.kde.Platform` 6.11. It carries a soundfont, builds FluidSynth and the
+  lilv stack the runtime does not have, and takes LV2 plugins from the
+  standard audio plugin extension rather than bundling any.
+
+- **An Arch package**, in `packaging/aur`, written and not yet published.
+
+**The flatpak is the portable one**, which is the opposite of what this
+project assumed when it planned its distribution. The AppImage borrows the
+host's glibc and inherits the floor of whatever built it; a flatpak carries
+its runtime and runs wherever flatpak does.
+
+Known, and stated rather than left to be found: **MIDI recording does not
+work inside the flatpak.** Everything else does.
+
 ## 0.4.1 — 2026-09-03
 
 The version you can install without building it.
