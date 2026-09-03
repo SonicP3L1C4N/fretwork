@@ -17,6 +17,12 @@ Written **2026-08-28**, against the model in `src/model/score.h`, the editor
 API in `src/edit/editor.h`, and a real `.feedpak` unpacked from
 `~/.local/share/feedback/library`.
 
+A fourth document has since been written below this one:
+[road-to-1.0.md](road-to-1.0.md) weighs six further directions — transcribing,
+sharing, practising together, recording into a DAW, Discord, and streaming
+overlays — against what 1.0 has to mean, and its first finding is that the gate
+set at the foot of this page has only been half met.
+
 ## What these three do to the project
 
 Each of the three pushes a different boundary, and it is worth naming which

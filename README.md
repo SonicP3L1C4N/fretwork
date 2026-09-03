@@ -119,6 +119,9 @@ interface at all, which is the only honest definition of a foundation.
 - **[docs/roadmap.md](docs/roadmap.md)** — the three directions past P4, with
   their dependencies and their prices, and a record of what each one actually
   cost when it was built.
+- **[docs/road-to-1.0.md](docs/road-to-1.0.md)** — what the first number
+  before the decimal point means, the six expansions weighed against what is
+  already in the tree, and the three things refused to keep them affordable.
 - **[docs/gpif-format.md](docs/gpif-format.md)** — how a `.gp` file is actually
   put together, measured against a real corpus rather than assumed. There is no
   vendor specification for any of this.
