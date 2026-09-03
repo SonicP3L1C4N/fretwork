@@ -117,6 +117,20 @@ SPDX-License-Identifier: CC0-1.0
          mismatch between them. No type attribute, which means stable: 0.1.0 is
          tagged and released, and a software centre showing a released version
          as a development one tells people not to install it. -->
+    <release version="0.4.1" date="2026-09-03">
+      <description>
+        <p>
+          Fretwork can now be installed without being built: an AppImage
+          that carries its own soundfont and runs without unpacking.
+        </p>
+        <p>
+          Two faults it found on the way are fixed for everybody. Toolbar
+          icons no longer draw as nothing on a desktop that is not Plasma,
+          and a soundfont is found wherever it is installed rather than at
+          four fixed paths.
+        </p>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-09-02">
       <description>
         <p>

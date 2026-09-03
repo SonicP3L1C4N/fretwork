@@ -6,6 +6,43 @@ SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted
 
 # Changelog
 
+## 0.4.1 — 2026-09-03
+
+The version you can install without building it.
+
+An AppImage, built by a script in `packaging/appimage` that checks its own
+work, and two bugs that only a bundle could have found -- both of which turn
+out to affect an ordinary installation on any desktop that is not Plasma.
+
+- **The toolbar's icons are no longer blank on GNOME, Sway, or anywhere
+  else that is not a Plasma session.** Every icon in this program is named
+  the way Breeze names it. Plasma says its icon theme is Breeze and they all
+  resolve; everywhere else Qt was left holding its default theme of
+  `hicolor`, which has almost none of those names in it, and an icon that is
+  not found is drawn as nothing at all -- a toolbar of six blank buttons,
+  every one of which still worked. Breeze is now the fallback theme, so a
+  desktop that did say keeps what it said and only the names it cannot
+  answer come here. Reproduced by starting the program with
+  `XDG_CURRENT_DESKTOP=GNOME` on a machine where it was otherwise perfect.
+
+- **A soundfont is found wherever it is, rather than at four fixed paths.**
+  `FRETWORK_SOUNDFONT` names one outright; failing that the data
+  directories are searched, which finds one in `~/.local/share` before the
+  distribution's, and finds the one inside a bundle where `/usr/share`
+  belongs to the host and not to us; the four absolute paths are tried last.
+  This is what lets the AppImage carry its own bank and still stand aside
+  for a better one.
+
+- **The AppImage carries a General MIDI soundfont**, so it makes a noise on
+  a machine with nothing installed, and finds LV2 plugins on the host rather
+  than bundling several hundred megabytes of amplifier simulation that would
+  then never be updated.
+
+**What the AppImage needs.** glibc 2.43 or newer, which is a consequence of
+building against Ubuntu's Qt rather than anything this program does, and it
+rules out the current long-term-support releases. The flatpak is the portable
+one and is the answer for everybody else.
+
 ## 0.4.0 — 2026-09-02
 
 Playing a part in, and the first release candidate.

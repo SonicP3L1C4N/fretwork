@@ -89,7 +89,7 @@ fretwork FILE.gp --tune                  # tune to this score
 
 ## Status
 
-**0.4.0 is released.** Per-track LV2 chains and SFZ sampling are present and
+**0.4.1 is released**, with an AppImage. Per-track LV2 chains and SFZ sampling are present and
 experimental, which is meant as it is written — they are the reason the program
 exists and the least settled thing in it.
 
@@ -149,6 +149,26 @@ hand-rolled binary. **Rust behind a C ABI is the plan for GP3–GP5 and GPX** �
 the only code here that would read untrusted bytes by hand, and where `cargo
 fuzz` finds what review does not. A plan rather than a line of the stack,
 because none of it exists yet.
+
+## Installing
+
+**An AppImage**, from the [latest release][releases]: download it, make it
+executable, run it. It carries a General MIDI soundfont, so it makes a noise
+on a machine with nothing installed, and it uses whatever LV2 plugins are on
+the host rather than bundling several hundred megabytes of amplifier that
+would then never be updated.
+
+```
+chmod +x Fretwork-*.AppImage
+./Fretwork-*.AppImage yourfile.gp
+```
+
+It needs **glibc 2.43 or newer**, which is a consequence of building against
+a current distribution's Qt and not of anything this program does. That rules
+out today's long-term-support releases; on those, build it, or wait for the
+flatpak, which is the portable answer and is next.
+
+[releases]: https://github.com/SonicP3L1C4N/fretwork/releases/latest
 
 ## Building
 
