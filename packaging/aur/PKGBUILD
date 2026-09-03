@@ -4,7 +4,7 @@
 # Maintainer: Gary Bissett <gary.bissett@gmail.com>
 
 pkgname=fretwork
-pkgver=0.4.1
+pkgver=0.4.2
 pkgrel=1
 pkgdesc='A tablature program that plays every track as its own stem'
 arch=('x86_64')
@@ -35,7 +35,7 @@ optdepends=(
     'breeze-icons: the icon set this program names its icons from'
 )
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('c86ce7532f64362977a85663b801c524e9a275988754bd7a1fd117821efdbeb9')
+sha256sums=('ea754811b6fb61649fd3c73a855904e950a1e29db3a11f51aa64152d50ed5394')
 
 build() {
     cmake -B build -S "$pkgname-$pkgver" -G Ninja \

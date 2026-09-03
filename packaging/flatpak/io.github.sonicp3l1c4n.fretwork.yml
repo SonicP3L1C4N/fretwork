@@ -164,5 +164,5 @@ modules:
       - -DBUILD_TESTING=OFF
     sources:
       - type: archive
-        url: https://github.com/SonicP3L1C4N/fretwork/archive/refs/tags/v0.4.1.tar.gz
-        sha256: c86ce7532f64362977a85663b801c524e9a275988754bd7a1fd117821efdbeb9
+        url: https://github.com/SonicP3L1C4N/fretwork/archive/refs/tags/v0.4.2.tar.gz
+        sha256: ea754811b6fb61649fd3c73a855904e950a1e29db3a11f51aa64152d50ed5394

@@ -40,7 +40,7 @@ cd aur-fretwork
 makepkg --printsrcinfo > .SRCINFO       # not the hand-written copy
 makepkg -si                             # build it, and install it, before pushing
 git add PKGBUILD .SRCINFO
-git commit -m 'Initial import: fretwork 0.4.1'
+git commit -m 'Initial import: fretwork 0.4.2'
 git push
 ```
 
