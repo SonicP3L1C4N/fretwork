@@ -80,3 +80,82 @@ one. Then AUR, the AppImage and the Flathub manifest in the same week, since
 the bundling decisions are shared. Then OBS. And the KDE Invent conversation
 started alongside all of it, because it is the slowest and the highest
 leverage.
+
+---
+
+## What actually happened, 3 September 2026
+
+Written after doing it, and kept as a record of what each channel cost
+against what this page guessed.
+
+### 1. GitHub Releases, with an AppImage — **done**, as 0.4.1
+
+Guessed at two days. It took an afternoon, and almost none of that was the
+packaging: the AppImage was assembled in twenty minutes and then refused to
+work for three separate reasons, each of which had to be found by running it.
+
+**The tools fail quietly, and that is the whole difficulty.** An AppImage of
+a KDE program is not a list of libraries — `ldd` gets those right first time.
+It is a list of things loaded by name at runtime, which no scanner can see:
+
+- **`org.kde.desktop`**, the QtQuick Controls style Kirigami picks on a
+  desktop. Nothing imports it, so `qmlimportscanner` never finds it, and the
+  window does not open at all.
+- **`org.kde.sonnet`**, which that style imports for a spelling settings
+  object. Found only once the first was fixed.
+- **The Wayland client buffer integration.** Without it the program aborts on
+  a Wayland session with `Available client buffer integrations: QList()`,
+  while the same bundle offscreen or on X11 is perfectly happy. `linuxdeploy`
+  accepted `EXTRA_QT_PLUGINS` and ignored it silently, so the directory is
+  copied by hand.
+- **The SVG icon *engine*.** Breeze is SVG throughout, and the SVG *image
+  format* plugin is deployed automatically and is not the same thing. Without
+  the engine every icon draws as nothing.
+
+Two of those produced a working program that looked broken rather than a
+broken one, which is the failure mode a bundle specialises in. The build
+script therefore checks its own work before packaging: ten paths that must
+exist, each with a note saying what its absence looks like to a user.
+
+**It found two real bugs in the program**, both of which affect an ordinary
+installation and neither of which anybody had noticed:
+
+- Icons were blank on any desktop that is not Plasma, because these names are
+  Breeze's and Qt was left holding its default theme of `hicolor`. Reproduced
+  with `XDG_CURRENT_DESKTOP=GNOME`.
+- The soundfont search looked at four fixed paths under `/usr/share`, which
+  inside a bundle belongs to the host and not to us.
+
+That is the argument for packaging early rather than last: **a bundle is the
+first honest test of what a program assumes about the machine it is on.**
+
+**What it costs the user: glibc 2.43.** Measured rather than guessed, by
+reading the highest symbol version anything in the bundle asks for. It comes
+from Ubuntu's Qt and the libraries under it, not from this program, and it
+rules out every current long-term-support release. An AppImage built against
+a distribution's own Qt inherits that distribution's floor, and the only
+escape is building Qt too, which is a different project. **So the AppImage is
+for current distributions and the flatpak is the portable one** — which
+inverts this page's original assumption that the AppImage was the universal
+answer and Flathub the convenience.
+
+### 2. AUR — **written, not published**
+
+`packaging/aur` has the PKGBUILD and a `.SRCINFO`. Neither has been through
+`makepkg`, because there is no Arch machine here, and the AUR authenticates
+with an SSH key that only the maintainer has. It is ready to push and has not
+been pushed; the first `makepkg` on a real Arch box is the test it has not
+had.
+
+### 3. Flathub — **manifest written and built locally**
+
+`packaging/flatpak` builds against `org.kde.Platform` 6.11. FluidSynth and the
+lilv stack — lv2, zix, serd, sord, sratom, lilv — are not in the runtime and
+are built as modules. The soundfont is carried, installed under a data
+directory so that a better one in `~/.local/share` still wins. LV2 plugins
+arrive through `org.freedesktop.LinuxAudio.Plugins`, so whatever the user
+installs appears in the Add effect menu without this manifest naming any of
+it.
+
+Submission to Flathub is a pull request against their repository, from the
+maintainer's account, and has not been made.

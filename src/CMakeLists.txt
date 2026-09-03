@@ -83,9 +83,27 @@ if(PipeWire_FOUND)
     # is only on the author's machine is how a project stops compiling for
     # everybody else. Without it, MIDI arrives as raw bytes, which is what
     # those servers send.
-    include(CheckIncludeFileCXX)
+    # The call is compiled, not the header looked for. spa_ump_to_midi has
+    # had two signatures: an older one taking a buffer and its length, and the
+    # current one taking pointers to both so it can advance them through a
+    # packet at a time. Both come with this header, so a header that exists
+    # says nothing about which is behind it -- and the flatpak runtime, whose
+    # PipeWire is older than this machine's, failed to compile on exactly that
+    # difference after the header check had passed.
+    include(CheckCXXSourceCompiles)
     set(CMAKE_REQUIRED_INCLUDES ${PipeWire_INCLUDE_DIRS})
-    check_include_file_cxx("spa/control/ump-utils.h" FRETWORK_SPA_UMP)
+    check_cxx_source_compiles("
+        #include <spa/control/ump-utils.h>
+        #include <cstddef>
+        #include <cstdint>
+        int main()
+        {
+            const uint32_t *ump = nullptr;
+            size_t left = 0;
+            uint8_t bytes[32];
+            uint64_t state = 0;
+            return spa_ump_to_midi(&ump, &left, bytes, sizeof(bytes), &state);
+        }" FRETWORK_SPA_UMP)
     unset(CMAKE_REQUIRED_INCLUDES)
     if(FRETWORK_SPA_UMP)
         target_compile_definitions(fretworkcore PRIVATE FRETWORK_HAVE_UMP)

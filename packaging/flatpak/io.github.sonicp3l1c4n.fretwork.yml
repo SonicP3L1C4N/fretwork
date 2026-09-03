@@ -1,0 +1,168 @@
+# SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
+#
+# The flatpak, which is the portable answer the AppImage is not: it carries a
+# runtime rather than borrowing the host's, so it runs on a long-term-support
+# release as readily as on a rolling one.
+#
+# Three things this has to solve that an ordinary Qt application does not:
+#
+#   FluidSynth and lilv are not in the KDE runtime, so they are built here.
+#   lilv brings four small libraries of its own with it.
+#
+#   LV2 plugins live outside the sandbox. They arrive through the standard
+#   extension point that Ardour and Carla use, so whatever the user installs
+#   appears in the Add effect menu without this manifest naming any of it.
+#
+#   A soundfont, because a program that opens silently on a machine with no
+#   General MIDI bank is the worst first impression this project can make.
+#   FluidR3 is MIT, which is what makes carrying it allowed at all.
+
+id: io.github.sonicp3l1c4n.fretwork
+runtime: org.kde.Platform
+runtime-version: '6.11'
+sdk: org.kde.Sdk
+command: fretwork
+
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+
+  # Audio. The pulse socket is what a flatpak is normally given; the PipeWire
+  # one is what this program actually wants, because the per-track ports and
+  # the graph transport are PipeWire's and not PulseAudio's.
+  - --socket=pulseaudio
+  - --filesystem=xdg-run/pipewire-0
+
+  # MIDI keyboards and control surfaces are USB devices, and there is no
+  # narrower permission than this that reaches them.
+  - --device=all
+
+  # Scores, and the directories stems are written into.
+  - --filesystem=home
+
+  # Where the plugin extension is mounted, told to the host that loads them.
+  - --env=LV2_PATH=/app/extensions/Plugins/lv2
+
+add-extensions:
+  org.freedesktop.LinuxAudio.Plugins:
+    directory: extensions/Plugins
+    version: '25.08'
+    add-ld-path: lib
+    merge-dirs: lv2
+    subdirectories: true
+    no-autodownload: true
+    autodelete: false
+
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /share/man
+  - '*.a'
+  - '*.la'
+
+modules:
+  # ---- the synthesiser ----
+  - name: fluidsynth
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -Denable-framework=OFF
+      - -Denable-readline=OFF
+      - -Denable-jack=ON
+      - -Denable-pipewire=ON
+    sources:
+      - type: archive
+        url: https://github.com/FluidSynth/fluidsynth/archive/refs/tags/v2.4.6.tar.gz
+        sha256: a6be90fd4842b9e7246500597180af5cf213c11bfa3998a3236dd8ff47961ea8
+
+  # ---- the LV2 host, and the four libraries under it ----
+  - name: lv2
+    buildsystem: meson
+    sources:
+      - type: archive
+        url: https://lv2plug.in/spec/lv2-1.18.10.tar.xz
+        sha256: 78c51bcf21b54e58bb6329accbb4dae03b2ed79b520f9a01e734bd9de530953f
+
+  - name: zix
+    buildsystem: meson
+    config-opts:
+      - -Dbenchmarks=disabled
+      - -Dtests=disabled
+    sources:
+      - type: archive
+        url: https://download.drobilla.net/zix-0.6.2.tar.xz
+        sha256: 4bc771abf4fcf399ea969a1da6b375f0117784f8fd0e2db356a859f635f616a7
+
+  - name: serd
+    buildsystem: meson
+    config-opts:
+      - -Dtests=disabled
+      - -Dtools=disabled
+    sources:
+      - type: archive
+        url: https://download.drobilla.net/serd-0.32.4.tar.xz
+        sha256: cbefb569e8db686be8c69cb3866a9538c7cb055e8f24217dd6a4471effa7d349
+
+  - name: sord
+    buildsystem: meson
+    config-opts:
+      - -Dtests=disabled
+      - -Dtools=disabled
+    sources:
+      - type: archive
+        url: https://download.drobilla.net/sord-0.16.22.tar.xz
+        sha256: bb23b34b216579136795d518cffa73d91cf205594ce9accebfd408afb839173f
+
+  - name: sratom
+    buildsystem: meson
+    config-opts:
+      - -Dtests=disabled
+    sources:
+      - type: archive
+        url: https://download.drobilla.net/sratom-0.6.18.tar.xz
+        sha256: 4c6a6d9e0b4d6c01cc06a8849910feceb92e666cb38779c614dd2404a9931e92
+
+  - name: lilv
+    buildsystem: meson
+    config-opts:
+      - -Dtests=disabled
+      - -Dtools=disabled
+      - -Ddocs=disabled
+    sources:
+      - type: archive
+        url: https://download.drobilla.net/lilv-0.26.4.tar.xz
+        sha256: 1c8b5fcb78718173e67d76e51ad423f5113a9ff68463f2566195ae46396089e3
+
+  # ---- a bank to play through ----
+  #
+  # Installed where the program's own search looks: under a data directory, so
+  # that a user who puts a better one in ~/.local/share gets theirs instead.
+  - name: soundfont
+    buildsystem: simple
+    build-commands:
+      - install -Dm644 FluidR3_GM.sf2 /app/share/sounds/sf2/FluidR3_GM.sf2
+      - install -Dm644 COPYING /app/share/licenses/FluidR3_GM/COPYING
+    sources:
+      - type: archive
+        url: https://deb.debian.org/debian/pool/main/f/fluid-soundfont/fluid-soundfont_3.1.orig.tar.gz
+        sha256: 2621acaa1c78e4abdb24bdd163230cc577e61276936d6aa6e3180582142f0343
+
+  # ---- where the plugins will be mounted ----
+  - name: plugin-mount
+    buildsystem: simple
+    build-commands:
+      - mkdir -p /app/extensions/Plugins
+
+  # ---- the program ----
+  - name: fretwork
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_TESTING=OFF
+    sources:
+      - type: archive
+        url: https://github.com/SonicP3L1C4N/fretwork/archive/refs/tags/v0.4.1.tar.gz
+        sha256: c86ce7532f64362977a85663b801c524e9a275988754bd7a1fd117821efdbeb9

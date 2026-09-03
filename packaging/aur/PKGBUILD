@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: 2026 Gary Bissett <gary.bissett@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
+#
+# Maintainer: Gary Bissett <gary.bissett@gmail.com>
+
+pkgname=fretwork
+pkgver=0.4.1
+pkgrel=1
+pkgdesc='A tablature program that plays every track as its own stem'
+arch=('x86_64')
+url='https://github.com/SonicP3L1C4N/fretwork'
+license=('GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL')
+depends=(
+    'qt6-base'
+    'qt6-declarative'
+    'kirigami'
+    'karchive'
+    'kcoreaddons'
+    'ki18n'
+    'fluidsynth'
+    'zlib'
+    'lilv'
+    'pipewire'
+)
+makedepends=(
+    'cmake'
+    'ninja'
+    'extra-cmake-modules'
+    'gettext'
+    'rust'
+)
+optdepends=(
+    'soundfont-fluid: a General MIDI bank, without which there is no sound'
+    'guitarix: the amplifier simulations the per-track effect chains are for'
+    'breeze-icons: the icon set this program names its icons from'
+)
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('c86ce7532f64362977a85663b801c524e9a275988754bd7a1fd117821efdbeb9')
+
+build() {
+    cmake -B build -S "$pkgname-$pkgver" -G Ninja \
+        -DCMAKE_BUILD_TYPE=None \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DBUILD_TESTING=OFF \
+        -Wno-dev
+    cmake --build build
+}
+
+package() {
+    DESTDIR="$pkgdir" cmake --install build
+}
